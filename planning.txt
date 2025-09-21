@@ -1,0 +1,22 @@
+backtester/
+  settings.py          # merges defaults + config, exposes CONFIG dict
+  data.py              # adapters and caching
+  indicators.py        # registry and pure functions
+  signals.py           # combine indicator booleans per ENTRY_MODE/EXIT_MODE
+  risk.py              # stops, takes, max bars, cooldown
+  exec.py              # order router and fills
+  portfolio.py         # sizing and cash accounting
+  engine.py            # main loop
+  baselines.py         # buy-hold and benchmark
+  metrics.py           # returns, CAGR, vol, Sharpe, MDD
+  results.py           # DuckDB, CSV, figures
+  grid.py              # parameter sweep
+  cli.py               # simple runner
+  utils.py             # time, slippage, fees, validation
+  types.py             # TypedDicts for bars, orders, trades
+
+
+
+
+
+

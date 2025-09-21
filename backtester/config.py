@@ -1,0 +1,126 @@
+#======================== Backtester config ========================
+# Edit only these variables. Defaults fill anything missing.
+# Legend: # ✅ implemented · # ⚠️ limited/conditional · # ⏳ not used
+
+#=========================MAIN=========================
+RUN_ID = "auto"                         # ✅ name or "auto" for timestamp
+NOTES = ""                              # ⏳ freeform string per run
+TICKERS = ["SSO", "UPRO"]               # ✅ list of symbols
+PORTFOLIO_MODE = False                  # ⏳ True = cash shared, False = per-ticker
+PORTFOLIO_WEIGHTS = None                # ⏳ None = equal, else list of floats summing to 1.0
+INITIAL_CAPITAL = 100_000.0             # ✅
+START = "2020-01-01"                    # ✅
+END = "2025-09-01"                              # ✅ None = today
+TIMESCALE = "1Day"                      # ⚠️ "1Day","5Min","15Min" (daily-only now)
+BUY_HOLD_ENABLED = True                 # ✅ buy-hold baseline
+BENCHMARK_ENABLED = True                # ✅ benchmark baseline
+BENCHMARK_SYMBOL = "SPY"                # ✅ benchmark ticker
+RF_ANNUAL = 0.02                        # ✅ 2% annual
+PERIODS_PER_YEAR = 252                  # ✅ trading periods per year
+
+SEED = 42                               # ⏳
+#=========================Entry========================
+ENTRY_MODE = "ALL"             # ⏳ "ALL","ANY","EXPRESSION"- which signals to use
+TARGET_WEIGHT = 0.95           # ✅ 0.0–1.0 per trade (for portfolio mode, this is % of ticker's % weight)
+ORDER_TYPE = "MOO"             # ⚠️ "MOO","MOC","MKT","LMT" (MOO/MOC only)
+ENTRY_FEES_BPS = 10            # ✅ in bps
+SLIP_OPEN_BPS = 2              # ✅ entry slippage in bps
+ENTRY_DELAY_BARS = 0           # ⏳ wait N bars after signal before entry
+EXPIRE_AFTER_BARS = 0          # ⏳ 0 = signal never expires
+RECHECK_ON_DELAY = False       # ⏳ if delayed, revalidate signal at execution bar
+VICE_VERSA = True              # ⏳ take opposite on exit when opposite signal fires
+ALLOW_PARTIAL_FILLS = False    # ⚠️ allow partial sizing when capital is short (currently always partial-int sizing)
+
+#========================= Exit =========================
+EXIT_MODE = "ANY"              # ⏳ "ALL","ANY","EXPRESSION","NONE"
+EXIT_FEES_BPS = 10             # ✅ in bps
+SLIP_CLOSE_BPS = 2             # ⚠️ exit slippage in bps  ---no effect when order type MOO
+EXIT_DELAY_BARS = 0            # ⏳ wait N bars after signal before exit
+# Risk management
+STOP_ENABLED = True            # ⏳
+STOP_TYPE = "percent"          # ⏳ "percent","atr","absolute"
+STOP_VALUE = 0.05              # ⏳
+TAKE_ENABLED = True            # ⏳
+TAKE_TYPE = "percent"          # ⏳
+TAKE_VALUE = 0.10              # ⏳
+MAX_BARS_IN_TRADE = None       # ⏳ None = no limit
+COOLDOWN_BARS_AFTER_RISK = 0   # ⏳
+RISK_REENTRY = "none"          # ⏳ "none","immediate_if_opposite","wait_for_fresh_cross"
+
+#========================= Data =========================
+SOURCE = "yfinance"            # ✅ "yfinance","polygon" (yfinance only)
+TZ = "America/New_York"        # ⏳
+ADJUST = "split_and_div"       # ✅ "split_and_div","split_only","none"
+
+#========================= Indicators ====================
+# RSI grid (engine should sweep cartesian product if lists provided)
+RSI_ENABLED = True             # ✅
+RSI_PERIOD = [14, 15, 16]      # ✅
+RSI_BUY_BELOW = [30, 35, 40]   # ✅
+RSI_SELL_ABOVE = [70, 75, 80]  # ✅
+
+# Bollinger Bands
+BOLLINGER_BANDS_ENABLED = False  # ⏳
+BB_PERIOD = 20                    # ⏳
+BB_STD_DEV = 2.0                  # ⏳
+BB_BUY_SIDE = "lower"          # ⏳ "lower","upper","middle"
+BB_SELL_SIDE = "upper"         # ⏳ "lower","upper","middle"
+
+# EMA block
+EMA_BLOCK_ENABLED = False       # ⏳
+EMA_PRICE_CROSS = False         # ⏳
+EMA_PRICE_CROSS_SIDE = "up"    # ⏳ "up","down"
+EMA_PRICE_LEN = 21              # ⏳
+EMA_MA_CROSS = False            # ⏳
+EMA_MA_CROSS_SIDE = "up"       # ⏳ "up" means short crosses above long
+EMA_SHORT = 20                  # ⏳
+EMA_LONG = 40                   # ⏳
+EMA_DISTANCE_PCT = 0.0         # ⏳ min gap at signal bar
+
+# HMA block
+HMA_BLOCK_ENABLED = False       # ⏳
+HMA_PRICE_CROSS = False         # ⏳
+HMA_PRICE_CROSS_SIDE = "down"   # ⏳
+HMA_PRICE_LEN = 50              # ⏳
+HMA_MA_CROSS = False            # ⏳
+HMA_MA_CROSS_SIDE = "down"      # ⏳
+HMA_SHORT = 50                  # ⏳
+HMA_LONG = 100                  # ⏳
+HMA_DISTANCE_PCT = 0.01         # ⏳
+
+# Price to Moving Average
+PRICE_TO_MA_ENABLED = False     # ⏳
+PRICE_TO_MA_PERIOD = 21         # ⏳
+PRICE_TO_MA_BUY = "above"                  # ⏳ "above","below"
+PRICE_TO_MA_BUY_THRESHOLD = 0.015          # ⏳ 1.5%
+PRICE_TO_MA_SELL = "below"                 # ⏳ "above","below"
+PRICE_TO_MA_SELL_THRESHOLD = 0.015         # ⏳
+
+#========================= Outputs =========================
+RESULTS_DIR = "./results"                 # ⏳ root folder for all outputs
+CSV_DIR = "./results/csv"                 # ✅ path for metrics CSV when enabled
+SAVE_METRICS = True                      # ✅ write metrics CSV rows
+
+# Database
+SAVE_TO_DUCKDB = True                     # ⏳ append results to a DuckDB file
+RUNS_DB_PATH = "./results/runs.duckdb"    # ⏳ DuckDB database file path
+SAVE_TRADES = True                        # ⏳ persist per-fill trades
+SAVE_EQUITY = False                       # ⏳ persist equity curve per run
+SAVE_VIZ_DATA = False                     # ⏳ persist 3D viz table
+
+# Charts and reports
+MAKE_PRICE_TRADE_CHARTS = False           # ⏳ price with entry/exit markers
+MAKE_EQUITY_CHARTS = False                # ⏳ equity vs benchmark
+MAKE_DRAWDOWN_CHARTS = False              # ⏳ drawdown curve
+MAKE_TEARSHEETS = False                   # ⏳ full report with KPIs and plots
+TEARSHEETS_DIR = "./results/tearsheets"   # ⏳ where to save tearsheets
+
+# Print and selection
+PRINT_TOP_K = 3                           # ✅ number of rows to print per ticker
+CHART_TOP_K = 3                           # ⏳ charts per ticker when charts enabled
+TEARSHEET_TOP_K = 3                       # ⏳ tearsheets per ticker when tearsheets enabled
+
+# Metadata snapshots
+SAVE_CONFIG_SNAPSHOT = True               # ⏳ write a copy of this config under results
+SAVE_GIT_COMMIT = True                    # ⏳ record git commit hash if repo present
+SAVE_DATA_VERSION = True                  # ⏳ record data adapter + params used
