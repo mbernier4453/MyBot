@@ -3,13 +3,14 @@
 # Legend: # ✅ implemented · # ⚠️ limited/conditional · # ⏳ not used
 
 #=========================MAIN=========================
-RUN_ID = "auto"                         # ✅ name or "auto" for timestamp
+RUN_ID = "top_k_test2"                         # ✅ name or "auto" for timestamp
 NOTES = ""                              # ⏳ freeform string per run
-TICKERS = ["SSO", "UPRO"]               # ✅ list of symbols
+#TICKERS = ["UCC","UGE","DIG","UYG","RXL","UXI","UYM","URE","ROM","LTL","UPW", "SSO", "UPRO"]               # ✅ list of symbols
+TICKERS = ["UCC", "UGE"]               # ✅ list of symbols
 PORTFOLIO_MODE = False                  # ⏳ True = cash shared, False = per-ticker
 PORTFOLIO_WEIGHTS = None                # ⏳ None = equal, else list of floats summing to 1.0
 INITIAL_CAPITAL = 100_000.0             # ✅
-START = "2020-01-01"                    # ✅
+START = "2000-01-01"                    # ✅
 END = "2025-09-01"                              # ✅ None = today
 TIMESCALE = "1Day"                      # ⚠️ "1Day","5Min","15Min" (daily-only now)
 BUY_HOLD_ENABLED = True                 # ✅ buy-hold baseline
@@ -54,10 +55,10 @@ ADJUST = "split_and_div"       # ✅ "split_and_div","split_only","none"
 
 #========================= Indicators ====================
 # RSI grid (engine should sweep cartesian product if lists provided)
-RSI_ENABLED = True             # ✅
-RSI_PERIOD = [14, 15, 16]      # ✅
-RSI_BUY_BELOW = [30, 35, 40]   # ✅
-RSI_SELL_ABOVE = [70, 75, 80]  # ✅
+RSI_ENABLED = True                                          # ✅
+RSI_PERIOD = [12,13,14,15,16,17,18,19]                      # ✅
+RSI_BUY_BELOW = [5,10,15,20,25,30,35,40]              # ✅
+RSI_SELL_ABOVE = [60,65,70,75,80,85]            # ✅
 
 # Bollinger Bands
 BOLLINGER_BANDS_ENABLED = False  # ⏳
@@ -99,7 +100,7 @@ PRICE_TO_MA_SELL_THRESHOLD = 0.015         # ⏳
 #========================= Outputs =========================
 RESULTS_DIR = "./results"                 # ⏳ root folder for all outputs
 CSV_DIR = "./results/csv"                 # ✅ path for metrics CSV when enabled
-SAVE_METRICS = True                      # ✅ write metrics CSV rows
+SAVE_METRICS = True                       # ✅ write metrics CSV rows
 
 # Database
 SAVE_TO_DUCKDB = True                     # ⏳ append results to a DuckDB file
@@ -109,15 +110,16 @@ SAVE_EQUITY = False                       # ⏳ persist equity curve per run
 SAVE_VIZ_DATA = False                     # ⏳ persist 3D viz table
 
 # Charts and reports
-MAKE_PRICE_TRADE_CHARTS = False           # ⏳ price with entry/exit markers
-MAKE_EQUITY_CHARTS = False                # ⏳ equity vs benchmark
+MAKE_EQUITY_CHARTS = True                # ⏳ equity vs benchmark
 MAKE_DRAWDOWN_CHARTS = False              # ⏳ drawdown curve
-MAKE_TEARSHEETS = False                   # ⏳ full report with KPIs and plots
+MAKE_TEARSHEETS = True                   # ⏳ full report with KPIs and plots
+RUN_CAPM = True                           # ⏳ include CAPM analysis in tearsheet
 TEARSHEETS_DIR = "./results/tearsheets"   # ⏳ where to save tearsheets
 
 # Print and selection
+TOP_BY = ["total_return", "sharpe", "sortino", "vol", "cagr"]      # ✅ metrics to sort by for top-K printout(s) ["total_return", "sharpe", "sortino", "vol", "maxdd", "cagr", "trades_total"]
 PRINT_TOP_K = 3                           # ✅ number of rows to print per ticker
-CHART_TOP_K = 3                           # ⏳ charts per ticker when charts enabled
+CHART_TOP_K = 3                           # ✅ charts per ticker when charts enabled
 TEARSHEET_TOP_K = 3                       # ⏳ tearsheets per ticker when tearsheets enabled
 
 # Metadata snapshots

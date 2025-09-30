@@ -1,4 +1,3 @@
-# main.py
 from datetime import datetime
 from backtester.settings import get, resolve_run_id, CONFIG
 from backtester.data import load_bars
@@ -6,28 +5,19 @@ from backtester.engine import run_symbol
 from backtester.grid import rsi_param_grid
 from backtester.results import write_metrics_csv
 from backtester.benchmarks import load_benchmark, buy_hold_equity, equity_from_returns
-from backtester.metrics import kpis_from_equity
-
+from backtester.metrics import kpis_from_equity, summarize_comparisons, get_benchmark_equity, get_buyhold_equity
+from backtester.charts import equity_chart_html
+from backtester.tearsheet import simple_metric_tearsheet  # put near top once
+from backtester.tearsheet import per_strategy_tearsheet  # add near other imports
+import os
 
 def _bool(v, default=False):
+    """Convert config value to bool."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.lower() in ("true", "1", "yes", "on")
     return bool(v) if v is not None else default
-
-
-def _series_kpis(eq):
-    """
-    Wrap metrics.kpis_from_equity so callers don't need to know its internals.
-    Returns only the fields we write to CSV for bench/buy-hold.
-    """
-    k = kpis_from_equity(eq)
-    return {
-        "end_cap": k["end_cap"],
-        "total_return": k["total_return"],
-        "cagr": k["cagr"],
-        "sharpe": k["sharpe"],
-        "sortino": k["sortino"],
-        "maxdd": k["maxdd"],
-    }
-
 
 def main():
     run_id = resolve_run_id()
@@ -40,33 +30,18 @@ def main():
 
     init_cap = float(get("INITIAL_CAPITAL", 100_000.0))
     top_k = int(get("PRINT_TOP_K", 3))
+    chart_top_k = int(get("CHART_TOP_K", top_k))
     out_csv = None
 
-    # ---- Optional benchmark (load once) ----
-    bench_enabled = _bool(get("BENCHMARK_ENABLED"), False)
-    bench_symbol = get("BENCHMARK_SYMBOL", "SPY")
-    bench_df = None
-    bench_eq_full = None
-    bench_kpis_full = None
-    if bench_enabled:
-        bench_df = load_benchmark(
-            bench_symbol,
-            start=get("START"),
-            end=get("END"),
-            auto_adjust=(get("ADJUST") == "split_and_div"),
-        )
-        bench_ret = bench_df["Close"].pct_change()
-        bench_eq_full = equity_from_returns(bench_ret, init_cap)
-        bench_kpis_full = _series_kpis(bench_eq_full)
+    # Preload full benchmark series once (optional)
+    bench_eq_full = get_benchmark_equity()
 
     for sym in symbols:
         df = dfs[sym]
         recs = []
 
-        # ---- Optional buy & hold (compute once per ticker) ----
-        bh_enabled = _bool(get("BUY_HOLD_ENABLED"), False)
-        bh_eq_full = buy_hold_equity(df["Close"], init_cap) if bh_enabled else None
-        bh_kpis_full = _series_kpis(bh_eq_full) if bh_enabled else None
+        # Preload full buy-hold for symbol (optional)
+        bh_eq_full = get_buyhold_equity(df["Close"])
 
         for params in params_list:
             res = run_symbol(
@@ -76,50 +51,125 @@ def main():
                 rsi_sell_above=params["rsi_sell_above"],
             )
             m = res["metrics"]
-            eq = res["equity"]  # strategy equity series
+            strat_eq = res["equity"]
 
-            # Bars aligned = strategy bars (we’re not recomputing bench/bh per window)
-            bars_aligned = int(len(eq))
-
-            extras = {
-                "bars_aligned": bars_aligned,
-                # benchmark block (same per row; computed once)
-                "bench_end_cap": bench_kpis_full["end_cap"] if bench_kpis_full else None,
-                "bench_total_return": bench_kpis_full["total_return"] if bench_kpis_full else None,
-                "bench_cagr": bench_kpis_full["cagr"] if bench_kpis_full else None,
-                "bench_sharpe": bench_kpis_full["sharpe"] if bench_kpis_full else None,
-                "bench_sortino": bench_kpis_full["sortino"] if bench_kpis_full else None,
-                "bench_maxdd": bench_kpis_full["maxdd"] if bench_kpis_full else None,
-                # buy-hold block (same per row; computed once)
-                "buyhold_end_cap": bh_kpis_full["end_cap"] if bh_kpis_full else None,
-                "buyhold_total_return": bh_kpis_full["total_return"] if bh_kpis_full else None,
-                "buyhold_cagr": bh_kpis_full["cagr"] if bh_kpis_full else None,
-                "buyhold_sharpe": bh_kpis_full["sharpe"] if bh_kpis_full else None,
-                "buyhold_sortino": bh_kpis_full["sortino"] if bh_kpis_full else None,
-                "buyhold_maxdd": bh_kpis_full["maxdd"] if bh_kpis_full else None,
-            }
+            # Alignment extras (window-specific)
+            extras = summarize_comparisons(strat_eq, bench_eq_full, bh_eq_full)
 
             if _bool(get("SAVE_METRICS"), True):
                 out_csv = write_metrics_csv(
-                    run_id, sym, CONFIG, m, params, get("CSV_DIR", "./results/csv"), extras=extras
+                    run_id, sym, CONFIG, m, params,
+                    out_dir=get("CSV_DIR"),
+                    extras=extras
                 )
 
-            recs.append((m, params))
+            recs.append((m, params, strat_eq, res.get("events")))
 
-        # ---- Print Top-K by total return ----
-        recs.sort(key=lambda x: x[0]["total_return"], reverse=True)
-        print(f"{sym} — top {top_k} by total_return")
-        for m, p in recs[:top_k]:
-            print(
-                f"  p={p['rsi_period']} b={p['rsi_buy_below']} s={p['rsi_sell_above']} | "
-                f"TR={m['total_return']:.4f} Sharpe={m['sharpe']:.3f} "
-                f"Vol={m['vol']:.3f} MDD={m['maxdd']:.3f} "
-                f"E/X={m.get('trades_entry',0)}/{m.get('trades_exit',0)}"
-            )
+        top_by_list = list(get("TOP_BY", ["total_return"]))
+        min_trades = int(get("MIN_TRADES_FOR_TOPS", 1))
+
+        for key in top_by_list:
+            if not recs or key not in recs[0][0]:
+                continue
+            # Filter by min trades if available
+            base = [r for r in recs if r[0].get("trades_total", 0) >= min_trades] or recs
+            reverse = (key != "maxdd")
+
+            def _sort_key(row):
+                val = row[0].get(key)
+                # Put missing values at worst end
+                if val is None:
+                    return float("-inf") if reverse else float("inf")
+                return val
+
+            recs_sorted = sorted(base, key=_sort_key, reverse=reverse)
+
+            print(f"{sym} - top {top_k} by {key}")
+            for m, p, _, _ in recs_sorted[:top_k]:
+                param_str = f"p={p['rsi_period']} b={p['rsi_buy_below']} s={p['rsi_sell_above']}"
+                entry_exit = f"E/X={m.get('trades_entry', 0)}/{m.get('trades_exit', 0)}"
+                print(f"  {param_str} | TR={m.get('total_return', 0):.4f} Sharpe={m.get('sharpe', 0):.3f} "
+                      f"Sortino={m.get('sortino', 0):.3f} Vol={m.get('vol', 0):.3f} MDD={m.get('maxdd', 0):.3f} {entry_exit}")
+
+            # Tearsheet generation
+            if get("MAKE_TEARSHEETS", False):
+                ts_dir = str(get("TEARSHEET_DIR", "./results/tearsheets"))
+                ts_top_k = int(get("TEARSHEET_TOP_K", top_k))
+                os.makedirs(ts_dir, exist_ok=True)
+                for rank, (m, p, eq, events) in enumerate(recs_sorted[:ts_top_k], 1):
+                    # Build (or reuse) chart first
+                    chart_title = f"{sym} {key} rank {rank} | p={p['rsi_period']} b={p['rsi_buy_below']} s={p['rsi_sell_above']}"
+                    chart_path = equity_chart_html(
+                        sym,
+                        eq,
+                        buyhold=bh_eq_full if get("BUY_HOLD_ENABLED", False) else None,
+                        benchmark=bench_eq_full if get("BENCHMARK_ENABLED", False) else None,
+                        events=events,
+                        title=chart_title,
+                        out_path=os.path.join(get("CHART_DIR", "./charts"),
+                                          f"{run_id}_{sym}_{key}_rank{rank}.html")
+                    )
+                    path = per_strategy_tearsheet(
+                        symbol=sym,
+                        metric=key,
+                        rank=rank,
+                        metric_value=m.get(key),
+                        metrics_dict=m,
+                        params=p,
+                        equity=eq,
+                        run_id=run_id,
+                        out_dir=ts_dir,
+                        benchmark_equity=bench_eq_full if get("BENCHMARK_ENABLED", False) else None,
+                        buyhold_equity=bh_eq_full if get("BUY_HOLD_ENABLED", False) else None,
+                        chart_path=chart_path
+                    )
+                    print(f"Tearsheet ({key} rank {rank}) -> {path}")
+
+        # Per-symbol charts for top K of each metric
+        if _bool(get("MAKE_EQUITY_CHARTS"), False) and recs:
+            for key in top_by_list:
+                if not recs or key not in recs[0][0]:
+                    continue
+                    
+                # Get sorted results for this metric
+                base = [r for r in recs if r[0].get("trades_total", 0) >= min_trades] or recs
+                reverse = (key != "maxdd")
+                
+                def _sort_key(row):
+                    val = row[0].get(key)
+                    if val is None:
+                        return float("-inf") if reverse else float("inf")
+                    return val
+                
+                metric_sorted = sorted(base, key=_sort_key, reverse=reverse)
+                
+                # Create chart for top K of this metric
+                for rank in range(min(chart_top_k, len(metric_sorted))):
+                    m, p, eq, events = metric_sorted[rank]
+                    
+                    # Format parameters string
+                    param_str = f"p={p['rsi_period']} b={p['rsi_buy_below']} s={p['rsi_sell_above']}"
+                    
+                    # Create descriptive title
+                    metric_val = m.get(key, 'N/A')
+                    if isinstance(metric_val, float):
+                        metric_val = f"{metric_val:.3f}"
+                    
+                    title = f"{sym} Top #{rank+1} by {key.upper()} ({metric_val}) | {param_str}"
+                    
+                    chart_path = equity_chart_html(
+                        sym,
+                        eq,
+                        buyhold=bh_eq_full,
+                        benchmark=bench_eq_full,
+                        events=events,
+                        title=title,
+                        out_path=f"charts/{run_id}_{sym}_{key}_rank{rank+1}.html"
+                    )
+                    print(f"Chart: {key} #{rank+1} -> {chart_path}")
 
     if _bool(get("SAVE_METRICS"), True) and out_csv:
         print(f"Metrics saved -> {out_csv}")
-
 
 if __name__ == "__main__":
     main()

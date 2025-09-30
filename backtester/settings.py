@@ -56,7 +56,10 @@ DEFAULTS = {
 
     # Outputs
     "CSV_DIR": "./results/csv",
+    "TOP_BY": ["total_return"],
     "PRINT_TOP_K": 3,
+    "MIN_TRADES_FOR_TOPS": 1,
+
 
 }
 
