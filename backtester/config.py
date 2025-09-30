@@ -3,10 +3,33 @@
 # Legend: # ✅ implemented · # ⚠️ limited/conditional · # ⏳ not used
 
 #=========================MAIN=========================
-RUN_ID = "top_k_test2"                         # ✅ name or "auto" for timestamp
+RUN_ID = "Sector_Params14"                         # ✅ name or "auto" for timestamp
 NOTES = ""                              # ⏳ freeform string per run
 #TICKERS = ["UCC","UGE","DIG","UYG","RXL","UXI","UYM","URE","ROM","LTL","UPW", "SSO", "UPRO"]               # ✅ list of symbols
-TICKERS = ["SPY", "QQQ"]               # ✅ list of symbols
+TICKERS = [
+    "XLF",  # Financial Select Sector SPDR
+    "XLK",  # Technology Select Sector SPDR
+    "XLE",  # Energy Select Sector SPDR
+    "XLY",  # Consumer Discretionary Select Sector SPDR
+    "XLI",  # Industrial Select Sector SPDR
+    "XLV",  # Health Care Select Sector SPDR
+    "XLB",  # Materials Select Sector SPDR
+    "XLU",  # Utilities Select Sector SPDR
+    "XLRE", # Real Estate Select Sector SPDR
+    "XLC",  # Communication Services Select Sector SPDR
+    "UCC",  # ProShares Ultra Consumer Services (2x leveraged)
+    "UGE",  # ProShares Ultra Consumer Goods (2x leveraged)
+    "DIG",  # ProShares Ultra Oil & Gas (2x leveraged)
+    "UYG",  # ProShares Ultra Financials (2x leveraged)
+    "RXL",  # ProShares Ultra Health Care (2x leveraged)
+    "UXI",  # ProShares Ultra Industrials (2x leveraged)
+    "UYM",  # ProShares Ultra Basic Materials (2x leveraged)
+    "URE",  # ProShares Ultra Real Estate (2x leveraged)
+    "ROM",  # ProShares Ultra Technology (2x leveraged)
+    "LTL",  # ProShares Ultra Telecommunications (2x leveraged)
+    "UPW"   # ProShares Ultra Utilities (2x leveraged)
+]
+# ✅ list of symbols
 INITIAL_CAPITAL = 100_000.0             # ✅
 START = "2000-01-01"                    # ✅
 END = "2025-09-01"                              # ✅ None = today
@@ -89,10 +112,8 @@ ADJUST = "split_and_div"       # ✅ "split_and_div","split_only","none"
 RSI_ENABLED = True                                          # ✅
 RSI_PERIOD = [14]                      # ✅
 # RSI_PERIOD = [12,13,14,15,16,17,18,19]                      # ✅
-RSI_BUY_BELOW = [5,10,15,20,25,30,35,40]              # ✅
-# RSI_BUY_BELOW = [5,10,15,20,25,30,35,40]              # ✅
-RSI_SELL_ABOVE = [60,65,70,75,80,85]            # ✅
-# RSI_SELL_ABOVE = [60,65,70,75,80,85]            # ✅
+RSI_BUY_BELOW = [5,10,15,20,25,30,35,40,45]              # ✅
+RSI_SELL_ABOVE = [55,60,65,70,75,80,85,90,95]            # ✅
 
 # Bollinger Bands
 BOLLINGER_BANDS_ENABLED = False  # ⏳
@@ -153,7 +174,7 @@ TEARSHEETS_DIR = "./results/tearsheets"   # ✅ where to save tearsheets
 
 # Print and selection
 # TOP_BY = ["total_return", "sharpe", "sortino", "vol", "cagr"]      # ✅ metrics to sort by for top-K printout(s) ["total_return", "sharpe", "sortino", "vol", "maxdd", "cagr", "trades_total"]
-TOP_BY = ["sharpe"]      # ✅ metrics to sort by for top-K printout(s) ["total_return", "sharpe", "sortino", "vol", "maxdd", "cagr", "trades_total"]
+TOP_BY = ["total_return", "sharpe","sortino"]      # ✅ metrics to sort by for top-K printout(s) ["total_return", "sharpe", "sortino", "vol", "maxdd", "cagr", "trades_total"]
 TOP_K = 3                           # ✅ top K to print/tearsheet per metric
 PRINT_TOP_K = False                     # ✅ whether to print top-K summary
 # Metadata snapshots
