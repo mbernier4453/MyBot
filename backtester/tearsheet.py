@@ -548,3 +548,369 @@ table.cmp th {{font-weight:600;}}
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
     return path
+
+def portfolio_tearsheet(run_id: str,
+                        equity: "pd.Series",
+                        buyhold_equity: "pd.Series | None",
+                        benchmark_equity: "pd.Series | None",
+                        per_ticker_equity: "dict[str,pd.Series]",
+                        metrics: dict,
+                        weights: dict,
+                        trades: "list[dict]",
+                        out_dir: str,
+                        chart_enabled: bool = True) -> str:
+    import os, json as _json, numpy as _np
+    from .settings import get
+    from .metrics import kpis_from_equity
+    os.makedirs(out_dir, exist_ok=True)
+
+    make_charts_flag = bool(get("MAKE_CHARTS", True)) and chart_enabled
+    run_capm = bool(get("RUN_CAPM", False)) and benchmark_equity is not None
+    bench_enabled = benchmark_equity is not None and bool(get("BENCHMARK_ENABLED", False))
+    bh_enabled = buyhold_equity is not None and bool(get("BUY_HOLD_ENABLED", True))
+
+    def _fmt(v):
+        if v is None:
+            return "-"
+        if isinstance(v, (int,float)):
+            try: return f"{v:.4f}"
+            except: return str(v)
+        return str(v)
+
+    # ---- Metrics table (reuse same fields as per_strategy) ----
+    metric_fields = [
+        ("Total Return","total_return"),
+        ("CAGR","cagr"),
+        ("Sharpe","sharpe"),
+        ("Sortino","sortino"),
+        ("Vol","vol"),
+        ("Max DD","maxdd"),
+        ("Win Rate","win_rate"),
+        ("Net Win Rate","net_win_rate"),
+        ("Avg Trade PnL","avg_trade_pnl"),
+        ("Trades","trades_total"),
+    ]
+    metric_rows = "".join(f"<tr><td>{lbl}</td><td>{_fmt(metrics.get(k))}</td></tr>"
+                          for lbl,k in metric_fields)
+
+    # ---- Comparison table (Portfolio / Benchmark / Buy&Hold) ----
+    compare_table = ""
+    if bench_enabled or bh_enabled:
+        cols = [("Portfolio", equity)]
+        if bench_enabled: cols.append(("Benchmark", benchmark_equity))
+        if bh_enabled: cols.append(("Buy & Hold", buyhold_equity))
+        comp_map = [
+            ("Total Return","total_return"),
+            ("CAGR","cagr"),
+            ("Sharpe","sharpe"),
+            ("Sortino","sortino"),
+            ("Vol","vol"),
+            ("Max DD","maxdd"),
+        ]
+        klist = []
+        for lbl, ser in cols:
+            try: klist.append((lbl, kpis_from_equity(ser)))
+            except Exception: klist.append((lbl, {}))
+        header = "".join(f"<th>{lbl}</th>" for lbl,_ in klist)
+        body = []
+        for row_lbl, key in comp_map:
+            body.append("<tr><td>{}</td>{}</tr>".format(
+                row_lbl,
+                "".join(f"<td>{_fmt(k.get(key))}</td>" for _,k in klist)
+            ))
+        compare_table = f"""
+    <div class="box">
+      <h2>Comparison</h2>
+      <table class="cmp">
+        <thead><tr><th>Metric</th>{header}</tr></thead>
+        <tbody>{''.join(body)}</tbody>
+      </table>
+    </div>"""
+
+    # ---- CAPM ----
+    capm_block = ""
+    if run_capm:
+        try:
+            from .capm import calculate_capm_metrics
+            cols = [("Portfolio", equity), ("Benchmark", benchmark_equity)]
+            if bh_enabled: cols.append(("Buy & Hold", buyhold_equity))
+            rows_map = [
+                ("Alpha (ann)","alpha"),
+                ("Beta","beta"),
+                ("R²","r_squared"),
+                ("Tracking Err","tracking_error"),
+                ("Info Ratio","information_ratio"),
+            ]
+            results = []
+            for lbl, ser in cols:
+                if lbl == "Benchmark":
+                    results.append({"alpha":0,"beta":1,"r_squared":1,"tracking_error":0,"information_ratio":0})
+                else:
+                    try: results.append(calculate_capm_metrics(ser, benchmark_equity))
+                    except Exception: results.append({})
+            header = "".join(f"<th>{lbl}</th>" for lbl,_ in cols)
+            body_lines = []
+            for rl,key in rows_map:
+                body_lines.append("<tr><td>{}</td>{}</tr>".format(
+                    rl, "".join(f"<td>{_fmt(r.get(key))}</td>" for r in results)
+                ))
+            capm_block = f"""
+    <div class="box">
+      <h2>CAPM</h2>
+      <table class="cmp">
+        <thead><tr><th>Metric</th>{header}</tr></thead>
+        <tbody>{''.join(body_lines)}</tbody>
+      </table>
+    </div>"""
+        except Exception:
+            capm_block = ""
+
+    # ---- Per-ticker allocation table ----
+    final_port_val = float(equity.iloc[-1])
+    pt_rows = []
+    for t, ser in per_ticker_equity.items():
+        first_val = float(ser.iloc[0])
+        final_val = float(ser.iloc[-1])
+        tgt_w = weights.get(t, 0.0)
+        contrib = (final_val / final_port_val) if final_port_val else 0
+        ret = (final_val / first_val - 1) if first_val else 0
+        pt_rows.append(
+            f"<tr><td>{t}</td><td>{tgt_w:.2%}</td>"
+            f"<td>{final_val:,.2f}</td><td>{contrib:.2%}</td><td>{ret:.2%}</td></tr>"
+        )
+    per_ticker_table = f"""
+    <div class="box">
+      <h2>Per-Ticker</h2>
+      <table>
+        <thead><tr><th>Ticker</th><th>Target W</th><th>Final Value</th><th>Contribution</th><th>Return*</th></tr></thead>
+        <tbody>{''.join(pt_rows)}</tbody>
+      </table>
+      <div class="note">*Return based on series value change (not cost basis).</div>
+    </div>"""
+
+    # ---- Trades table ----
+    trade_rows = []
+    for tr in trades:
+        dt = tr.get("date")
+        if hasattr(dt, "isoformat"): dt = dt.isoformat()
+        trade_rows.append(
+            f"<tr><td>{dt}</td><td>{tr.get('ticker')}</td><td>{tr.get('side')}</td>"
+            f"<td>{tr.get('shares')}</td><td>{tr.get('price'):.4f}</td>"
+            f"<td>{tr.get('fees',0):.4f}</td><td>{_fmt(tr.get('pnl'))}</td></tr>"
+        )
+    trades_table = f"""
+    <div class="box">
+      <h2>Trades ({len(trades)})</h2>
+      <div class="trades-wrap">
+        <table class="trades">
+          <thead><tr><th>Date</th><th>Sym</th><th>Side</th><th>Qty</th><th>Price</th><th>Fees</th><th>PnL</th></tr></thead>
+          <tbody>{''.join(trade_rows)}</tbody>
+        </table>
+      </div>
+    </div>"""
+
+    # ---- Main Chart ----
+    chart_embed = ""
+    if make_charts_flag:
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=equity.index, y=equity.values, name="Portfolio",
+                                 mode="lines", line=dict(color="#0b6d2f", width=2)))
+        if bench_enabled:
+            fig.add_trace(go.Scatter(x=benchmark_equity.index, y=benchmark_equity.values, name="Benchmark",
+                                     mode="lines", line=dict(color="#888", width=1.5)))
+        if bh_enabled:
+            fig.add_trace(go.Scatter(x=buyhold_equity.index, y=buyhold_equity.values, name="Buy & Hold",
+                                     mode="lines", line=dict(color="#ffffff", width=1.2)))
+        fig.update_layout(
+            title="Portfolio Equity",
+            title_x=0.5,
+            template="plotly_dark",
+            hovermode="x unified",
+            legend=dict(orientation="h", y=-0.18, font=dict(size=10)),
+            margin=dict(l=55,r=20,t=55,b=60)
+        )
+        chart_embed = f"<div class='chart-frame'>{fig.to_html(include_plotlyjs='cdn', full_html=False)}</div>"
+
+    # ---- Subcharts (drawdown + vol-match) ----
+    subcharts_row_html = ""
+    if make_charts_flag:
+        subcharts = []
+        try:
+            def _dd_series(series):
+                a = series.astype(float).to_numpy()
+                if a.size == 0: return []
+                rm = _np.maximum.accumulate(a)
+                return (a / rm) - 1
+            dates = [d.isoformat() for d in equity.index]
+            dates_json = _json.dumps(dates)
+            dd_traces = []
+            dd_traces.append(f"""{{
+              "x":{dates_json},
+              "y":{_json.dumps([float(v) for v in _dd_series(equity)])},
+              "name":"Portfolio DD","mode":"lines",
+              "line":{{"width":1,"color":"rgba(0,0,0,0)"}},
+              "fill":"tozeroy","fillcolor":"rgba(11,109,47,0.45)",
+              "hovertemplate":"Date=%{{x}}<br>Portfolio DD=%{{y:.2%}}<extra></extra>"
+            }}""")
+            if bench_enabled:
+                bench_dd = _dd_series(benchmark_equity.reindex(equity.index).ffill())
+                dd_traces.append(f"""{{
+                  "x":{dates_json},
+                  "y":{_json.dumps([float(v) for v in bench_dd])},
+                  "name":"Benchmark DD","mode":"lines",
+                  "line":{{"width":1,"color":"#555"}},
+                  "fill":"tozeroy","fillcolor":"rgba(90,90,90,0.55)",
+                  "hovertemplate":"Date=%{{x}}<br>Benchmark DD=%{{y:.2%}}<extra></extra>"
+                }}""")
+            if bh_enabled:
+                bh_dd = _dd_series(buyhold_equity.reindex(equity.index).ffill())
+                dd_traces.append(f"""{{
+                  "x":{dates_json},
+                  "y":{_json.dumps([float(v) for v in bh_dd])},
+                  "name":"Buy & Hold DD","mode":"lines",
+                  "line":{{"width":1,"color":"#bbb"}},
+                  "fill":"tozeroy","fillcolor":"rgba(240,240,240,0.30)",
+                  "hovertemplate":"Date=%{{x}}<br>BH DD=%{{y:.2%}}<extra></extra>"
+                }}""")
+            dd_layout = _json.dumps({
+                "margin":{"l":45,"r":15,"t":25,"b":35},
+                "yaxis":{"tickformat":".0%","title":"Drawdown",
+                         "titlefont":{"color":"#eee"},"tickfont":{"color":"#eee"}},
+                "xaxis":{"showgrid":False,"tickfont":{"color":"#eee"}},
+                "hovermode":"x unified",
+                "legend":{"orientation":"h","y":-0.24,"font":{"color":"#eee","size":10}},
+                "paper_bgcolor":"#1c1c1c","plot_bgcolor":"#1c1c1c"
+            })
+            dd_script = f"Plotly.newPlot('dd_multi', [{','.join(dd_traces)}], {dd_layout}, {{responsive:true,displayModeBar:false}});"
+            subcharts.append(("dd_multi", dd_script, "Drawdown Overlay"))
+        except Exception:
+            pass
+
+        def _vol_match(label, other_series, dom_id):
+            try:
+                oth = other_series.reindex(equity.index).ffill()
+                rs = equity.pct_change().dropna()
+                ro = oth.pct_change().dropna()
+                common = rs.index.intersection(ro.index)
+                if len(common) < 10: return
+                rs = rs.loc[common]; ro = ro.loc[common]
+                if ro.std() == 0: return
+                scale = rs.std() / ro.std()
+                ro_scaled = ro * scale
+                base = float(equity.loc[common[0]])
+                strat_curve = (1+rs).cumprod()*base
+                other_curve = (1+ro_scaled).cumprod()*base
+                xj = _json.dumps([d.isoformat() for d in common])
+                ys = _json.dumps([float(v) for v in strat_curve])
+                yo = _json.dumps([float(v) for v in other_curve])
+                layout_vm = _json.dumps({
+                    "margin":{"l":50,"r":15,"t":25,"b":35},
+                    "hovermode":"x unified",
+                    "legend":{"orientation":"h","y":-0.24,"font":{"size":10,"color":"#eee"}},
+                    "paper_bgcolor":"#1c1c1c","plot_bgcolor":"#1c1c1c",
+                    "xaxis":{"tickfont":{"color":"#eee"}},
+                    "yaxis":{"tickfont":{"color":"#eee"}}
+                })
+                script = f"""
+Plotly.newPlot('{dom_id}', [
+  {{"x":{xj},"y":{ys},"type":"scatter","mode":"lines","name":"Portfolio",
+    "line":{{"color":"#0b6d2f","width":2}},
+    "hovertemplate":"Date=%{{x}}<br>Portfolio=%{{y:.2f}}<extra></extra>"}},
+  {{"x":{xj},"y":{yo},"type":"scatter","mode":"lines","name":"{label} (vol-matched)",
+    "line":{{"color":"#aaa","width":1.5}},
+    "hovertemplate":"Date=%{{x}}<br>{label} VM=%{{y:.2f}}<extra></extra>"}}
+], {layout_vm}, {{responsive:true,displayModeBar:false}});
+"""
+                subcharts.append((dom_id, script, f"Vol-Matched {label}"))
+            except Exception:
+                return
+
+        if bench_enabled: _vol_match("Benchmark", benchmark_equity, "vol_bench")
+        if bh_enabled: _vol_match("Buy & Hold", buyhold_equity, "vol_bh")
+
+        if subcharts:
+            boxes = []
+            scripts = []
+            for dom_id, script, ttl in subcharts:
+                boxes.append(f"""
+<div class="sub-chart">
+  <h3>{ttl}</h3>
+  <div id="{dom_id}" class="mini-chart"></div>
+</div>""")
+                scripts.append(script)
+            subcharts_row_html = f"""
+<div class="sub-charts-row">
+  {''.join(boxes)}
+</div>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+{''.join(scripts)}
+</script>
+"""
+
+    # ---- Right column ----
+    right_col = f"""
+  <div class="right-col">
+    {chart_embed}
+    {subcharts_row_html}
+  </div>""" if make_charts_flag else ""
+
+    # ---- Weights summary string ----
+    w_summary = ", ".join(f"{k}:{v:.0%}" for k,v in weights.items())
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Portfolio Tearsheet {run_id}</title>
+<style>
+body {{background:#111;color:#eee;font-family:Arial,sans-serif;margin:0;padding:1rem 1.25rem;}}
+h1 {{margin:0 0 .6rem;font-size:1.05rem;}}
+h2 {{margin:0 0 .4rem;font-size:.8rem;letter-spacing:.5px;font-weight:600;}}
+h3 {{margin:0 0 .35rem;font-size:.7rem;font-weight:600;letter-spacing:.5px;}}
+.meta span {{margin-right:1rem;font-size:.62rem;color:#bbb;display:inline-block;}}
+.layout-top {{display:flex;flex-wrap:nowrap;gap:1rem;align-items:flex-start;}}
+.left-col {{flex:0 0 360px;display:flex;flex-direction:column;gap:.9rem;}}
+.right-col {{flex:1 1 auto;min-width:460px;display:flex;flex-direction:column;gap:1rem;}}
+.chart-frame {{width:100%;height:500px;border:1px solid #222;border-radius:6px;background:#000;}}
+.box {{background:#1c1c1c;border:1px solid #222;padding:.6rem .7rem;border-radius:6px;box-sizing:border-box;overflow:hidden;}}
+table {{width:100%;border-collapse:collapse;font-size:.66rem;}}
+td,th {{padding:3px 5px;border-bottom:1px solid #2a2a2a;text-align:right;white-space:nowrap;}}
+td:first-child,th:first-child {{text-align:left;}}
+table.cmp th {{font-weight:600;}}
+.note {{font-size:.55rem;color:#777;margin-top:.35rem;}}
+.trades-wrap {{max-height:260px;overflow:auto;margin-top:.4rem;border:1px solid #222;border-radius:4px;}}
+.trades thead th {{position:sticky;top:0;background:#222;}}
+.sub-charts-row {{display:flex;gap:1rem;margin-top:1rem;}}
+.sub-chart {{flex:1 1 0;background:#1c1c1c;border:1px solid #222;padding:.55rem .6rem;border-radius:6px;box-sizing:border-box;overflow:hidden;min-width:0;}}
+.mini-chart {{height:260px;border:1px solid #222;border-radius:6px;background:#000;}}
+</style>
+</head>
+<body>
+<h1>Portfolio Tearsheet</h1>
+<div class="meta">
+  <span>Run: {run_id}</span>
+  <span>Weights: {w_summary}</span>
+  <span>Total Return: {_fmt(metrics.get('total_return'))}</span>
+  <span>Sharpe: {_fmt(metrics.get('sharpe'))}</span>
+</div>
+<div class="layout-top">
+  <div class="left-col">
+    <div class="box">
+      <h2>Portfolio Metrics</h2>
+      <table>{metric_rows}</table>
+    </div>
+    {compare_table}
+    {capm_block}
+    {per_ticker_table}
+    {trades_table}
+  </div>{right_col}
+</div>
+</body>
+</html>
+"""
+    path = os.path.join(out_dir, f"{run_id}_portfolio.html")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(html)
+    return path

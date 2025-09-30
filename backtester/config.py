@@ -6,9 +6,7 @@
 RUN_ID = "top_k_test2"                         # ✅ name or "auto" for timestamp
 NOTES = ""                              # ⏳ freeform string per run
 #TICKERS = ["UCC","UGE","DIG","UYG","RXL","UXI","UYM","URE","ROM","LTL","UPW", "SSO", "UPRO"]               # ✅ list of symbols
-TICKERS = ["UCC", "UGE"]               # ✅ list of symbols
-PORTFOLIO_MODE = False                  # ⏳ True = cash shared, False = per-ticker
-PORTFOLIO_WEIGHTS = None                # ⏳ None = equal, else list of floats summing to 1.0
+TICKERS = ["SPY", "QQQ"]               # ✅ list of symbols
 INITIAL_CAPITAL = 100_000.0             # ✅
 START = "2000-01-01"                    # ✅
 END = "2025-09-01"                              # ✅ None = today
@@ -18,6 +16,39 @@ BENCHMARK_ENABLED = True                # ✅ benchmark baseline
 BENCHMARK_SYMBOL = "SPY"                # ✅ benchmark ticker
 RF_ANNUAL = 0.02                        # ✅ 2% annual
 PERIODS_PER_YEAR = 252                  # ✅ trading periods per year
+
+#===========Portfolio Mode Config Example===============
+PORTFOLIO_MODE = False  # master toggle
+PORTFOLIO_WEIGHTS = {           # Fixed target weights (sum should be 1.0; if None -> equal weights auto)
+    "SPY": 0.60,
+    "QQQ": 0.40,
+}
+PORTFOLIO_TARGET_UTILIZATION = 0.95  # portion of capital to use (0.0–1.0)
+PORTFOLIO_USE_PARAM_GRID = False  # False => use PORTFOLIO_STRATEGIES, True => use PORTFOLIO_PARAM_GRID
+PORTFOLIO_STRATEGIES = {
+    "SPY": {
+        "rsi_period": 14,
+        "rsi_buy_below": 40,
+        "rsi_sell_above": 80,
+    },
+    "QQQ": {
+        "rsi_period": 19,
+        "rsi_buy_below": 35,
+        "rsi_sell_above": 75,
+    },
+}
+PORTFOLIO_PARAM_GRID = {
+    "SPY": [
+        {"rsi_period": 14, "rsi_buy_below": 40, "rsi_sell_above": 80},
+        {"rsi_period": 21, "rsi_buy_below": 35, "rsi_sell_above": 78},
+    ],
+    "QQQ": [
+        {"rsi_period": 10, "rsi_buy_below": 38, "rsi_sell_above": 82},
+        {"rsi_period": 16, "rsi_buy_below": 37, "rsi_sell_above": 79},
+    ],
+}
+
+
 
 SEED = 42                               # ⏳
 #=========================Entry========================

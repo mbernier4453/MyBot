@@ -9,7 +9,11 @@ from backtester.metrics import kpis_from_equity, summarize_comparisons, get_benc
 from backtester.charts import equity_chart_html
 from backtester.tearsheet import simple_metric_tearsheet  # put near top once
 from backtester.tearsheet import per_strategy_tearsheet  # add near other imports
+from backtester.portfolio_engine import simulate_portfolio
+from backtester.tearsheet import portfolio_tearsheet
+from backtester.data import get_data  # assuming this exists (data_adapter wrapper)
 import os
+import csv
 
 def _bool(v, default=False):
     """Convert config value to bool."""
@@ -21,6 +25,38 @@ def _bool(v, default=False):
 
 def main():
     run_id = resolve_run_id()
+
+    if get("PORTFOLIO_MODE", False) and not get("PORTFOLIO_USE_PARAM_GRID", False):
+        print(f"Portfolio Mode (strategies) | Run ID: {run_id}")
+        from backtester.portfolio_engine import simulate_portfolio
+        from backtester.data import get_data
+
+        def adapter(sym, start=None, end=None):
+            return get_data(sym, start=start, end=end)
+
+        result = simulate_portfolio(adapter)
+
+        if get("MAKE_TEARSHEETS", True):
+            from backtester.tearsheet import portfolio_tearsheet
+            ts_dir = get("TEARSHEETS_DIR", "./results/tearsheets")
+            weights = get("PORTFOLIO_WEIGHTS", None)
+            if not weights:
+                tlist = get("TICKERS", [])
+                weights = {t: 1/len(tlist) for t in tlist}
+            path = portfolio_tearsheet(
+                run_id=run_id,
+                equity=result.equity,
+                buyhold_equity=result.buyhold_equity if get("BUY_HOLD_ENABLED", True) else None,
+                benchmark_equity=result.benchmark_equity,
+                per_ticker_equity=result.per_ticker_equity,
+                metrics=result.metrics,
+                weights=weights,
+                trades=result.trades,  # <-- added
+                out_dir=get("TEARSHEETS_DIR", "./results/tearsheets"),
+                chart_enabled=bool(get("MAKE_CHARTS", True))
+            )
+            print(f"Portfolio tearsheet -> {path}")
+        return
 
     symbols = list(get("TICKERS"))
     dfs = load_bars(symbols)
@@ -175,6 +211,43 @@ def main():
 
     if _bool(get("SAVE_METRICS"), True) and out_csv:
         print(f"Metrics saved -> {out_csv}")
+
+    run_id = get("RUN_ID", "run")
+    if run_id == "auto":
+        import datetime as _dt
+        run_id = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    if get("PORTFOLIO_MODE", False) and not get("PORTFOLIO_USE_PARAM_GRID", False):
+        print(f"Portfolio Mode (strategies) | Run ID: {run_id}")
+        from backtester.portfolio_engine import simulate_portfolio
+        from backtester.data import get_data
+
+        def adapter(sym, start=None, end=None):
+            return get_data(sym, start=start, end=end)
+
+        result = simulate_portfolio(adapter)
+
+        if get("MAKE_TEARSHEETS", True):
+            from backtester.tearsheet import portfolio_tearsheet
+            ts_dir = get("TEARSHEETS_DIR", "./results/tearsheets")
+            weights = get("PORTFOLIO_WEIGHTS", None)
+            if not weights:
+                tlist = get("TICKERS", [])
+                weights = {t: 1/len(tlist) for t in tlist}
+            path = portfolio_tearsheet(
+                run_id=run_id,
+                equity=result.equity,
+                buyhold_equity=result.buyhold_equity if get("BUY_HOLD_ENABLED", True) else None,
+                benchmark_equity=result.benchmark_equity,
+                per_ticker_equity=result.per_ticker_equity,
+                metrics=result.metrics,
+                weights=weights,
+                trades=result.trades,  # <-- added
+                out_dir=get("TEARSHEETS_DIR", "./results/tearsheets"),
+                chart_enabled=bool(get("MAKE_CHARTS", True))
+            )
+            print(f"Portfolio tearsheet -> {path}")
+        return
 
 if __name__ == "__main__":
     main()
