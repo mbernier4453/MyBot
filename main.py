@@ -65,65 +65,70 @@ def main():
 
             recs.append((m, params, strat_eq, res.get("events")))
 
-        top_by_list = list(get("TOP_BY", ["total_return"]))
-        min_trades = int(get("MIN_TRADES_FOR_TOPS", 1))
+        top_by_list = get("TOP_BY", ["total_return"])
+        top_k = int(get("TOP_K", 3))
+        do_print = bool(get("PRINT_TOP_K", True))
+        make_charts = bool(get("MAKE_CHARTS", True))
+        make_tearsheets = bool(get("MAKE_TEARSHEETS", True))
 
-        for key in top_by_list:
-            if not recs or key not in recs[0][0]:
-                continue
-            # Filter by min trades if available
-            base = [r for r in recs if r[0].get("trades_total", 0) >= min_trades] or recs
-            reverse = (key != "maxdd")
+        # recs should be a list of tuples: (metrics_dict, params_dict, equity_series, events_list)
+        # Build per metric ranking
+        for metric_key in top_by_list:
+            # Filter out entries missing the metric
+            ranked = [r for r in recs if r[0].get(metric_key) is not None]
+            ranked.sort(key=lambda r: r[0].get(metric_key), reverse=True)
 
-            def _sort_key(row):
-                val = row[0].get(key)
-                # Put missing values at worst end
-                if val is None:
-                    return float("-inf") if reverse else float("inf")
-                return val
+            if do_print:
+                print(f"{sym} - top {top_k} by {metric_key}")
+                for (m, p, eq_series, events) in ranked[:top_k]:
+                    print(f"  p={p.get('rsi_period')} b={p.get('rsi_buy_below')} s={p.get('rsi_sell_above')} | "
+                          f"TR={m.get('total_return'):.4f} Sharpe={m.get('sharpe'):.3f} "
+                          f"Sortino={m.get('sortino'):.3f} Vol={m.get('vol'):.3f} "
+                          f"MDD={m.get('maxdd'):.3f} E/X={m.get('trades_entry')}/{m.get('trades_exit')}")
 
-            recs_sorted = sorted(base, key=_sort_key, reverse=reverse)
+            if not make_charts and not make_tearsheets:
+                continue  # nothing else to do
 
-            print(f"{sym} - top {top_k} by {key}")
-            for m, p, _, _ in recs_sorted[:top_k]:
-                param_str = f"p={p['rsi_period']} b={p['rsi_buy_below']} s={p['rsi_sell_above']}"
-                entry_exit = f"E/X={m.get('trades_entry', 0)}/{m.get('trades_exit', 0)}"
-                print(f"  {param_str} | TR={m.get('total_return', 0):.4f} Sharpe={m.get('sharpe', 0):.3f} "
-                      f"Sortino={m.get('sortino', 0):.3f} Vol={m.get('vol', 0):.3f} MDD={m.get('maxdd', 0):.3f} {entry_exit}")
+            # Preload benchmark / buy & hold series once (adjust names if different in your code)
+            bench_series = bench_eq_full if get("BENCHMARK_ENABLED", False) and 'bench_eq_full' in locals() else None
+            bh_series = bh_eq_full if get("BUY_HOLD_ENABLED", False) and 'bh_eq_full' in locals() else None
 
-            # Tearsheet generation
-            if get("MAKE_TEARSHEETS", False):
-                ts_dir = str(get("TEARSHEET_DIR", "./results/tearsheets"))
-                ts_top_k = int(get("TEARSHEET_TOP_K", top_k))
-                os.makedirs(ts_dir, exist_ok=True)
-                for rank, (m, p, eq, events) in enumerate(recs_sorted[:ts_top_k], 1):
-                    # Build (or reuse) chart first
-                    chart_title = f"{sym} {key} rank {rank} | p={p['rsi_period']} b={p['rsi_buy_below']} s={p['rsi_sell_above']}"
+            for rank, (m, p, eq_series, events) in enumerate(ranked[:top_k], start=1):
+                chart_path = None
+                if make_charts:
+                    # Save standalone equity chart (only when MAKE_CHARTS True)
+                    chart_title = (f"{sym} {metric_key} rank {rank} | "
+                                   f"p={p.get('rsi_period')} b={p.get('rsi_buy_below')} s={p.get('rsi_sell_above')}")
                     chart_path = equity_chart_html(
-                        sym,
-                        eq,
-                        buyhold=bh_eq_full if get("BUY_HOLD_ENABLED", False) else None,
-                        benchmark=bench_eq_full if get("BENCHMARK_ENABLED", False) else None,
+                        symbol=sym,
+                        equity=eq_series,
+                        buyhold=bh_series,
+                        benchmark=bench_series,
                         events=events,
                         title=chart_title,
-                        out_path=os.path.join(get("CHART_DIR", "./charts"),
-                                          f"{run_id}_{sym}_{key}_rank{rank}.html")
+                        out_path=os.path.join(get("CHART_PATH", "./results/charts"),
+                                              f"{run_id}_{sym}_{metric_key}_rank{rank}.html")
                     )
-                    path = per_strategy_tearsheet(
+
+                if make_tearsheets:
+                    ts_dir = get("TEARSHEETS_DIR", "./results/tearsheets")
+                    os.makedirs(ts_dir, exist_ok=True)
+                    ts_path = per_strategy_tearsheet(
                         symbol=sym,
-                        metric=key,
+                        metric=metric_key,
                         rank=rank,
-                        metric_value=m.get(key),
+                        metric_value=m.get(metric_key),
                         metrics_dict=m,
                         params=p,
-                        equity=eq,
+                        equity=eq_series,
                         run_id=run_id,
                         out_dir=ts_dir,
-                        benchmark_equity=bench_eq_full if get("BENCHMARK_ENABLED", False) else None,
-                        buyhold_equity=bh_eq_full if get("BUY_HOLD_ENABLED", False) else None,
-                        chart_path=chart_path
+                        benchmark_equity=bench_series,
+                        buyhold_equity=bh_series,
+                        chart_path=chart_path if make_charts else None
                     )
-                    print(f"Tearsheet ({key} rank {rank}) -> {path}")
+                    if do_print:
+                        print(f"  Tearsheet saved: {ts_path}")
 
         # Per-symbol charts for top K of each metric
         if _bool(get("MAKE_EQUITY_CHARTS"), False) and recs:

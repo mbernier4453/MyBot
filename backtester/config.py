@@ -56,9 +56,12 @@ ADJUST = "split_and_div"       # ✅ "split_and_div","split_only","none"
 #========================= Indicators ====================
 # RSI grid (engine should sweep cartesian product if lists provided)
 RSI_ENABLED = True                                          # ✅
-RSI_PERIOD = [12,13,14,15,16,17,18,19]                      # ✅
+RSI_PERIOD = [14]                      # ✅
+# RSI_PERIOD = [12,13,14,15,16,17,18,19]                      # ✅
 RSI_BUY_BELOW = [5,10,15,20,25,30,35,40]              # ✅
+# RSI_BUY_BELOW = [5,10,15,20,25,30,35,40]              # ✅
 RSI_SELL_ABOVE = [60,65,70,75,80,85]            # ✅
+# RSI_SELL_ABOVE = [60,65,70,75,80,85]            # ✅
 
 # Bollinger Bands
 BOLLINGER_BANDS_ENABLED = False  # ⏳
@@ -98,7 +101,7 @@ PRICE_TO_MA_SELL = "below"                 # ⏳ "above","below"
 PRICE_TO_MA_SELL_THRESHOLD = 0.015         # ⏳
 
 #========================= Outputs =========================
-RESULTS_DIR = "./results"                 # ⏳ root folder for all outputs
+
 CSV_DIR = "./results/csv"                 # ✅ path for metrics CSV when enabled
 SAVE_METRICS = True                       # ✅ write metrics CSV rows
 
@@ -110,18 +113,18 @@ SAVE_EQUITY = False                       # ⏳ persist equity curve per run
 SAVE_VIZ_DATA = False                     # ⏳ persist 3D viz table
 
 # Charts and reports
-MAKE_EQUITY_CHARTS = True                # ⏳ equity vs benchmark
-MAKE_DRAWDOWN_CHARTS = False              # ⏳ drawdown curve
-MAKE_TEARSHEETS = True                   # ⏳ full report with KPIs and plots
-RUN_CAPM = True                           # ⏳ include CAPM analysis in tearsheet
-TEARSHEETS_DIR = "./results/tearsheets"   # ⏳ where to save tearsheets
+MAKE_CHARTS = True                # ✅ toggle charts for tearsheets + main standalone
+CHART_PATH = "./results/charts"       # ✅ where to save main chart HTML
+
+MAKE_TEARSHEETS = True                   # ✅ full report with KPIs and plots
+RUN_CAPM = True                           # ✅ include CAPM analysis in tearsheet
+TEARSHEETS_DIR = "./results/tearsheets"   # ✅ where to save tearsheets
 
 # Print and selection
-TOP_BY = ["total_return", "sharpe", "sortino", "vol", "cagr"]      # ✅ metrics to sort by for top-K printout(s) ["total_return", "sharpe", "sortino", "vol", "maxdd", "cagr", "trades_total"]
-PRINT_TOP_K = 3                           # ✅ number of rows to print per ticker
-CHART_TOP_K = 3                           # ✅ charts per ticker when charts enabled
-TEARSHEET_TOP_K = 3                       # ⏳ tearsheets per ticker when tearsheets enabled
-
+# TOP_BY = ["total_return", "sharpe", "sortino", "vol", "cagr"]      # ✅ metrics to sort by for top-K printout(s) ["total_return", "sharpe", "sortino", "vol", "maxdd", "cagr", "trades_total"]
+TOP_BY = ["sharpe"]      # ✅ metrics to sort by for top-K printout(s) ["total_return", "sharpe", "sortino", "vol", "maxdd", "cagr", "trades_total"]
+TOP_K = 3                           # ✅ top K to print/tearsheet per metric
+PRINT_TOP_K = False                     # ✅ whether to print top-K summary
 # Metadata snapshots
 SAVE_CONFIG_SNAPSHOT = True               # ⏳ write a copy of this config under results
 SAVE_GIT_COMMIT = True                    # ⏳ record git commit hash if repo present
