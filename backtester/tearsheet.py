@@ -8,6 +8,33 @@ from .settings import get
 import json
 import numpy as np
 
+def _format_metric(value, metric_key: str = "") -> str:
+    """Format metric values for display in tearsheets.
+    
+    Percentages: 2 decimal places (e.g., 6.42%)
+    Regular numbers: 2 decimal places
+    CAPM metrics: 4 decimal places (alpha, beta, etc.)
+    """
+    if value is None or (isinstance(value, float) and (np.isnan(value) or np.isinf(value))):
+        return "N/A"
+    
+    if not isinstance(value, (int, float)):
+        return str(value)
+    
+    # CAPM metrics keep 4 decimals
+    capm_keys = ['alpha', 'beta', 'r_squared', 'correlation', 'tracking_error', 
+                 'information_ratio', 'treynor_ratio']
+    if any(key in metric_key.lower() for key in capm_keys):
+        return f"{value:.4f}"
+    
+    # Percentage metrics (convert to percentage and add %)
+    pct_keys = ['return', 'cagr', 'vol', 'maxdd', 'dd', 'drawdown', 'win_rate', 'net_win_rate']
+    if any(key in metric_key.lower() for key in pct_keys):
+        return f"{value * 100:.2f}%"
+    
+    # Ratios and regular numbers
+    return f"{value:.2f}"
+
 def _drawdown_series(equity):
     arr = equity.astype(float).to_numpy()
     run_max = np.maximum.accumulate(arr)
@@ -216,17 +243,6 @@ def per_strategy_tearsheet(symbol: str,
     bench_enabled = benchmark_equity is not None and bool(get("BENCHMARK_ENABLED", False))
     bh_enabled = buyhold_equity is not None and bool(get("BUY_HOLD_ENABLED", False))
 
-    # -------- Helpers --------
-    def _fmt(v):
-        if v is None:
-            return "-"
-        if isinstance(v, (int, float)):
-            try:
-                return f"{v:.4f}"
-            except Exception:
-                return str(v)
-        return str(v)
-
     pstr = f"p={params.get('rsi_period')} b={params.get('rsi_buy_below')} s={params.get('rsi_sell_above')}"
     # -------- Metrics table --------
     metric_fields = [
@@ -244,7 +260,7 @@ def per_strategy_tearsheet(symbol: str,
         ("Trades", "trades_total"),
     ]
     metric_rows = "".join(
-        f"<tr><td>{lbl}</td><td>{_fmt(metrics_dict.get(key))}</td></tr>"
+        f"<tr><td>{lbl}</td><td>{_format_metric(metrics_dict.get(key), key)}</td></tr>"
         for lbl, key in metric_fields
     )
 
@@ -276,7 +292,7 @@ def per_strategy_tearsheet(symbol: str,
                 body.append(
                     "<tr><td>{}</td>{}</tr>".format(
                         row_lbl,
-                        "".join(f"<td>{_fmt(k.get(key))}</td>" for _, k in klist)
+                        "".join(f"<td>{_format_metric(k.get(key), key)}</td>" for _, k in klist)
                     )
                 )
             compare_table = f"""
@@ -324,7 +340,7 @@ def per_strategy_tearsheet(symbol: str,
                 body_lines.append(
                     "<tr><td>{}</td>{}</tr>".format(
                         row_lbl,
-                        "".join(f"<td>{_fmt(r.get(key))}</td>" for r in results)
+                        "".join(f"<td>{_format_metric(r.get(key), key)}</td>" for r in results)
                     )
                 )
             capm_block = f"""
@@ -490,7 +506,7 @@ Plotly.newPlot('{dom_id}', [
 """
 
     # -------- Final values & HTML --------
-    metric_val_fmt = _fmt(metric_value)
+    metric_val_fmt = _format_metric(metric_value, metric)
     right_col = f"""
   <div class="right-col">
     {chart_embed}
@@ -569,14 +585,6 @@ def portfolio_tearsheet(run_id: str,
     bench_enabled = benchmark_equity is not None and bool(get("BENCHMARK_ENABLED", False))
     bh_enabled = buyhold_equity is not None and bool(get("BUY_HOLD_ENABLED", True))
 
-    def _fmt(v):
-        if v is None:
-            return "-"
-        if isinstance(v, (int,float)):
-            try: return f"{v:.4f}"
-            except: return str(v)
-        return str(v)
-
     # ---- Metrics table (reuse same fields as per_strategy) ----
     metric_fields = [
         ("Total Return","total_return"),
@@ -590,7 +598,7 @@ def portfolio_tearsheet(run_id: str,
         ("Avg Trade PnL","avg_trade_pnl"),
         ("Trades","trades_total"),
     ]
-    metric_rows = "".join(f"<tr><td>{lbl}</td><td>{_fmt(metrics.get(k))}</td></tr>"
+    metric_rows = "".join(f"<tr><td>{lbl}</td><td>{_format_metric(metrics.get(k), k)}</td></tr>"
                           for lbl,k in metric_fields)
 
     # ---- Comparison table (Portfolio / Benchmark / Buy&Hold) ----
@@ -616,7 +624,7 @@ def portfolio_tearsheet(run_id: str,
         for row_lbl, key in comp_map:
             body.append("<tr><td>{}</td>{}</tr>".format(
                 row_lbl,
-                "".join(f"<td>{_fmt(k.get(key))}</td>" for _,k in klist)
+                "".join(f"<td>{_format_metric(k.get(key), key)}</td>" for _,k in klist)
             ))
         compare_table = f"""
     <div class="box">
@@ -652,7 +660,7 @@ def portfolio_tearsheet(run_id: str,
             body_lines = []
             for rl,key in rows_map:
                 body_lines.append("<tr><td>{}</td>{}</tr>".format(
-                    rl, "".join(f"<td>{_fmt(r.get(key))}</td>" for r in results)
+                    rl, "".join(f"<td>{_format_metric(r.get(key), key)}</td>" for r in results)
                 ))
             capm_block = f"""
     <div class="box">
@@ -693,10 +701,12 @@ def portfolio_tearsheet(run_id: str,
     for tr in trades:
         dt = tr.get("date")
         if hasattr(dt, "isoformat"): dt = dt.isoformat()
+        pnl = tr.get('pnl')
+        pnl_str = f"${pnl:.2f}" if pnl is not None else "N/A"
         trade_rows.append(
             f"<tr><td>{dt}</td><td>{tr.get('ticker')}</td><td>{tr.get('side')}</td>"
-            f"<td>{tr.get('shares')}</td><td>{tr.get('price'):.4f}</td>"
-            f"<td>{tr.get('fees',0):.4f}</td><td>{_fmt(tr.get('pnl'))}</td></tr>"
+            f"<td>{tr.get('shares')}</td><td>${tr.get('price'):.2f}</td>"
+            f"<td>${tr.get('fees',0):.2f}</td><td>{pnl_str}</td></tr>"
         )
     trades_table = f"""
     <div class="box">
@@ -892,8 +902,8 @@ table.cmp th {{font-weight:600;}}
 <div class="meta">
   <span>Run: {run_id}</span>
   <span>Weights: {w_summary}</span>
-  <span>Total Return: {_fmt(metrics.get('total_return'))}</span>
-  <span>Sharpe: {_fmt(metrics.get('sharpe'))}</span>
+  <span>Total Return: {_format_metric(metrics.get('total_return'), 'total_return')}</span>
+  <span>Sharpe: {_format_metric(metrics.get('sharpe'), 'sharpe')}</span>
 </div>
 <div class="layout-top">
   <div class="left-col">

@@ -45,6 +45,46 @@ class PortfolioResult:
         self.benchmark_equity = benchmark_equity
         self.per_ticker_positions = per_ticker_positions
         self.metrics = kpis_from_equity(equity)
+        
+        # Add trade-specific metrics
+        self._add_trade_metrics()
+    
+    def _add_trade_metrics(self):
+        """Calculate trade-specific metrics from trades list."""
+        if not self.trades:
+            self.metrics['trades_total'] = 0
+            self.metrics['trades_entry'] = 0
+            self.metrics['trades_exit'] = 0
+            self.metrics['win_rate'] = 0.0
+            self.metrics['net_win_rate'] = 0.0
+            self.metrics['avg_trade_pnl'] = 0.0
+            return
+        
+        # Count trades
+        entry_trades = [t for t in self.trades if t['side'] == 'buy']
+        exit_trades = [t for t in self.trades if t['side'] == 'sell']
+        
+        self.metrics['trades_total'] = len(self.trades)
+        self.metrics['trades_entry'] = len(entry_trades)
+        self.metrics['trades_exit'] = len(exit_trades)
+        
+        # Calculate win rate and avg P&L from exit trades (which have pnl field)
+        if exit_trades:
+            pnls = [t.get('pnl', 0) for t in exit_trades]
+            wins = [pnl for pnl in pnls if pnl > 0]
+            
+            self.metrics['win_rate'] = len(wins) / len(exit_trades) if exit_trades else 0.0
+            
+            # Net win rate: (wins - losses) / total_trades
+            losses = [pnl for pnl in pnls if pnl < 0]
+            self.metrics['net_win_rate'] = (len(wins) - len(losses)) / len(exit_trades) if exit_trades else 0.0
+            
+            # Average trade P&L
+            self.metrics['avg_trade_pnl'] = sum(pnls) / len(pnls) if pnls else 0.0
+        else:
+            self.metrics['win_rate'] = 0.0
+            self.metrics['net_win_rate'] = 0.0
+            self.metrics['avg_trade_pnl'] = 0.0
 
 
 def _load_price_series(symbol, data_adapter, start, end):
