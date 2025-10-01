@@ -113,7 +113,11 @@ ipcMain.handle('get-runs', async () => {
 });
 
 ipcMain.handle('get-strategies', async (event, runId) => {
-  if (!db) return { success: false, error: 'No database connected' };
+  console.log('[BACKEND] get-strategies called for runId:', runId);
+  if (!db) {
+    console.error('[BACKEND] No database connected');
+    return { success: false, error: 'No database connected' };
+  }
   
   try {
     const stmt = db.prepare(`
@@ -143,14 +147,36 @@ ipcMain.handle('get-strategies', async (event, runId) => {
     const strategies = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();
-      row.params = JSON.parse(row.params_json || '{}');
-      row.metrics = JSON.parse(row.metrics_json || '{}');
+      
+      // Handle JSON parsing with NaN values
+      try {
+        // Replace NaN with null before parsing
+        const paramsJson = (row.params_json || '{}').replace(/:\s*NaN/g, ': null');
+        const metricsJson = (row.metrics_json || '{}').replace(/:\s*NaN/g, ': null');
+        
+        row.params = JSON.parse(paramsJson);
+        row.metrics = JSON.parse(metricsJson);
+      } catch (parseError) {
+        console.warn('[BACKEND] JSON parse error for strategy:', parseError);
+        row.params = {};
+        row.metrics = {};
+      }
+      
+      // Ensure numeric fields are valid (convert NaN to null for display)
+      ['total_return', 'cagr', 'sharpe', 'sortino', 'vol', 'maxdd', 'win_rate', 'net_win_rate', 'avg_trade_pnl'].forEach(field => {
+        if (row[field] !== row[field]) { // Check for NaN
+          row[field] = null;
+        }
+      });
+      
       strategies.push(row);
     }
     stmt.free();
     
+    console.log(`[BACKEND] Loaded ${strategies.length} strategies for runId:`, runId);
     return { success: true, data: strategies };
   } catch (error) {
+    console.error('[BACKEND] Error loading strategies:', error);
     return { success: false, error: error.message };
   }
 });
@@ -202,7 +228,22 @@ ipcMain.handle('get-portfolio', async (event, runId) => {
     }
     wStmt.free();
     
-    portfolio.metrics = JSON.parse(portfolio.metrics_json || '{}');
+    // Handle JSON parsing with NaN values
+    try {
+      const metricsJson = (portfolio.metrics_json || '{}').replace(/:\s*NaN/g, ': null');
+      portfolio.metrics = JSON.parse(metricsJson);
+    } catch (parseError) {
+      console.warn('[BACKEND] JSON parse error for portfolio:', parseError);
+      portfolio.metrics = {};
+    }
+    
+    // Ensure numeric fields are valid
+    ['total_return', 'cagr', 'sharpe', 'sortino', 'vol', 'maxdd', 'win_rate', 'net_win_rate', 'avg_trade_pnl'].forEach(field => {
+      if (portfolio[field] !== portfolio[field]) { // Check for NaN
+        portfolio[field] = null;
+      }
+    });
+    
     portfolio.weights = weights;
     
     return { success: true, data: portfolio };

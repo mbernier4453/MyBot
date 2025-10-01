@@ -39,6 +39,7 @@ compareBtn?.addEventListener('click', compareRuns);
 tabs.forEach(tab => {
   tab.addEventListener('click', () => {
     const targetTab = tab.dataset.tab;
+    console.log('Tab clicked:', targetTab, 'Current run:', currentRun);
     
     tabs.forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
@@ -49,12 +50,15 @@ tabs.forEach(tab => {
     // Load data for specific tabs
     if (currentRun) {
       if (targetTab === 'strategies') {
+        console.log('Loading strategies for tab switch');
         loadStrategies(currentRun.run_id);
       } else if (targetTab === 'portfolio') {
         loadPortfolio(currentRun.run_id);
       } else if (targetTab === 'trades') {
         loadTrades(currentRun.run_id);
       }
+    } else {
+      console.warn('No current run selected');
     }
   });
 });
@@ -96,9 +100,19 @@ function displayRuns(runs) {
   
   runsList.innerHTML = runs.map(run => {
     const startDate = new Date(run.started_at * 1000).toLocaleString();
-    const duration = run.completed_at 
-      ? ((run.completed_at - run.started_at) / 60).toFixed(1) + ' min'
-      : 'Running...';
+    
+    // Calculate duration properly
+    let duration = 'Running...';
+    if (run.completed_at && run.started_at) {
+      const durationSeconds = run.completed_at - run.started_at;
+      if (durationSeconds >= 60) {
+        duration = (durationSeconds / 60).toFixed(1) + ' min';
+      } else if (durationSeconds > 0) {
+        duration = durationSeconds.toFixed(1) + ' sec';
+      } else {
+        duration = '< 1 sec';
+      }
+    }
     
     return `
       <div class="run-item" data-run-id="${run.run_id}">
@@ -228,24 +242,55 @@ async function loadRunDetails(run) {
       `;
     }
   } else {
+    console.log('Loading strategies for single mode run:', run.run_id);
     const result = await window.electronAPI.getStrategies(run.run_id);
+    console.log('Strategies result in overview:', result);
+    
     if (result.success && result.data.length > 0) {
       const strategies = result.data;
-      const avgReturn = strategies.reduce((sum, s) => sum + (s.total_return || 0), 0) / strategies.length;
-      const avgSharpe = strategies.reduce((sum, s) => sum + (s.sharpe || 0), 0) / strategies.length;
-      const maxReturn = Math.max(...strategies.map(s => s.total_return || 0));
-      const worstDrawdown = Math.min(...strategies.map(s => s.maxdd || 0));
+      // Store for later use in strategies tab
+      currentStrategies = strategies;
+      console.log(`Loaded ${strategies.length} strategies into currentStrategies`);
+      
+      // Filter out null/NaN values for calculations
+      const validReturns = strategies.filter(s => s.total_return !== null && !isNaN(s.total_return));
+      const validSharpes = strategies.filter(s => s.sharpe !== null && !isNaN(s.sharpe) && isFinite(s.sharpe));
+      const validDrawdowns = strategies.filter(s => s.maxdd !== null && !isNaN(s.maxdd));
+      
+      const avgReturn = validReturns.length > 0 
+        ? validReturns.reduce((sum, s) => sum + s.total_return, 0) / validReturns.length 
+        : 0;
+      
+      // Calculate MEDIAN Sharpe (sort and take middle value)
+      const medianSharpe = validSharpes.length > 0
+        ? (() => {
+            const sorted = validSharpes.map(s => s.sharpe).sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+          })()
+        : 0;
+      
+      const maxReturn = validReturns.length > 0
+        ? Math.max(...validReturns.map(s => s.total_return))
+        : 0;
+      
+      // Worst drawdown = MAX (most negative, closest to -100%)
+      const worstDrawdown = validDrawdowns.length > 0
+        ? Math.max(...validDrawdowns.map(s => Math.abs(s.maxdd))) * -1
+        : 0;
       
       overviewHtml += `
         <div class="metrics-grid">
           ${createMetricCard('Strategies', strategies.length)}
           ${createMetricCard('Avg Return', formatPercent(avgReturn), avgReturn >= 0)}
           ${createMetricCard('Best Return', formatPercent(maxReturn), maxReturn >= 0)}
-          ${createMetricCard('Avg Sharpe', formatNumber(avgSharpe, 2), avgSharpe >= 0)}
+          ${createMetricCard('Median Sharpe', formatNumber(medianSharpe, 2), medianSharpe >= 0)}
           ${createMetricCard('Worst Drawdown', formatPercent(worstDrawdown), false)}
           ${createMetricCard('Unique Tickers', new Set(strategies.map(s => s.ticker)).size)}
         </div>
       `;
+    } else {
+      console.warn('No strategies found or error:', result);
     }
   }
   
@@ -257,14 +302,19 @@ async function loadRunDetails(run) {
 
 // Load Strategies
 async function loadStrategies(runId) {
+  console.log('loadStrategies called for runId:', runId);
   setStatus('Loading strategies...');
   const result = await window.electronAPI.getStrategies(runId);
   
+  console.log('getStrategies result:', result);
+  
   if (result.success) {
     currentStrategies = result.data;
+    console.log(`Loaded ${currentStrategies.length} strategies`);
     displayStrategies(currentStrategies);
     setStatus(`Loaded ${currentStrategies.length} strategies`);
   } else {
+    console.error('Error loading strategies:', result.error);
     document.getElementById('strategiesContent').innerHTML = 
       '<div class="empty-state"><p>No strategies found</p></div>';
     setStatus(`Error: ${result.error}`, true);
@@ -551,12 +601,12 @@ function createInfoRow(label, value) {
 }
 
 function formatPercent(value, decimals = 2) {
-  if (value === null || value === undefined) return 'N/A';
+  if (value === null || value === undefined || isNaN(value)) return 'N/A';
   return (value * 100).toFixed(decimals) + '%';
 }
 
 function formatNumber(value, decimals = 2) {
-  if (value === null || value === undefined) return 'N/A';
+  if (value === null || value === undefined || isNaN(value)) return 'N/A';
   return Number(value).toFixed(decimals);
 }
 
