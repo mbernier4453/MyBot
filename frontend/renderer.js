@@ -5,6 +5,7 @@ let allRuns = [];
 let selectedRuns = new Set();
 let currentStrategies = [];
 let currentTrades = [];
+let buyHoldMetrics = {};
 
 // DOM Elements
 const selectDbBtn = document.getElementById('selectDbBtn');
@@ -305,11 +306,16 @@ async function loadStrategies(runId) {
   console.log('loadStrategies called for runId:', runId);
   setStatus('Loading strategies...');
   const result = await window.electronAPI.getStrategies(runId);
+  const bhResult = await window.electronAPI.getBuyHoldMetrics(runId);
   
   console.log('getStrategies result:', result);
+  console.log('getBuyHoldMetrics result:', bhResult);
   
   if (result.success) {
     currentStrategies = result.data;
+    if (bhResult.success) {
+      buyHoldMetrics = bhResult.data;
+    }
     console.log(`Loaded ${currentStrategies.length} strategies`);
     displayStrategies(currentStrategies);
     setStatus(`Loaded ${currentStrategies.length} strategies`);
@@ -328,7 +334,25 @@ function displayStrategies(strategies) {
     return;
   }
   
+  const hasBuyHoldData = Object.keys(buyHoldMetrics).length > 0;
+  
+  // Helper function to get comparison class for a metric
+  function getComparisonClass(stratValue, bhValue, higherIsBetter = true) {
+    if (!hasBuyHoldData || stratValue === null || stratValue === undefined || bhValue === null || bhValue === undefined) {
+      return ''; // No comparison possible
+    }
+    
+    const isBetter = higherIsBetter ? stratValue > bhValue : stratValue < bhValue;
+    return isBetter ? 'positive-value' : 'negative-value';
+  }
+  
+  const noticeHtml = !hasBuyHoldData ? 
+    `<div style="background: var(--bg-secondary); padding: 12px; margin-bottom: 12px; border-radius: 4px; border-left: 3px solid var(--warning-color, #FFA500);">
+      <strong>Note:</strong> Buy & hold comparison data not available. Re-run your backtest with the updated code to enable color-coded performance comparison.
+    </div>` : '';
+  
   const html = `
+    ${noticeHtml}
     <table class="data-table">
       <thead>
         <tr>
@@ -345,26 +369,37 @@ function displayStrategies(strategies) {
         </tr>
       </thead>
       <tbody>
-        ${strategies.map(s => `
+        ${strategies.map(s => {
+          const bh = buyHoldMetrics[s.ticker] || {};
+          return `
           <tr>
             <td class="ticker-cell">${s.ticker}</td>
-            <td class="${s.total_return >= 0 ? 'positive-value' : 'negative-value'}">
+            <td class="${getComparisonClass(s.total_return, bh.total_return, true)}">
               ${formatPercent(s.total_return)}
             </td>
-            <td class="${s.cagr >= 0 ? 'positive-value' : 'negative-value'}">
+            <td class="${getComparisonClass(s.cagr, bh.cagr, true)}">
               ${formatPercent(s.cagr)}
             </td>
-            <td>${formatNumber(s.sharpe, 2)}</td>
-            <td>${formatNumber(s.sortino, 2)}</td>
-            <td>${formatPercent(s.vol)}</td>
-            <td class="negative-value">${formatPercent(s.maxdd)}</td>
+            <td class="${getComparisonClass(s.sharpe, bh.sharpe, true)}">
+              ${formatNumber(s.sharpe, 2)}
+            </td>
+            <td class="${getComparisonClass(s.sortino, bh.sortino, true)}">
+              ${formatNumber(s.sortino, 2)}
+            </td>
+            <td class="${getComparisonClass(s.vol, bh.vol, false)}">
+              ${formatPercent(s.vol)}
+            </td>
+            <td class="${getComparisonClass(s.maxdd, bh.maxdd, false)}">
+              ${formatPercent(s.maxdd)}
+            </td>
             <td>${formatPercent(s.win_rate)}</td>
             <td>${s.trades_total || 0}</td>
             <td style="font-size: 11px; color: var(--text-secondary);">
               ${Object.entries(s.params || {}).map(([k, v]) => `${k}:${v}`).join(', ')}
             </td>
           </tr>
-        `).join('')}
+        `;
+        }).join('')}
       </tbody>
     </table>
   `;

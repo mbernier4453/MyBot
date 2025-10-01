@@ -111,9 +111,12 @@ def main():
                     extras=extras
                 )
 
+            # Merge buy & hold comparison metrics into m for database storage
+            m_with_comparisons = {**m, **extras}
+
             # DB insert for strategy (FIX: use sym/params/m)
             if db_file:
-                bt_db.insert_strategy_metrics(db_file, run_id, sym, params, m)
+                bt_db.insert_strategy_metrics(db_file, run_id, sym, params, m_with_comparisons)
 
             recs.append((m, params, strat_eq, res.get("events")))
         top_by_list = get("TOP_BY", ["total_return"])

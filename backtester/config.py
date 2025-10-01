@@ -3,10 +3,10 @@
 # Legend: # ✅ implemented · # ⚠️ limited/conditional · # ⏳ not used
 
 #=========================MAIN=========================
-RUN_ID = "NewPortfolioTearsheet"                         # ✅ name or "auto" for timestamp
+RUN_ID = "DBRerun"                         # ✅ name or "auto" for timestamp
 NOTES = ""                              # ⏳ freeform string per run
-TICKERS = ["SPY","QQQ"]               # ✅ list of symbols
-'''TICKERS = [
+# TICKERS = ["SPY","QQQ"]               # ✅ list of symbols
+TICKERS = [
     "XLF",  # Financial Select Sector SPDR
     "XLK",  # Technology Select Sector SPDR
     "XLE",  # Energy Select Sector SPDR
@@ -28,7 +28,7 @@ TICKERS = ["SPY","QQQ"]               # ✅ list of symbols
     "ROM",  # ProShares Ultra Technology (2x leveraged)
     "LTL",  # ProShares Ultra Telecommunications (2x leveraged)
     "UPW"   # ProShares Ultra Utilities (2x leveraged)
-]'''
+]
 # ✅ list of symbols
 INITIAL_CAPITAL = 100_000.0             # ✅
 START = "2000-01-01"                    # ✅
@@ -41,7 +41,7 @@ RF_ANNUAL = 0.02                        # ✅ 2% annual
 PERIODS_PER_YEAR = 252                  # ✅ trading periods per year
 
 #===========Portfolio Mode Config Example===============
-PORTFOLIO_MODE = True  # master toggle
+PORTFOLIO_MODE = False  # master toggle
 PORTFOLIO_WEIGHTS = {           # Fixed target weights (sum should be 1.0; if None -> equal weights auto)
     "SPY": 0.60,
     "QQQ": 0.40,

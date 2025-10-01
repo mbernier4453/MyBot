@@ -181,6 +181,56 @@ ipcMain.handle('get-strategies', async (event, runId) => {
   }
 });
 
+ipcMain.handle('get-buyhold-metrics', async (event, runId) => {
+  console.log('[BACKEND] get-buyhold-metrics called for runId:', runId);
+  if (!db) {
+    return { success: false, error: 'No database connected' };
+  }
+  
+  try {
+    // Get buy & hold metrics from metrics_json for each ticker
+    const stmt = db.prepare(`
+      SELECT 
+        ticker,
+        metrics_json
+      FROM strategies
+      WHERE run_id = ?
+      GROUP BY ticker
+    `);
+    stmt.bind([runId]);
+    
+    const buyHoldMetrics = {};
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      try {
+        const metricsJson = (row.metrics_json || '{}').replace(/:\s*NaN/g, ': null');
+        const metrics = JSON.parse(metricsJson);
+        
+        // Extract buy & hold metrics if they exist (keys are buyhold_*)
+        if (metrics.buyhold_total_return !== undefined) {
+          buyHoldMetrics[row.ticker] = {
+            total_return: metrics.buyhold_total_return,
+            cagr: metrics.buyhold_cagr,
+            sharpe: metrics.buyhold_sharpe,
+            sortino: metrics.buyhold_sortino,
+            vol: null, // Buy & hold doesn't have separate vol stored in summarize_comparisons
+            maxdd: metrics.buyhold_maxdd
+          };
+        }
+      } catch (parseError) {
+        console.warn('[BACKEND] JSON parse error for buy & hold metrics:', parseError);
+      }
+    }
+    stmt.free();
+    
+    console.log(`[BACKEND] Loaded buy & hold metrics for ${Object.keys(buyHoldMetrics).length} tickers`);
+    return { success: true, data: buyHoldMetrics };
+  } catch (error) {
+    console.error('[BACKEND] Error loading buy & hold metrics:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('get-portfolio', async (event, runId) => {
   if (!db) return { success: false, error: 'No database connected' };
   
