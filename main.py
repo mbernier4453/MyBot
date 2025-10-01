@@ -12,6 +12,7 @@ from backtester.tearsheet import per_strategy_tearsheet  # add near other import
 from backtester.portfolio_engine import simulate_portfolio
 from backtester.tearsheet import portfolio_tearsheet
 from backtester.data import get_data  # assuming this exists (data_adapter wrapper)
+import backtester.db as bt_db
 import os
 import csv
 
@@ -26,23 +27,41 @@ def _bool(v, default=False):
 def main():
     run_id = resolve_run_id()
 
-    if get("PORTFOLIO_MODE", False) and not get("PORTFOLIO_USE_PARAM_GRID", False):
+    # Determine mode early
+    is_portfolio = bool(get("PORTFOLIO_MODE", False) and not get("PORTFOLIO_USE_PARAM_GRID", False))
+    mode = "portfolio" if is_portfolio else "single"
+
+    # --- DB init (single place) ---
+    db_file = None
+    if get("SAVE_DB", False):
+        db_file = bt_db.init_db(get("DB_PATH", "./results/db"))
+        bt_db.ensure_run(db_file, run_id, mode, get("NOTES", ""))
+
+    if is_portfolio:
         print(f"Portfolio Mode (strategies) | Run ID: {run_id}")
-        from backtester.portfolio_engine import simulate_portfolio
-        from backtester.data import get_data
 
         def adapter(sym, start=None, end=None):
             return get_data(sym, start=start, end=end)
 
         result = simulate_portfolio(adapter)
 
+        # Calculate effective weights (fallback equal weight)
+        weights_eff = get("PORTFOLIO_WEIGHTS", None)
+        if not weights_eff:
+            tlist = get("TICKERS", [])
+            if tlist:
+                weights_eff = {t: 1 / len(tlist) for t in tlist}
+            else:
+                weights_eff = {}
+
+        # --- DB persistence (portfolio) ---
+        if db_file:
+            bt_db.insert_portfolio_metrics(db_file, run_id, result.metrics)
+            bt_db.insert_portfolio_weights(db_file, run_id, weights_eff)
+            if get("SAVE_TRADES", True):
+                bt_db.insert_trades(db_file, run_id, result.trades)
+
         if get("MAKE_TEARSHEETS", True):
-            from backtester.tearsheet import portfolio_tearsheet
-            ts_dir = get("TEARSHEETS_DIR", "./results/tearsheets")
-            weights = get("PORTFOLIO_WEIGHTS", None)
-            if not weights:
-                tlist = get("TICKERS", [])
-                weights = {t: 1/len(tlist) for t in tlist}
             path = portfolio_tearsheet(
                 run_id=run_id,
                 equity=result.equity,
@@ -50,33 +69,28 @@ def main():
                 benchmark_equity=result.benchmark_equity,
                 per_ticker_equity=result.per_ticker_equity,
                 metrics=result.metrics,
-                weights=weights,
-                trades=result.trades,  # <-- added
+                weights=weights_eff,
+                trades=result.trades,
                 out_dir=get("TEARSHEETS_DIR", "./results/tearsheets"),
                 chart_enabled=bool(get("MAKE_CHARTS", True))
             )
             print(f"Portfolio tearsheet -> {path}")
+
+        if db_file:
+            bt_db.finalize_run(db_file, run_id)
         return
 
+    # ----- SINGLE STRATEGY MODE -----
     symbols = list(get("TICKERS"))
     dfs = load_bars(symbols)
-
     params_list = rsi_param_grid(CONFIG)
     print(f"Run ID: {run_id} | Grid size: {len(params_list)}")
 
-    init_cap = float(get("INITIAL_CAPITAL", 100_000.0))
-    top_k = int(get("PRINT_TOP_K", 3))
-    chart_top_k = int(get("CHART_TOP_K", top_k))
-    out_csv = None
-
-    # Preload full benchmark series once (optional)
     bench_eq_full = get_benchmark_equity()
 
     for sym in symbols:
         df = dfs[sym]
         recs = []
-
-        # Preload full buy-hold for symbol (optional)
         bh_eq_full = get_buyhold_equity(df["Close"])
 
         for params in params_list:
@@ -88,8 +102,6 @@ def main():
             )
             m = res["metrics"]
             strat_eq = res["equity"]
-
-            # Alignment extras (window-specific)
             extras = summarize_comparisons(strat_eq, bench_eq_full, bh_eq_full)
 
             if _bool(get("SAVE_METRICS"), True):
@@ -99,8 +111,11 @@ def main():
                     extras=extras
                 )
 
-            recs.append((m, params, strat_eq, res.get("events")))
+            # DB insert for strategy (FIX: use sym/params/m)
+            if db_file:
+                bt_db.insert_strategy_metrics(db_file, run_id, sym, params, m)
 
+            recs.append((m, params, strat_eq, res.get("events")))
         top_by_list = get("TOP_BY", ["total_return"])
         top_k = int(get("TOP_K", 3))
         do_print = bool(get("PRINT_TOP_K", True))
@@ -109,13 +124,19 @@ def main():
 
         # recs should be a list of tuples: (metrics_dict, params_dict, equity_series, events_list)
         # Build per metric ranking
+        min_trades_filter = int(get("MIN_TRADES_FILTER", 0) or 0)
+
         for metric_key in top_by_list:
             # Filter out entries missing the metric
             ranked = [r for r in recs if r[0].get(metric_key) is not None]
+            if min_trades_filter > 0:
+                filt = [r for r in ranked if r[0].get("trades_total", r[0].get("trades", 0)) >= min_trades_filter]
+                if filt:  # only apply if we didn't wipe out all candidates
+                    ranked = filt
             ranked.sort(key=lambda r: r[0].get(metric_key), reverse=True)
 
             if do_print:
-                print(f"{sym} - top {top_k} by {metric_key}")
+                print(f"{sym} - top {top_k} by {metric_key} (min_trades>={min_trades_filter})")
                 for (m, p, eq_series, events) in ranked[:top_k]:
                     print(f"  p={p.get('rsi_period')} b={p.get('rsi_buy_below')} s={p.get('rsi_sell_above')} | "
                           f"TR={m.get('total_return'):.4f} Sharpe={m.get('sharpe'):.3f} "
@@ -171,8 +192,8 @@ def main():
             for key in top_by_list:
                 if not recs or key not in recs[0][0]:
                     continue
-                    
-                # Get sorted results for this metric
+                # Optional minimum trades filter (configurable, default 0)
+                min_trades = int(get("MIN_TRADES_FILTER", 0) or 0)
                 base = [r for r in recs if r[0].get("trades_total", 0) >= min_trades] or recs
                 reverse = (key != "maxdd")
                 
@@ -189,14 +210,18 @@ def main():
                     m, p, eq, events = metric_sorted[rank]
                     
                     # Format parameters string
-                    param_str = f"p={p['rsi_period']} b={p['rsi_buy_below']} s={p['rsi_sell_above']}"
+                    param_label = (
+                        f"p={p.get('rsi_period')} "
+                        f"b={p.get('rsi_buy_below')} "
+                        f"s={p.get('rsi_sell_above')}"
+                    )
                     
                     # Create descriptive title
                     metric_val = m.get(key, 'N/A')
                     if isinstance(metric_val, float):
                         metric_val = f"{metric_val:.3f}"
                     
-                    title = f"{sym} Top #{rank+1} by {key.upper()} ({metric_val}) | {param_str}"
+                    title = f"{sym} Top #{rank+1} by {key.upper()} ({metric_val}) | {param_label}"
                     
                     chart_path = equity_chart_html(
                         sym,
@@ -212,42 +237,10 @@ def main():
     if _bool(get("SAVE_METRICS"), True) and out_csv:
         print(f"Metrics saved -> {out_csv}")
 
-    run_id = get("RUN_ID", "run")
-    if run_id == "auto":
-        import datetime as _dt
-        run_id = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    if get("SAVE_DB", False) and 'db_file' in locals() and db_file:
+        from backtester.db import finalize_run
+        finalize_run(db_file, run_id)
 
-    if get("PORTFOLIO_MODE", False) and not get("PORTFOLIO_USE_PARAM_GRID", False):
-        print(f"Portfolio Mode (strategies) | Run ID: {run_id}")
-        from backtester.portfolio_engine import simulate_portfolio
-        from backtester.data import get_data
-
-        def adapter(sym, start=None, end=None):
-            return get_data(sym, start=start, end=end)
-
-        result = simulate_portfolio(adapter)
-
-        if get("MAKE_TEARSHEETS", True):
-            from backtester.tearsheet import portfolio_tearsheet
-            ts_dir = get("TEARSHEETS_DIR", "./results/tearsheets")
-            weights = get("PORTFOLIO_WEIGHTS", None)
-            if not weights:
-                tlist = get("TICKERS", [])
-                weights = {t: 1/len(tlist) for t in tlist}
-            path = portfolio_tearsheet(
-                run_id=run_id,
-                equity=result.equity,
-                buyhold_equity=result.buyhold_equity if get("BUY_HOLD_ENABLED", True) else None,
-                benchmark_equity=result.benchmark_equity,
-                per_ticker_equity=result.per_ticker_equity,
-                metrics=result.metrics,
-                weights=weights,
-                trades=result.trades,  # <-- added
-                out_dir=get("TEARSHEETS_DIR", "./results/tearsheets"),
-                chart_enabled=bool(get("MAKE_CHARTS", True))
-            )
-            print(f"Portfolio tearsheet -> {path}")
-        return
 
 if __name__ == "__main__":
     main()

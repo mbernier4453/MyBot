@@ -3,9 +3,9 @@
 # Legend: # ✅ implemented · # ⚠️ limited/conditional · # ⏳ not used
 
 #=========================MAIN=========================
-RUN_ID = "Sector_Params14"                         # ✅ name or "auto" for timestamp
+RUN_ID = "SectorETFtoDB"                         # ✅ name or "auto" for timestamp
 NOTES = ""                              # ⏳ freeform string per run
-#TICKERS = ["UCC","UGE","DIG","UYG","RXL","UXI","UYM","URE","ROM","LTL","UPW", "SSO", "UPRO"]               # ✅ list of symbols
+# TICKERS = ["SPY","QQQ"]               # ✅ list of symbols
 TICKERS = [
     "XLF",  # Financial Select Sector SPDR
     "XLK",  # Technology Select Sector SPDR
@@ -158,9 +158,10 @@ CSV_DIR = "./results/csv"                 # ✅ path for metrics CSV when enable
 SAVE_METRICS = True                       # ✅ write metrics CSV rows
 
 # Database
-SAVE_TO_DUCKDB = True                     # ⏳ append results to a DuckDB file
-RUNS_DB_PATH = "./results/runs.duckdb"    # ⏳ DuckDB database file path
-SAVE_TRADES = True                        # ⏳ persist per-fill trades
+SAVE_DB = True                 # enable DB persistence
+DB_PATH = "./results/db"       # folder or file; folder -> backtests.db inside
+SAVE_TRADES = True             # store individual trades
+MIN_TRADES_FILTER = 5          # used for ranking filters (if implemented)
 SAVE_EQUITY = False                       # ⏳ persist equity curve per run
 SAVE_VIZ_DATA = False                     # ⏳ persist 3D viz table
 
@@ -168,6 +169,8 @@ SAVE_VIZ_DATA = False                     # ⏳ persist 3D viz table
 MAKE_CHARTS = True                # ✅ toggle charts for tearsheets + main standalone
 CHART_PATH = "./results/charts"       # ✅ where to save main chart HTML
 
+
+MIN_TRADES_FILTER = 5                    # ✅ min trades to qualify for top-K printout (default 1)
 MAKE_TEARSHEETS = True                   # ✅ full report with KPIs and plots
 RUN_CAPM = True                           # ✅ include CAPM analysis in tearsheet
 TEARSHEETS_DIR = "./results/tearsheets"   # ✅ where to save tearsheets

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backtester Results Viewer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <h1>📊 Backtester Results</h1>
+      <div class="header-controls">
+        <button id="selectDbBtn" class="btn btn-primary">Select Database</button>
+        <span id="dbPath" class="db-path"></span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h2>Runs</h2>
+          <div class="filters">
+            <input type="text" id="runSearch" placeholder="Search runs..." class="search-input">
+            <select id="modeFilter" class="filter-select">
+              <option value="">All Modes</option>
+              <option value="single">Single</option>
+              <option value="portfolio">Portfolio</option>
+            </select>
+          </div>
+        </div>
+        <div id="runsList" class="runs-list">
+          <div class="empty-state">
+            <p>📂 Select a database to view runs</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Details Panel -->
+      <main class="details-panel">
+        <div class="tabs">
+          <button class="tab active" data-tab="overview">Overview</button>
+          <button class="tab" data-tab="strategies">Strategies</button>
+          <button class="tab" data-tab="portfolio">Portfolio</button>
+          <button class="tab" data-tab="trades">Trades</button>
+          <button class="tab" data-tab="compare">Compare</button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="overviewTab" class="tab-content active">
+          <div class="empty-state">
+            <p>👈 Select a run to view details</p>
+          </div>
+        </div>
+
+        <!-- Strategies Tab -->
+        <div id="strategiesTab" class="tab-content">
+          <div class="controls-bar">
+            <input type="text" id="strategySearch" placeholder="Search ticker..." class="search-input">
+            <select id="sortBy" class="filter-select">
+              <option value="total_return">Total Return</option>
+              <option value="sharpe">Sharpe</option>
+              <option value="sortino">Sortino</option>
+              <option value="cagr">CAGR</option>
+              <option value="maxdd">Max Drawdown</option>
+              <option value="win_rate">Win Rate</option>
+            </select>
+            <label class="checkbox-label">
+              <input type="checkbox" id="sortDesc" checked>
+              Descending
+            </label>
+          </div>
+          <div id="strategiesContent" class="strategies-content">
+            <div class="empty-state">
+              <p>No strategies to display</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Portfolio Tab -->
+        <div id="portfolioTab" class="tab-content">
+          <div id="portfolioContent" class="portfolio-content">
+            <div class="empty-state">
+              <p>No portfolio data available</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trades Tab -->
+        <div id="tradesTab" class="tab-content">
+          <div class="controls-bar">
+            <input type="text" id="tradeSearch" placeholder="Search ticker..." class="search-input">
+            <select id="sideFilter" class="filter-select">
+              <option value="">All Sides</option>
+              <option value="buy">Buy</option>
+              <option value="sell">Sell</option>
+            </select>
+          </div>
+          <div id="tradesContent" class="trades-content">
+            <div class="empty-state">
+              <p>No trades to display</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compare Tab -->
+        <div id="compareTab" class="tab-content">
+          <div class="compare-controls">
+            <p>Select multiple runs from the sidebar (Ctrl+Click) to compare</p>
+            <button id="compareBtn" class="btn btn-primary" disabled>Compare Selected</button>
+          </div>
+          <div id="compareContent" class="compare-content">
+            <div class="empty-state">
+              <p>Select runs to compare</p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Status Bar -->
+    <footer class="status-bar">
+      <span id="statusText">Ready</span>
+    </footer>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
