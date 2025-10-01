@@ -18,7 +18,7 @@ const tabContents = document.querySelectorAll('.tab-content');
 // Filters
 const runSearch = document.getElementById('runSearch');
 const modeFilter = document.getElementById('modeFilter');
-const strategySearch = document.getElementById('strategySearch');
+const tickerFilter = document.getElementById('tickerFilter');
 const sortBy = document.getElementById('sortBy');
 const sortDesc = document.getElementById('sortDesc');
 const tradeSearch = document.getElementById('tradeSearch');
@@ -29,7 +29,7 @@ const compareBtn = document.getElementById('compareBtn');
 selectDbBtn.addEventListener('click', selectDatabase);
 runSearch?.addEventListener('input', filterRuns);
 modeFilter?.addEventListener('change', filterRuns);
-strategySearch?.addEventListener('input', filterStrategies);
+tickerFilter?.addEventListener('change', filterStrategies);
 sortBy?.addEventListener('change', filterStrategies);
 sortDesc?.addEventListener('change', filterStrategies);
 tradeSearch?.addEventListener('input', filterTrades);
@@ -316,6 +316,12 @@ async function loadStrategies(runId) {
     if (bhResult.success) {
       buyHoldMetrics = bhResult.data;
     }
+    
+    // Populate ticker dropdown
+    const uniqueTickers = [...new Set(currentStrategies.map(s => s.ticker))].sort();
+    tickerFilter.innerHTML = '<option value="">All Tickers</option>' + 
+      uniqueTickers.map(ticker => `<option value="${ticker}">${ticker}</option>`).join('');
+    
     console.log(`Loaded ${currentStrategies.length} strategies`);
     displayStrategies(currentStrategies);
     setStatus(`Loaded ${currentStrategies.length} strategies`);
@@ -408,14 +414,18 @@ function displayStrategies(strategies) {
 }
 
 function filterStrategies() {
-  const searchTerm = strategySearch.value.toLowerCase();
+  const selectedTicker = tickerFilter.value;
   const sortField = sortBy.value;
   const descending = sortDesc.checked;
   
-  let filtered = currentStrategies.filter(s => 
-    s.ticker.toLowerCase().includes(searchTerm)
-  );
+  let filtered = currentStrategies;
   
+  // Filter by ticker if one is selected
+  if (selectedTicker) {
+    filtered = filtered.filter(s => s.ticker === selectedTicker);
+  }
+  
+  // Sort
   filtered.sort((a, b) => {
     const valA = a[sortField] || 0;
     const valB = b[sortField] || 0;

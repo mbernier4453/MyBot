@@ -59,7 +59,9 @@
         <!-- Strategies Tab -->
         <div id="strategiesTab" class="tab-content">
           <div class="controls-bar">
-            <input type="text" id="strategySearch" placeholder="Search ticker..." class="search-input">
+            <select id="tickerFilter" class="filter-select">
+              <option value="">All Tickers</option>
+            </select>
             <select id="sortBy" class="filter-select">
               <option value="total_return">Total Return</option>
               <option value="sharpe">Sharpe</option>
