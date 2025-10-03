@@ -50,7 +50,27 @@ function switchToTab(tabName) {
   }
 }
 
-// Tab switching
+// Main navigation tab switching
+const mainTabs = document.querySelectorAll('.main-tab');
+const mainPages = document.querySelectorAll('.main-page');
+
+mainTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    const targetPage = tab.dataset.mainTab;
+    
+    // Update active states
+    mainTabs.forEach(t => t.classList.remove('active'));
+    mainPages.forEach(p => p.classList.remove('active'));
+    
+    tab.classList.add('active');
+    const targetPageEl = document.getElementById(`${targetPage}Page`);
+    if (targetPageEl) {
+      targetPageEl.classList.add('active');
+    }
+  });
+});
+
+// Results sub-tab switching
 tabs.forEach(tab => {
   tab.addEventListener('click', () => {
     const targetTab = tab.dataset.tab;
@@ -1788,4 +1808,422 @@ function displayDrawdownChart(strategyEquity, buyholdEquity, benchmarkEquity) {
   };
   
   Plotly.newPlot('drawdownChart', traces, layout, { displayModeBar: false, responsive: true });
+}
+
+// =====================================================
+// POLYGON TREEMAP - S&P 500 Live Market Map
+// =====================================================
+
+let treemapData = new Map();
+let lastUpdateTime = null;
+
+// Connect to Polygon on page load
+window.electronAPI.polygonConnect().then(result => {
+  console.log('Polygon connection initiated:', result);
+});
+
+// Listen for updates
+window.electronAPI.onPolygonUpdate((data) => {
+  treemapData.set(data.ticker, data);
+  lastUpdateTime = new Date();
+  updateLastUpdateDisplay();
+  
+  // Redraw treemap periodically (every 5 seconds to avoid too frequent redraws)
+  if (!window.treemapUpdateScheduled) {
+    window.treemapUpdateScheduled = true;
+    setTimeout(() => {
+      drawTreemap();
+      window.treemapUpdateScheduled = false;
+    }, 5000);
+  }
+});
+
+// Listen for initial data load complete
+window.electronAPI.onPolygonInitialLoad((data) => {
+  console.log(`Initial data loaded: ${data.count} stocks`);
+  drawTreemap(); // Draw immediately when initial data arrives
+});
+
+// Listen for connection status
+window.electronAPI.onPolygonStatus((status) => {
+  const lastUpdateEl = document.getElementById('lastUpdate');
+  const reconnectBtn = document.getElementById('reconnectBtn');
+  
+  if (status.connected) {
+    lastUpdateEl.textContent = 'Connected';
+    lastUpdateEl.style.color = '#00aa55';
+    reconnectBtn.style.display = 'none';
+  } else {
+    lastUpdateEl.textContent = 'Disconnected';
+    lastUpdateEl.style.color = '#ff4444';
+    reconnectBtn.style.display = 'block';
+  }
+});
+
+// Listen for errors
+window.electronAPI.onPolygonError((error) => {
+  console.error('Polygon error:', error);
+  const lastUpdateEl = document.getElementById('lastUpdate');
+  lastUpdateEl.textContent = `Error: ${error}`;
+  lastUpdateEl.style.color = '#ff4444';
+});
+
+// Reconnect button
+document.getElementById('reconnectBtn')?.addEventListener('click', () => {
+  window.electronAPI.polygonConnect();
+});
+
+// Size-by selector
+document.getElementById('treemapSizeBy')?.addEventListener('change', () => {
+  drawTreemap();
+});
+
+// Group-by selector
+document.getElementById('treemapGroupBy')?.addEventListener('change', () => {
+  drawTreemap();
+});
+
+function updateLastUpdateDisplay() {
+  if (!lastUpdateTime) return;
+  
+  const lastUpdateEl = document.getElementById('lastUpdate');
+  const now = new Date();
+  const seconds = Math.floor((now - lastUpdateTime) / 1000);
+  
+  if (seconds < 60) {
+    lastUpdateEl.textContent = `Updated ${seconds}s ago`;
+  } else {
+    const minutes = Math.floor(seconds / 60);
+    lastUpdateEl.textContent = `Updated ${minutes}m ago`;
+  }
+  lastUpdateEl.style.color = '#999999';
+}
+
+// Update the "last updated" text every second
+setInterval(updateLastUpdateDisplay, 1000);
+
+function getColorForPercent(percent) {
+  if (percent === null || percent === undefined) return '#404040';
+  
+  // Green for positive, red for negative
+  if (percent > 0) {
+    const intensity = Math.min(Math.abs(percent) / 3, 1); // Cap at 3% for full intensity
+    const greenValue = Math.floor(85 + (170 * intensity)); // From 85 to 255
+    return `rgb(0, ${greenValue}, 85)`;
+  } else if (percent < 0) {
+    const intensity = Math.min(Math.abs(percent) / 3, 1);
+    const redValue = Math.floor(85 + (170 * intensity));
+    return `rgb(${redValue}, 0, 0)`;
+  } else {
+    return '#404040'; // Neutral gray for 0%
+  }
+}
+
+// Sector data (must match backend)
+const SP500_BY_SECTOR = {
+  'Technology': ['AAPL', 'MSFT', 'NVDA', 'AVGO', 'ORCL', 'ADBE', 'CRM', 'CSCO', 'ACN', 'AMD', 'INTC', 'IBM', 'QCOM', 'INTU', 'TXN', 'NOW', 'AMAT', 'ADI', 'LRCX', 'MU', 'SNOW', 'PANW', 'PLTR', 'CRWD', 'ADSK', 'CDNS', 'SNPS', 'MCHP', 'KLAC', 'FTNT', 'NXPI', 'ANSS', 'HPQ', 'APH', 'MPWR', 'NTAP', 'IT', 'GLW', 'ZBRA', 'KEYS', 'GDDY', 'TYL', 'WDC', 'STX', 'GEN', 'SWKS', 'JNPR', 'FFIV', 'AKAM', 'ENPH'],
+  'Healthcare': ['UNH', 'LLY', 'JNJ', 'ABBV', 'MRK', 'TMO', 'ABT', 'DHR', 'AMGN', 'ISRG', 'SYK', 'VRTX', 'REGN', 'CVS', 'CI', 'ELV', 'ZTS', 'BSX', 'BDX', 'HUM', 'GILD', 'MDT', 'BMY', 'IQV', 'EW', 'DXCM', 'IDXX', 'HCA', 'RMD', 'A', 'GEHC', 'CNC', 'MRNA', 'ALGN', 'WAT', 'MTD', 'BIIB', 'ZBH', 'ILMN', 'STE', 'LH', 'RVTY', 'HOLX', 'PODD', 'DGX', 'MOH', 'BAX', 'CRL', 'TFX', 'VTRS'],
+  'Financial': ['JPM', 'V', 'MA', 'BAC', 'WFC', 'GS', 'MS', 'BX', 'AXP', 'BLK', 'SPGI', 'C', 'SCHW', 'CB', 'PGR', 'MMC', 'PLD', 'ICE', 'CME', 'AON', 'USB', 'TFC', 'PNC', 'AJG', 'BK', 'COF', 'FI', 'AFL', 'AIG', 'MET', 'ALL', 'TRV', 'PRU', 'DFS', 'AMP', 'HIG', 'MSCI', 'WTW', 'MTB', 'TROW', 'STT', 'BRO', 'SYF', 'FITB', 'HBAN', 'RF', 'CFG', 'KEY', 'NTRS', 'EG'],
+  'Consumer Discretionary': ['AMZN', 'TSLA', 'HD', 'MCD', 'NKE', 'SBUX', 'LOW', 'TJX', 'BKNG', 'AZO', 'CMG', 'ORLY', 'GM', 'MAR', 'HLT', 'F', 'ROST', 'YUM', 'DHI', 'LEN', 'ABNB', 'LULU', 'GRMN', 'DECK', 'EBAY', 'TSCO', 'POOL', 'CCL', 'RCL', 'LVS', 'WYNN', 'MGM', 'NCLH', 'EXPE', 'ULTA', 'DRI', 'GPC', 'BBY', 'KMX', 'TPR', 'RL', 'APTV', 'WHR', 'NVR', 'PHM', 'BWA', 'MHK', 'HAS', 'LKQ', 'VFC'],
+  'Communication Services': ['GOOGL', 'META', 'NFLX', 'DIS', 'CMCSA', 'T', 'TMUS', 'VZ', 'CHTR', 'EA', 'TTWO', 'OMC', 'IPG', 'NWSA', 'FOX', 'FOXA', 'MTCH', 'PARA', 'LYV', 'WBD'],
+  'Industrials': ['CAT', 'BA', 'RTX', 'UPS', 'HON', 'GE', 'ETN', 'LMT', 'DE', 'UNP', 'ADP', 'MMM', 'NOC', 'SLB', 'EMR', 'ITW', 'GD', 'TDG', 'PH', 'WM', 'CSX', 'NSC', 'CARR', 'PCAR', 'FDX', 'JCI', 'TT', 'CTAS', 'CMI', 'EOG', 'RSG', 'ODFL', 'PAYX', 'VRSK', 'IR', 'AXON', 'DAL', 'UAL', 'LUV', 'ALK', 'JBHT', 'EXPD', 'CHRW', 'URI', 'FAST', 'HUBB', 'AME', 'ROK', 'DOV', 'XYL'],
+  'Consumer Staples': ['WMT', 'PG', 'COST', 'KO', 'PEP', 'PM', 'MO', 'MDLZ', 'CL', 'GIS', 'KMB', 'STZ', 'SYY', 'KHC', 'TSN', 'ADM', 'HSY', 'K', 'CHD', 'CAG', 'MKC', 'CPB', 'HRL', 'SJM', 'LW', 'TAP', 'KDP', 'MNST', 'DG', 'DLTR', 'EL', 'CLX'],
+  'Energy': ['XOM', 'CVX', 'COP', 'SLB', 'EOG', 'MPC', 'PSX', 'VLO', 'OXY', 'WMB', 'KMI', 'HES', 'BKR', 'HAL', 'DVN', 'FANG', 'TRGP', 'EQT', 'MRO', 'OKE', 'CTRA', 'APA'],
+  'Utilities': ['NEE', 'SO', 'DUK', 'CEG', 'SRE', 'AEP', 'D', 'VST', 'PCG', 'PEG', 'EXC', 'XEL', 'ED', 'EIX', 'WEC', 'AWK', 'DTE', 'PPL', 'ES', 'FE', 'AEE', 'ATO', 'CMS', 'CNP', 'NI', 'LNT', 'EVRG', 'PNW', 'AES', 'ETR'],
+  'Real Estate': ['PLD', 'AMT', 'EQIX', 'PSA', 'WELL', 'SPG', 'DLR', 'O', 'CCI', 'VICI', 'SBAC', 'EXR', 'AVB', 'EQR', 'INVH', 'VTR', 'MAA', 'ARE', 'DOC', 'UDR', 'ESS', 'BXP', 'CPT', 'CBRE', 'HST', 'REG', 'KIM', 'FRT', 'VNO'],
+  'Materials': ['LIN', 'APD', 'SHW', 'ECL', 'FCX', 'NEM', 'CTVA', 'DD', 'NUE', 'DOW', 'VMC', 'MLM', 'BALL', 'STLD', 'AVY', 'ALB', 'AMCR', 'PKG', 'IP', 'CE', 'CF', 'MOS', 'EMN', 'FMC', 'IFF']
+};
+
+function getSectorForTicker(ticker) {
+  try {
+    for (const [sector, tickers] of Object.entries(SP500_BY_SECTOR)) {
+      if (tickers && Array.isArray(tickers) && tickers.includes(ticker)) {
+        return sector;
+      }
+    }
+  } catch (error) {
+    console.error('Error getting sector for ticker:', ticker, error);
+  }
+  return 'Other';
+}
+
+function drawTreemap() {
+  try {
+    const container = document.getElementById('treemapContainer');
+    if (!container) {
+      console.warn('Treemap container not found');
+      return;
+    }
+  
+  // Get data array from map
+  const dataArray = Array.from(treemapData.values()).filter(d => d.changePercent !== null);
+  
+  if (dataArray.length === 0) {
+    // Show loading message
+    d3.select('#treemap').selectAll('*').remove();
+    const svg = d3.select('#treemap');
+    svg.append('text')
+      .attr('x', '50%')
+      .attr('y', '50%')
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#666')
+      .attr('font-size', '18px')
+      .text('Waiting for market data...');
+    return;
+  }
+  
+  // Clear previous treemap
+  d3.select('#treemap').selectAll('*').remove();
+  
+  // Get container dimensions (account for padding)
+  const width = container.clientWidth - 20;
+  const height = container.clientHeight - 20;
+  
+  // Create SVG
+  const svg = d3.select('#treemap')
+    .attr('width', width)
+    .attr('height', height);
+  
+  // Get sizing method
+  const sizeBy = document.getElementById('treemapSizeBy')?.value || 'marketcap';
+  const groupBy = document.getElementById('treemapGroupBy')?.value || 'sector';
+  
+  let root;
+  
+  if (groupBy === 'sector') {
+    // Group by sector
+    const sectorData = {};
+    dataArray.forEach(d => {
+      const sector = getSectorForTicker(d.ticker);
+      if (!sectorData[sector]) {
+        sectorData[sector] = [];
+      }
+      
+      let value = 1;
+      if (sizeBy === 'marketcap' && d.marketCap) {
+        value = Math.abs(d.marketCap);
+      } else if (sizeBy === 'volume' && d.volume) {
+        value = Math.abs(d.volume);
+      }
+      
+      sectorData[sector].push({
+        name: d.ticker,
+        value: value,
+        percent: d.changePercent,
+        change: d.change,
+        close: d.close,
+        volume: d.volume,
+        marketCap: d.marketCap,
+        sector: sector,
+        data: d
+      });
+    });
+    
+    // Build hierarchical data
+    root = d3.hierarchy({
+      children: Object.entries(sectorData).map(([sector, stocks]) => ({
+        name: sector,
+        children: stocks
+      }))
+    })
+    .sum(d => d.value)
+    .sort((a, b) => (b.value || 0) - (a.value || 0));
+    
+  } else {
+    // No grouping - flat structure
+    root = d3.hierarchy({
+      children: dataArray.map(d => {
+        let value = 1;
+        if (sizeBy === 'marketcap' && d.marketCap) {
+          value = Math.abs(d.marketCap);
+        } else if (sizeBy === 'volume' && d.volume) {
+          value = Math.abs(d.volume);
+        }
+        
+        return {
+          name: d.ticker,
+          value: value,
+          percent: d.changePercent,
+          change: d.change,
+          close: d.close,
+          volume: d.volume,
+          marketCap: d.marketCap,
+          data: d
+        };
+      })
+    })
+    .sum(d => d.value)
+    .sort((a, b) => (b.data?.percent || 0) - (a.data?.percent || 0));
+  }
+  
+  // Create treemap layout
+  const treemap = d3.treemap()
+    .size([width, height])
+    .paddingInner(groupBy === 'sector' ? 3 : 2)
+    .paddingOuter(groupBy === 'sector' ? 3 : 2)
+    .paddingTop(groupBy === 'sector' ? 25 : 2)
+    .round(true);
+  
+  treemap(root);
+  
+  if (groupBy === 'sector') {
+    // Draw sector groups
+    const sectorGroups = svg.selectAll('.sector')
+      .data(root.children)
+      .join('g')
+      .attr('class', 'sector');
+    
+    // Sector background rectangles
+    sectorGroups.append('rect')
+      .attr('class', 'sector-group')
+      .attr('x', d => d.x0)
+      .attr('y', d => d.y0)
+      .attr('width', d => d.x1 - d.x0)
+      .attr('height', d => d.y1 - d.y0)
+      .attr('fill', 'rgba(0, 0, 0, 0.2)');
+    
+    // Sector labels
+    sectorGroups.append('text')
+      .attr('class', 'sector-label')
+      .attr('x', d => d.x0 + 8)
+      .attr('y', d => d.y0 + 18)
+      .text(d => d.data.name);
+    
+    // Draw stocks within sectors
+    const cells = sectorGroups.selectAll('.stock-cell')
+      .data(d => d.leaves())
+      .join('g')
+      .attr('class', 'stock-cell')
+      .attr('transform', d => `translate(${d.x0},${d.y0})`);
+    
+    cells.append('rect')
+      .attr('class', 'treemap-cell')
+      .attr('width', d => d.x1 - d.x0)
+      .attr('height', d => d.y1 - d.y0)
+      .attr('fill', d => getColorForPercent(d.data.percent))
+      .attr('rx', 2)
+      .append('title')
+      .text(d => {
+        const volumeStr = d.data.volume ? (d.data.volume / 1000000).toFixed(1) + 'M' : 'N/A';
+        const marketCapStr = d.data.marketCap ? '$' + (d.data.marketCap / 1e9).toFixed(1) + 'B' : 'N/A';
+        return `${d.data.name} (${d.data.sector})\n${d.data.percent ? (d.data.percent > 0 ? '+' : '') + d.data.percent.toFixed(2) : '0.00'}%\nPrice: $${d.data.close ? d.data.close.toFixed(2) : 'N/A'}\nMarket Cap: ${marketCapStr}\nVolume: ${volumeStr}`;
+      });
+    
+    // Add stock labels
+    cells.each(function(d) {
+      const cellWidth = d.x1 - d.x0;
+      const cellHeight = d.y1 - d.y0;
+      const g = d3.select(this);
+      
+      if (cellWidth > 40 && cellHeight > 30) {
+        g.append('text')
+          .attr('class', 'treemap-text ticker')
+          .attr('x', cellWidth / 2)
+          .attr('y', cellHeight / 2 - 8)
+          .text(d.data.name);
+        
+        if (d.data.percent !== null) {
+          g.append('text')
+            .attr('class', 'treemap-text percent')
+            .attr('x', cellWidth / 2)
+            .attr('y', cellHeight / 2 + 8)
+            .text(`${d.data.percent > 0 ? '+' : ''}${d.data.percent.toFixed(2)}%`);
+        }
+      } else if (cellWidth > 25 && cellHeight > 20) {
+        g.append('text')
+          .attr('class', 'treemap-text ticker')
+          .attr('x', cellWidth / 2)
+          .attr('y', cellHeight / 2)
+          .style('font-size', '10px')
+          .text(d.data.name);
+      }
+    });
+    
+  } else {
+    // No grouping - flat view
+    const cells = svg.selectAll('.stock-cell')
+      .data(root.leaves())
+      .join('g')
+      .attr('class', 'stock-cell')
+      .attr('transform', d => `translate(${d.x0},${d.y0})`);
+    
+    cells.append('rect')
+      .attr('class', 'treemap-cell')
+      .attr('width', d => d.x1 - d.x0)
+      .attr('height', d => d.y1 - d.y0)
+      .attr('fill', d => getColorForPercent(d.data.percent))
+      .attr('rx', 2)
+      .append('title')
+      .text(d => {
+        const volumeStr = d.data.volume ? (d.data.volume / 1000000).toFixed(1) + 'M' : 'N/A';
+        const marketCapStr = d.data.marketCap ? '$' + (d.data.marketCap / 1e9).toFixed(1) + 'B' : 'N/A';
+        return `${d.data.name}\n${d.data.percent ? (d.data.percent > 0 ? '+' : '') + d.data.percent.toFixed(2) : '0.00'}%\nPrice: $${d.data.close ? d.data.close.toFixed(2) : 'N/A'}\nMarket Cap: ${marketCapStr}\nVolume: ${volumeStr}`;
+      });
+    
+    cells.each(function(d) {
+      const cellWidth = d.x1 - d.x0;
+      const cellHeight = d.y1 - d.y0;
+      const g = d3.select(this);
+      
+      if (cellWidth > 40 && cellHeight > 30) {
+        g.append('text')
+          .attr('class', 'treemap-text ticker')
+          .attr('x', cellWidth / 2)
+          .attr('y', cellHeight / 2 - 8)
+          .text(d.data.name);
+        
+        if (d.data.percent !== null) {
+          g.append('text')
+            .attr('class', 'treemap-text percent')
+            .attr('x', cellWidth / 2)
+            .attr('y', cellHeight / 2 + 8)
+            .text(`${d.data.percent > 0 ? '+' : ''}${d.data.percent.toFixed(2)}%`);
+        }
+      } else if (cellWidth > 25 && cellHeight > 20) {
+        g.append('text')
+          .attr('class', 'treemap-text ticker')
+          .attr('x', cellWidth / 2)
+          .attr('y', cellHeight / 2)
+          .style('font-size', '10px')
+          .text(d.data.name);
+      }
+    });
+  }
+  } catch (error) {
+    console.error('Error drawing treemap:', error);
+    const svg = d3.select('#treemap');
+    svg.selectAll('*').remove();
+    svg.append('text')
+      .attr('x', '50%')
+      .attr('y', '50%')
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#ff4444')
+      .attr('font-size', '16px')
+      .text(`Error: ${error.message}`);
+  }
+}
+
+// Redraw on window resize
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    if (document.getElementById('homePage').classList.contains('active')) {
+      drawTreemap();
+    }
+  }, 250);
+});
+
+// Initial draw when home page becomes active
+const homePageObserver = new MutationObserver((mutations) => {
+  mutations.forEach((mutation) => {
+    if (mutation.target.classList.contains('active') && mutation.target.id === 'homePage') {
+      setTimeout(drawTreemap, 100); // Small delay to ensure container is rendered
+    }
+  });
+});
+
+const homePage = document.getElementById('homePage');
+if (homePage) {
+  homePageObserver.observe(homePage, { attributes: true, attributeFilter: ['class'] });
 }

@@ -35,20 +35,264 @@ body {
   height: 100vh;
 }
 
-/* Header */
-.header {
+/* Main Navigation */
+.main-nav {
   background-color: var(--bg-secondary);
-  padding: 12px 20px;
+  border-bottom: 2px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  height: 60px;
+}
+
+.nav-brand h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  margin-right: 40px;
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 5px;
+  flex: 1;
+}
+
+.main-tab {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px 6px 0 0;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.main-tab:hover {
+  color: var(--text-primary);
+  background-color: rgba(0, 170, 85, 0.1);
+}
+
+.main-tab.active {
+  color: var(--accent-blue);
+  background-color: var(--bg-primary);
+  border-bottom: 2px solid var(--accent-blue);
+}
+
+/* Main Page Content */
+.main-page-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-page {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.main-page.active {
+  display: flex;
+}
+
+.page-content {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+.page-header {
+  background-color: var(--bg-secondary);
+  padding: 15px 20px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.header h1 {
+.page-header h2 {
   font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.empty-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  gap: 10px;
+}
+
+.empty-page h2 {
+  font-size: 24px;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.empty-page p {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* Home Page - Fullscreen Treemap */
+.treemap-fullscreen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-primary);
+  overflow: hidden;
+}
+
+.treemap-overlay-controls {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  right: 15px;
+  z-index: 100;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(10px);
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.control-select {
+  margin-left: 8px;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  border: 1px solid #444;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.control-select:hover {
+  border-color: #666;
+  background: #222;
+}
+
+.control-select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.status-group {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.last-update {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.reconnect-btn {
+  padding: 6px 14px;
+  background-color: var(--accent-blue);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background-color 0.2s;
+}
+
+.reconnect-btn:hover {
+  background-color: #005a9e;
+}
+
+.treemap-container-fullscreen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+#treemap {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.treemap-cell {
+  stroke: var(--bg-primary);
+  stroke-width: 2px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.treemap-cell:hover {
+  opacity: 0.8;
+  stroke: var(--text-primary);
+  stroke-width: 3px;
+}
+
+.treemap-text {
+  font-size: 12px;
+  font-weight: 600;
+  fill: white;
+  pointer-events: none;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.treemap-text.ticker {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.treemap-text.percent {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sector-group {
+  stroke: var(--border-color);
+  stroke-width: 3px;
+  fill: none;
+}
+
+.sector-label {
+  font-size: 16px;
+  font-weight: 700;
+  fill: #ffffff;
+  text-anchor: start;
+  pointer-events: none;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.sector-label-bg {
+  fill: rgba(0, 0, 0, 0.7);
+  rx: 4px;
 }
 
 .header-controls {

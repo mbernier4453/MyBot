@@ -2,11 +2,17 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const initSqlJs = require('sql.js');
+const WebSocket = require('ws');
+const { SP500_BY_SECTOR, MARKET_CAPS_BY_SECTOR } = require('./sp500_data.js');
+require('dotenv').config();
 
 let mainWindow;
 let db = null;
 let SQL = null;
 let dbPath = null;
+let polygonWs = null;
+let stockData = new Map(); // Store latest data for each ticker
+let isConnected = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -30,6 +36,11 @@ function createWindow() {
 app.whenReady().then(async () => {
   SQL = await initSqlJs();
   createWindow();
+  
+  // Connect to Polygon after window is created
+  setTimeout(() => {
+    connectPolygon();
+  }, 1000);
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -40,7 +51,230 @@ app.on('window-all-closed', function () {
   if (db) {
     db.close();
   }
+  if (polygonWs) {
+    polygonWs.close();
+  }
   if (process.platform !== 'darwin') app.quit();
+});
+
+// Flatten all sectors into single ticker list
+const SP500_TICKERS = Object.values(SP500_BY_SECTOR).flat();
+
+// Flatten market caps from all sectors
+const MARKET_CAPS = Object.values(MARKET_CAPS_BY_SECTOR).reduce((acc, sectorCaps) => {
+  return { ...acc, ...sectorCaps };
+}, {});
+
+// Fetch initial snapshot data from Polygon REST API
+async function fetchInitialData() {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) return;
+
+  console.log('[POLYGON] Fetching initial snapshot data...');
+  
+  try {
+    const https = require('https');
+    const url = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?apiKey=${apiKey}`;
+    
+    https.get(url, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          const response = JSON.parse(data);
+          
+          if (response.status === 'OK' && response.tickers) {
+            let count = 0;
+            response.tickers.forEach(snapshot => {
+              // Only process S&P 500 stocks
+              if (SP500_TICKERS.includes(snapshot.ticker)) {
+                const todaysChange = snapshot.todaysChangePerc || 0;
+                const prevClose = snapshot.prevDay?.c || snapshot.day?.c || 100;
+                const currentPrice = snapshot.day?.c || prevClose;
+                
+                const stockInfo = {
+                  ticker: snapshot.ticker,
+                  open: snapshot.day?.o || prevClose,
+                  high: snapshot.day?.h || currentPrice,
+                  low: snapshot.day?.l || currentPrice,
+                  close: currentPrice,
+                  volume: snapshot.day?.v || 0,
+                  marketCap: (MARKET_CAPS[snapshot.ticker] || 100) * 1e9, // Convert billions to actual value
+                  timestamp: Date.now(),
+                  change: currentPrice - prevClose,
+                  changePercent: todaysChange
+                };
+                
+                stockData.set(snapshot.ticker, stockInfo);
+                count++;
+                
+                // Send to renderer
+                if (mainWindow) {
+                  mainWindow.webContents.send('polygon-update', stockInfo);
+                }
+              }
+            });
+            
+            console.log(`[POLYGON] Loaded ${count} stocks from snapshot`);
+            if (mainWindow) {
+              mainWindow.webContents.send('polygon-initial-load-complete', { count });
+            }
+          }
+        } catch (error) {
+          console.error('[POLYGON] Error parsing snapshot data:', error);
+        }
+      });
+    }).on('error', (error) => {
+      console.error('[POLYGON] Error fetching snapshot:', error);
+    });
+  } catch (error) {
+    console.error('[POLYGON] Error in fetchInitialData:', error);
+  }
+}
+
+// Polygon Websocket Connection
+function connectPolygon() {
+  const apiKey = process.env.POLYGON_API_KEY;
+  
+  if (!apiKey) {
+    console.error('[POLYGON] API key not found in environment variables');
+    if (mainWindow) {
+      mainWindow.webContents.send('polygon-error', 'API key not configured');
+    }
+    return;
+  }
+
+  console.log('[POLYGON] Connecting to websocket...');
+  polygonWs = new WebSocket('wss://socket.polygon.io/stocks');
+
+  polygonWs.on('open', () => {
+    console.log('[POLYGON] Connected');
+    isConnected = true;
+    
+    // Authenticate
+    polygonWs.send(JSON.stringify({ action: 'auth', params: apiKey }));
+    
+    // Subscribe to 1-minute aggregates for S&P 500 stocks
+    const subscriptions = SP500_TICKERS.map(ticker => `AM.${ticker}`);
+    polygonWs.send(JSON.stringify({ 
+      action: 'subscribe', 
+      params: subscriptions.join(',')
+    }));
+    
+    if (mainWindow) {
+      mainWindow.webContents.send('polygon-status', { connected: true });
+    }
+    
+    // Fetch initial snapshot data
+    setTimeout(() => {
+      fetchInitialData();
+    }, 2000); // Wait 2 seconds for subscriptions to complete
+  });
+
+  polygonWs.on('message', (data) => {
+    try {
+      const messages = JSON.parse(data);
+      
+      if (!Array.isArray(messages)) return;
+      
+      messages.forEach(msg => {
+        // Handle status messages
+        if (msg.ev === 'status') {
+          console.log('[POLYGON] Status:', msg.message);
+          return;
+        }
+        
+        // Handle aggregate bars (AM = Aggregate Minute)
+        if (msg.ev === 'AM') {
+          const ticker = msg.sym;
+          const data = {
+            ticker: ticker,
+            open: msg.o,
+            high: msg.h,
+            low: msg.l,
+            close: msg.c,
+            volume: msg.v,
+            marketCap: (MARKET_CAPS[ticker] || 100) * 1e9,
+            timestamp: msg.s,
+            change: null,
+            changePercent: null
+          };
+          
+          // Calculate change if we have previous data
+          if (stockData.has(ticker)) {
+            const prevData = stockData.get(ticker);
+            data.change = data.close - prevData.open;
+            data.changePercent = ((data.close - prevData.open) / prevData.open) * 100;
+          }
+          
+          stockData.set(ticker, data);
+          
+          // Send update to renderer
+          if (mainWindow) {
+            mainWindow.webContents.send('polygon-update', data);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('[POLYGON] Error parsing message:', error);
+    }
+  });
+
+  polygonWs.on('error', (error) => {
+    console.error('[POLYGON] WebSocket error:', error);
+    isConnected = false;
+    if (mainWindow) {
+      mainWindow.webContents.send('polygon-error', error.message);
+    }
+  });
+
+  polygonWs.on('close', (code, reason) => {
+    console.log('[POLYGON] Disconnected:', code, reason.toString());
+    isConnected = false;
+    if (mainWindow) {
+      mainWindow.webContents.send('polygon-status', { connected: false });
+    }
+    
+    // Don't auto-reconnect if we hit connection limit (code 1008)
+    // User can manually reconnect via the UI button
+    if (code !== 1008) {
+      console.log('[POLYGON] Will attempt to reconnect in 10 seconds...');
+      setTimeout(() => {
+        if (mainWindow && !isConnected) {
+          console.log('[POLYGON] Attempting to reconnect...');
+          connectPolygon();
+        }
+      }, 10000);
+    } else {
+      console.log('[POLYGON] Connection limit reached. Use reconnect button to retry.');
+    }
+  });
+}
+
+// IPC Handlers for Polygon
+ipcMain.handle('polygon-connect', () => {
+  if (!isConnected && !polygonWs) {
+    connectPolygon();
+  }
+  return { success: true, connected: isConnected };
+});
+
+ipcMain.handle('polygon-disconnect', () => {
+  if (polygonWs) {
+    polygonWs.close();
+    polygonWs = null;
+    isConnected = false;
+  }
+  return { success: true };
+});
+
+ipcMain.handle('polygon-get-all-data', () => {
+  const data = Array.from(stockData.values());
+  return { success: true, data };
 });
 
 // IPC Handlers

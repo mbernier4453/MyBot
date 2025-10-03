@@ -3,23 +3,114 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Backtester Results Viewer</title>
+  <title>Trading Dashboard</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
   <div class="app-container">
-    <!-- Header -->
-    <header class="header">
-      <h1>📊 Backtester Results</h1>
-      <div class="header-controls">
-        <button id="selectDbBtn" class="btn btn-primary">Select Database</button>
-        <span id="dbPath" class="db-path"></span>
+    <!-- Main Dashboard Navigation -->
+    <nav class="main-nav">
+      <div class="nav-brand">
+        <h1>📈 Trading Dashboard</h1>
       </div>
-    </header>
+      <div class="nav-tabs">
+        <button class="main-tab active" data-main-tab="home">🏠 Home</button>
+        <button class="main-tab" data-main-tab="screener">🔍 Screener</button>
+        <button class="main-tab" data-main-tab="watchlists">⭐ Watchlists</button>
+        <button class="main-tab" data-main-tab="charting">📊 Charting</button>
+        <button class="main-tab" data-main-tab="backtesting">⚙️ Backtesting</button>
+        <button class="main-tab" data-main-tab="results">📋 Results</button>
+      </div>
+    </nav>
 
-    <!-- Main Content -->
-    <div class="main-content">
+    <!-- Main Page Content -->
+    <div class="main-page-content">
+      
+      <!-- Home Page -->
+      <div id="homePage" class="main-page active">
+        <div class="treemap-fullscreen">
+          <div class="treemap-overlay-controls">
+            <div class="control-group">
+              <label style="color: #e0e0e0; font-size: 13px; margin-right: 10px; font-weight: 600;">
+                Size:
+                <select id="treemapSizeBy" class="control-select">
+                  <option value="marketcap">Market Cap</option>
+                  <option value="volume">Volume</option>
+                  <option value="equal">Equal</option>
+                </select>
+              </label>
+              <label style="color: #e0e0e0; font-size: 13px; margin-right: 10px; font-weight: 600;">
+                Group:
+                <select id="treemapGroupBy" class="control-select">
+                  <option value="sector">By Sector</option>
+                  <option value="none">No Grouping</option>
+                </select>
+              </label>
+            </div>
+            <div class="status-group">
+              <span id="lastUpdate" class="last-update">Connecting...</span>
+              <button id="reconnectBtn" class="reconnect-btn" style="display: none;">Reconnect</button>
+            </div>
+          </div>
+          <div id="treemapContainer" class="treemap-container-fullscreen">
+            <svg id="treemap"></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Screener Page -->
+      <div id="screenerPage" class="main-page">
+        <div class="page-content">
+          <div class="empty-page">
+            <h2>🔍 Stock Screener</h2>
+            <p>Coming soon: Advanced stock screening tools</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Watchlists Page -->
+      <div id="watchlistsPage" class="main-page">
+        <div class="page-content">
+          <div class="empty-page">
+            <h2>⭐ Watchlists</h2>
+            <p>Coming soon: Manage your custom watchlists</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charting Page -->
+      <div id="chartingPage" class="main-page">
+        <div class="page-content">
+          <div class="empty-page">
+            <h2>📊 Advanced Charting</h2>
+            <p>Coming soon: Interactive charting tools</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backtesting Page -->
+      <div id="backtestingPage" class="main-page">
+        <div class="page-content">
+          <div class="empty-page">
+            <h2>⚙️ Backtesting Engine</h2>
+            <p>Coming soon: Configure and run backtests</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results Page (Current functionality) -->
+      <div id="resultsPage" class="main-page">
+        <div class="page-header">
+          <h2>📋 Backtest Results</h2>
+          <div class="header-controls">
+            <button id="selectDbBtn" class="btn btn-primary">Select Database</button>
+            <span id="dbPath" class="db-path"></span>
+          </div>
+        </div>
+        
+        <div class="main-content">
       <!-- Sidebar -->
       <aside class="sidebar">
         <div class="sidebar-header">
@@ -112,7 +203,12 @@
           </div>
         </div>
       </main>
+        </div>
+      </div>
+      <!-- End Results Page -->
+      
     </div>
+    <!-- End Main Page Content -->
 
     <!-- Status Bar -->
     <footer class="status-bar">
