@@ -72,10 +72,91 @@
 
       <!-- Watchlists Page -->
       <div id="watchlistsPage" class="main-page">
-        <div class="page-content">
-          <div class="empty-page">
-            <h2>⭐ Watchlists</h2>
-            <p>Coming soon: Manage your custom watchlists</p>
+        <div class="watchlist-layout">
+          <!-- Sidebar with watchlist list -->
+          <div class="watchlist-sidebar">
+            <div class="watchlist-sidebar-header">
+              <h2>⭐ Watchlists</h2>
+              <button id="createWatchlistBtn" class="btn btn-primary">+ New</button>
+            </div>
+            <div class="watchlist-search">
+              <input type="text" id="watchlistSearch" placeholder="Search watchlists..." class="search-input">
+            </div>
+            <div id="watchlistsList" class="watchlists-list">
+              <div class="empty-state">
+                <p>📝 No watchlists yet</p>
+                <p style="font-size: 12px; color: #666;">Create your first watchlist</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main content area -->
+          <div class="watchlist-main">
+            <div id="watchlistEmpty" class="watchlist-empty-state">
+              <div class="empty-state">
+                <h2>Select a watchlist</h2>
+                <p>Choose a watchlist from the sidebar or create a new one</p>
+              </div>
+            </div>
+
+            <div id="watchlistContent" class="watchlist-content" style="display: none;">
+              <!-- Watchlist header -->
+              <div class="watchlist-header">
+                <div class="watchlist-title-section">
+                  <h2 id="watchlistName">Watchlist Name</h2>
+                  <span id="watchlistCount" class="watchlist-count">0 stocks</span>
+                </div>
+                <div class="watchlist-actions">
+                  <button id="addStockBtn" class="btn btn-primary">+ Add Stock</button>
+                  <button id="viewTreemapBtn" class="btn">🗺️ View Treemap</button>
+                  <button id="editWatchlistBtn" class="btn">✏️ Edit</button>
+                  <button id="deleteWatchlistBtn" class="btn btn-danger">🗑️ Delete</button>
+                </div>
+              </div>
+
+              <!-- Stock list -->
+              <div class="watchlist-stocks">
+                <table id="watchlistTable" class="watchlist-table">
+                  <thead>
+                    <tr>
+                      <th>Ticker</th>
+                      <th>Price</th>
+                      <th>Change</th>
+                      <th>Change %</th>
+                      <th>Volume</th>
+                      <th>Market Cap</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="watchlistTableBody">
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Watchlist Treemap View -->
+            <div id="watchlistTreemapView" class="watchlist-treemap-view" style="display: none;">
+              <div class="treemap-overlay-controls">
+                <div class="control-group">
+                  <button id="backToListBtn" class="btn">← Back to List</button>
+                  <h2 id="treemapWatchlistName" style="color: #e0e0e0; margin: 0 20px;">Watchlist</h2>
+                  <label style="color: #e0e0e0; font-size: 13px; font-weight: 600;">
+                    Size:
+                    <select id="watchlistTreemapSizeBy" class="control-select">
+                      <option value="marketcap">Market Cap</option>
+                      <option value="volume">Volume</option>
+                      <option value="equal">Equal</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="status-group">
+                  <span id="watchlistLastUpdate" class="last-update">Loading...</span>
+                </div>
+              </div>
+              <div id="watchlistTreemapContainer" class="treemap-container-fullscreen">
+                <svg id="watchlistTreemap"></svg>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -83,9 +164,43 @@
       <!-- Charting Page -->
       <div id="chartingPage" class="main-page">
         <div class="page-content">
-          <div class="empty-page">
-            <h2>📊 Advanced Charting</h2>
-            <p>Coming soon: Interactive charting tools</p>
+          <div class="charting-container">
+            <div class="chart-controls">
+              <div class="control-group">
+                <label for="chartTickerInput">Ticker:</label>
+                <input type="text" id="chartTickerInput" placeholder="Enter ticker (e.g., AAPL)" />
+              </div>
+              <div class="control-group">
+                <label for="chartTimeframe">Timeframe:</label>
+                <select id="chartTimeframe">
+                  <option value="1D">1 Day</option>
+                  <option value="5D">5 Days</option>
+                  <option value="1M" selected>1 Month</option>
+                  <option value="3M">3 Months</option>
+                  <option value="6M">6 Months</option>
+                  <option value="1Y">1 Year</option>
+                  <option value="2Y">2 Years</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label for="chartInterval">Interval:</label>
+                <select id="chartInterval">
+                  <option value="1">1 Min</option>
+                  <option value="5">5 Min</option>
+                  <option value="15">15 Min</option>
+                  <option value="30">30 Min</option>
+                  <option value="60">1 Hour</option>
+                  <option value="day" selected>Daily</option>
+                </select>
+              </div>
+              <button id="loadChartBtn" class="chart-btn">Load Chart</button>
+            </div>
+            <div class="chart-display">
+              <div id="candlestickChart"></div>
+              <div id="chartLoading" style="display: none; text-align: center; padding: 40px; color: #666;">
+                <p>Loading chart data...</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -278,6 +393,52 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Watchlist Modals -->
+  <!-- Create/Edit Watchlist Modal -->
+  <div id="watchlistModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="watchlistModalTitle">Create Watchlist</h3>
+        <button class="modal-close" onclick="document.getElementById('watchlistModal').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Watchlist Name</label>
+          <input type="text" id="watchlistNameInput" class="form-input" placeholder="e.g., Tech Giants, Dividend Stocks">
+        </div>
+        <div class="form-group">
+          <label>Description (optional)</label>
+          <textarea id="watchlistDescInput" class="form-input" rows="3" placeholder="Brief description of this watchlist"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('watchlistModal').style.display='none'">Cancel</button>
+        <button id="saveWatchlistBtn" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Stock Modal -->
+  <div id="addStockModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Stocks</h3>
+        <button class="modal-close" onclick="document.getElementById('addStockModal').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Stock Tickers (comma-separated)</label>
+          <input type="text" id="stockTickersInput" class="form-input" placeholder="e.g., AAPL, MSFT, GOOGL">
+          <small style="color: #999; display: block; margin-top: 5px;">Enter one or more ticker symbols separated by commas</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('addStockModal').style.display='none'">Cancel</button>
+        <button id="addStocksBtn" class="btn btn-primary">Add Stocks</button>
       </div>
     </div>
   </div>

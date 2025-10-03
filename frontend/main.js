@@ -277,6 +277,48 @@ ipcMain.handle('polygon-get-all-data', () => {
   return { success: true, data };
 });
 
+// Fetch historical bars for candlestick chart
+ipcMain.handle('polygon-get-historical-bars', async (event, { ticker, from, to, timespan, multiplier }) => {
+  const apiKey = process.env.POLYGON_API_KEY;
+  
+  if (!apiKey) {
+    return { success: false, error: 'Polygon API key not configured' };
+  }
+
+  try {
+    // Build the URL for aggregates endpoint
+    // Format: /v2/aggs/ticker/{stocksTicker}/range/{multiplier}/{timespan}/{from}/{to}
+    const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+    
+    console.log(`Fetching historical data: ${ticker} from ${from} to ${to}`);
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.status === 'OK' && data.results && data.results.length > 0) {
+      console.log(`Received ${data.results.length} bars for ${ticker}`);
+      return { 
+        success: true, 
+        bars: data.results,
+        ticker: data.ticker,
+        resultsCount: data.resultsCount
+      };
+    } else {
+      console.error('No data received from Polygon:', data);
+      return { 
+        success: false, 
+        error: data.error || 'No data available for the specified period' 
+      };
+    }
+  } catch (error) {
+    console.error('Error fetching historical data:', error);
+    return { 
+      success: false, 
+      error: error.message 
+    };
+  }
+});
+
 // IPC Handlers
 ipcMain.handle('select-db', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {

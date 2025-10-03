@@ -2227,3 +2227,744 @@ const homePage = document.getElementById('homePage');
 if (homePage) {
   homePageObserver.observe(homePage, { attributes: true, attributeFilter: ['class'] });
 }
+
+// =====================================================
+// WATCHLISTS FUNCTIONALITY
+// =====================================================
+
+let watchlists = [];
+let currentWatchlist = null;
+let watchlistStockData = new Map();
+let editingWatchlistId = null;
+
+// Load watchlists from localStorage
+function loadWatchlists() {
+  const stored = localStorage.getItem('watchlists');
+  if (stored) {
+    try {
+      watchlists = JSON.parse(stored);
+    } catch (error) {
+      console.error('Error loading watchlists:', error);
+      watchlists = [];
+    }
+  }
+  displayWatchlists();
+}
+
+// Save watchlists to localStorage
+function saveWatchlistsToStorage() {
+  localStorage.setItem('watchlists', JSON.stringify(watchlists));
+}
+
+// Display watchlists in sidebar
+function displayWatchlists() {
+  const listEl = document.getElementById('watchlistsList');
+  const searchQuery = document.getElementById('watchlistSearch')?.value.toLowerCase() || '';
+  
+  const filtered = watchlists.filter(w => 
+    w.name.toLowerCase().includes(searchQuery) || 
+    (w.description && w.description.toLowerCase().includes(searchQuery))
+  );
+  
+  if (filtered.length === 0) {
+    listEl.innerHTML = `
+      <div class="empty-state">
+        <p>📝 No watchlists ${searchQuery ? 'found' : 'yet'}</p>
+        <p style="font-size: 12px; color: #666;">${searchQuery ? 'Try a different search' : 'Create your first watchlist'}</p>
+      </div>
+    `;
+    return;
+  }
+  
+  listEl.innerHTML = filtered.map(w => `
+    <div class="watchlist-item ${currentWatchlist?.id === w.id ? 'active' : ''}" data-id="${w.id}">
+      <div class="watchlist-item-name">${escapeHtml(w.name)}</div>
+      <div class="watchlist-item-info">${w.tickers.length} stocks</div>
+    </div>
+  `).join('');
+  
+  // Add click handlers
+  document.querySelectorAll('.watchlist-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const id = item.dataset.id;
+      selectWatchlist(id);
+    });
+  });
+}
+
+// Select a watchlist
+function selectWatchlist(id) {
+  currentWatchlist = watchlists.find(w => w.id === id);
+  if (!currentWatchlist) return;
+  
+  // Update UI
+  displayWatchlists(); // Refresh active state
+  document.getElementById('watchlistEmpty').style.display = 'none';
+  document.getElementById('watchlistContent').style.display = 'flex';
+  document.getElementById('watchlistTreemapView').style.display = 'none';
+  
+  document.getElementById('watchlistName').textContent = currentWatchlist.name;
+  document.getElementById('watchlistCount').textContent = `${currentWatchlist.tickers.length} stocks`;
+  
+  // Load stock data for this watchlist
+  loadWatchlistStockData();
+  displayWatchlistStocks();
+}
+
+// Load stock data for current watchlist
+function loadWatchlistStockData() {
+  if (!currentWatchlist) return;
+  
+  // Get data from main treemap data or fetch fresh
+  currentWatchlist.tickers.forEach(ticker => {
+    if (treemapData.has(ticker)) {
+      watchlistStockData.set(ticker, treemapData.get(ticker));
+    }
+  });
+}
+
+// Display stocks in table
+function displayWatchlistStocks() {
+  const tbody = document.getElementById('watchlistTableBody');
+  
+  if (!currentWatchlist || currentWatchlist.tickers.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align: center; padding: 40px; color: #666;">
+          No stocks in this watchlist. Click "Add Stock" to get started.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
+  tbody.innerHTML = currentWatchlist.tickers.map(ticker => {
+    const data = watchlistStockData.get(ticker);
+    
+    if (!data) {
+      return `
+        <tr>
+          <td class="stock-ticker">${ticker}</td>
+          <td colspan="5" style="color: #666;">Loading...</td>
+          <td><button class="remove-stock-btn" onclick="removeStockFromWatchlist('${ticker}')">Remove</button></td>
+        </tr>
+      `;
+    }
+    
+    const changeClass = data.changePercent >= 0 ? 'stock-change-positive' : 'stock-change-negative';
+    const changeSign = data.changePercent >= 0 ? '+' : '';
+    
+    return `
+      <tr>
+        <td class="stock-ticker">${ticker}</td>
+        <td class="${changeClass}">$${data.close ? data.close.toFixed(2) : 'N/A'}</td>
+        <td class="${changeClass}">${changeSign}${data.change ? data.change.toFixed(2) : '0.00'}</td>
+        <td class="${changeClass}">${changeSign}${data.changePercent ? data.changePercent.toFixed(2) : '0.00'}%</td>
+        <td>${data.volume ? (data.volume / 1000000).toFixed(1) + 'M' : 'N/A'}</td>
+        <td class="${changeClass}">${data.marketCap ? '$' + (data.marketCap / 1e9).toFixed(1) + 'B' : 'N/A'}</td>
+        <td><button class="remove-stock-btn" onclick="removeStockFromWatchlist('${ticker}')">Remove</button></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// Create watchlist modal
+document.getElementById('createWatchlistBtn')?.addEventListener('click', () => {
+  editingWatchlistId = null;
+  document.getElementById('watchlistModalTitle').textContent = 'Create Watchlist';
+  document.getElementById('watchlistNameInput').value = '';
+  document.getElementById('watchlistDescInput').value = '';
+  document.getElementById('watchlistModal').style.display = 'flex';
+  document.getElementById('watchlistNameInput').focus();
+});
+
+// Edit watchlist
+document.getElementById('editWatchlistBtn')?.addEventListener('click', () => {
+  if (!currentWatchlist) return;
+  
+  editingWatchlistId = currentWatchlist.id;
+  document.getElementById('watchlistModalTitle').textContent = 'Edit Watchlist';
+  document.getElementById('watchlistNameInput').value = currentWatchlist.name;
+  document.getElementById('watchlistDescInput').value = currentWatchlist.description || '';
+  document.getElementById('watchlistModal').style.display = 'flex';
+  document.getElementById('watchlistNameInput').focus();
+});
+
+// Save watchlist
+document.getElementById('saveWatchlistBtn')?.addEventListener('click', () => {
+  const name = document.getElementById('watchlistNameInput').value.trim();
+  const description = document.getElementById('watchlistDescInput').value.trim();
+  
+  if (!name) {
+    alert('Please enter a watchlist name');
+    return;
+  }
+  
+  if (editingWatchlistId) {
+    // Edit existing
+    const watchlist = watchlists.find(w => w.id === editingWatchlistId);
+    if (watchlist) {
+      watchlist.name = name;
+      watchlist.description = description;
+    }
+  } else {
+    // Create new
+    const newWatchlist = {
+      id: Date.now().toString(),
+      name: name,
+      description: description,
+      tickers: [],
+      createdAt: Date.now()
+    };
+    watchlists.push(newWatchlist);
+    currentWatchlist = newWatchlist;
+    selectWatchlist(newWatchlist.id);
+  }
+  
+  saveWatchlistsToStorage();
+  displayWatchlists();
+  document.getElementById('watchlistModal').style.display = 'none';
+});
+
+// Delete watchlist
+document.getElementById('deleteWatchlistBtn')?.addEventListener('click', () => {
+  if (!currentWatchlist) return;
+  
+  if (confirm(`Are you sure you want to delete "${currentWatchlist.name}"?`)) {
+    watchlists = watchlists.filter(w => w.id !== currentWatchlist.id);
+    saveWatchlistsToStorage();
+    currentWatchlist = null;
+    
+    document.getElementById('watchlistEmpty').style.display = 'flex';
+    document.getElementById('watchlistContent').style.display = 'none';
+    displayWatchlists();
+  }
+});
+
+// Add stock modal
+document.getElementById('addStockBtn')?.addEventListener('click', () => {
+  if (!currentWatchlist) return;
+  
+  document.getElementById('stockTickersInput').value = '';
+  document.getElementById('addStockModal').style.display = 'flex';
+  document.getElementById('stockTickersInput').focus();
+});
+
+// Add stocks to watchlist
+document.getElementById('addStocksBtn')?.addEventListener('click', () => {
+  if (!currentWatchlist) return;
+  
+  const input = document.getElementById('stockTickersInput').value.trim();
+  if (!input) {
+    alert('Please enter at least one ticker symbol');
+    return;
+  }
+  
+  const tickers = input.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
+  const newTickers = tickers.filter(t => !currentWatchlist.tickers.includes(t));
+  
+  if (newTickers.length === 0) {
+    alert('All tickers are already in this watchlist');
+    return;
+  }
+  
+  currentWatchlist.tickers.push(...newTickers);
+  saveWatchlistsToStorage();
+  
+  document.getElementById('watchlistCount').textContent = `${currentWatchlist.tickers.length} stocks`;
+  loadWatchlistStockData();
+  displayWatchlistStocks();
+  displayWatchlists();
+  
+  document.getElementById('addStockModal').style.display = 'none';
+});
+
+// Remove stock from watchlist
+window.removeStockFromWatchlist = function(ticker) {
+  if (!currentWatchlist) return;
+  
+  if (confirm(`Remove ${ticker} from this watchlist?`)) {
+    currentWatchlist.tickers = currentWatchlist.tickers.filter(t => t !== ticker);
+    saveWatchlistsToStorage();
+    
+    document.getElementById('watchlistCount').textContent = `${currentWatchlist.tickers.length} stocks`;
+    watchlistStockData.delete(ticker);
+    displayWatchlistStocks();
+    displayWatchlists();
+  }
+};
+
+// View watchlist as treemap
+document.getElementById('viewTreemapBtn')?.addEventListener('click', () => {
+  if (!currentWatchlist || currentWatchlist.tickers.length === 0) {
+    alert('Add stocks to this watchlist first');
+    return;
+  }
+  
+  document.getElementById('watchlistContent').style.display = 'none';
+  document.getElementById('watchlistTreemapView').style.display = 'flex';
+  document.getElementById('treemapWatchlistName').textContent = currentWatchlist.name;
+  
+  setTimeout(() => drawWatchlistTreemap(), 100);
+});
+
+// Back to list
+document.getElementById('backToListBtn')?.addEventListener('click', () => {
+  document.getElementById('watchlistTreemapView').style.display = 'none';
+  document.getElementById('watchlistContent').style.display = 'flex';
+});
+
+// Draw watchlist treemap
+function drawWatchlistTreemap() {
+  try {
+    const container = document.getElementById('watchlistTreemapContainer');
+    if (!container) return;
+    
+    const dataArray = Array.from(watchlistStockData.values()).filter(d => d.changePercent !== null);
+    
+    if (dataArray.length === 0) {
+      const svg = d3.select('#watchlistTreemap');
+      svg.selectAll('*').remove();
+      svg.append('text')
+        .attr('x', '50%')
+        .attr('y', '50%')
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#666')
+        .attr('font-size', '18px')
+        .text('Loading watchlist data...');
+      return;
+    }
+    
+    d3.select('#watchlistTreemap').selectAll('*').remove();
+    
+    const width = container.clientWidth - 20;
+    const height = container.clientHeight - 20;
+    
+    const svg = d3.select('#watchlistTreemap')
+      .attr('width', width)
+      .attr('height', height);
+    
+    const sizeBy = document.getElementById('watchlistTreemapSizeBy')?.value || 'marketcap';
+    
+    const root = d3.hierarchy({
+      children: dataArray.map(d => {
+        let value = 1;
+        if (sizeBy === 'marketcap' && d.marketCap) {
+          value = Math.abs(d.marketCap);
+        } else if (sizeBy === 'volume' && d.volume) {
+          value = Math.abs(d.volume);
+        }
+        
+        return {
+          name: d.ticker,
+          value: value,
+          percent: d.changePercent,
+          change: d.change,
+          close: d.close,
+          volume: d.volume,
+          marketCap: d.marketCap,
+          data: d
+        };
+      })
+    })
+    .sum(d => d.value)
+    .sort((a, b) => (b.data?.percent || 0) - (a.data?.percent || 0));
+    
+    const treemap = d3.treemap()
+      .size([width, height])
+      .paddingInner(2)
+      .paddingOuter(2)
+      .round(true);
+    
+    treemap(root);
+    
+    const cells = svg.selectAll('.stock-cell')
+      .data(root.leaves())
+      .join('g')
+      .attr('class', 'stock-cell')
+      .attr('transform', d => `translate(${d.x0},${d.y0})`);
+    
+    cells.append('rect')
+      .attr('class', 'treemap-cell')
+      .attr('width', d => d.x1 - d.x0)
+      .attr('height', d => d.y1 - d.y0)
+      .attr('fill', d => getColorForPercent(d.data.percent))
+      .attr('rx', 2)
+      .append('title')
+      .text(d => {
+        const volumeStr = d.data.volume ? (d.data.volume / 1000000).toFixed(1) + 'M' : 'N/A';
+        const marketCapStr = d.data.marketCap ? '$' + (d.data.marketCap / 1e9).toFixed(1) + 'B' : 'N/A';
+        return `${d.data.name}\n${d.data.percent ? (d.data.percent > 0 ? '+' : '') + d.data.percent.toFixed(2) : '0.00'}%\nPrice: $${d.data.close ? d.data.close.toFixed(2) : 'N/A'}\nMarket Cap: ${marketCapStr}\nVolume: ${volumeStr}`;
+      });
+    
+    cells.each(function(d) {
+      const cellWidth = d.x1 - d.x0;
+      const cellHeight = d.y1 - d.y0;
+      const g = d3.select(this);
+      
+      if (cellWidth > 50 && cellHeight > 35) {
+        g.append('text')
+          .attr('class', 'treemap-text ticker')
+          .attr('x', cellWidth / 2)
+          .attr('y', cellHeight / 2 - 8)
+          .text(d.data.name);
+        
+        if (d.data.percent !== null) {
+          g.append('text')
+            .attr('class', 'treemap-text percent')
+            .attr('x', cellWidth / 2)
+            .attr('y', cellHeight / 2 + 8)
+            .text(`${d.data.percent > 0 ? '+' : ''}${d.data.percent.toFixed(2)}%`);
+        }
+      } else if (cellWidth > 30 && cellHeight > 25) {
+        g.append('text')
+          .attr('class', 'treemap-text ticker')
+          .attr('x', cellWidth / 2)
+          .attr('y', cellHeight / 2)
+          .style('font-size', '11px')
+          .text(d.data.name);
+      }
+    });
+    
+    document.getElementById('watchlistLastUpdate').textContent = `${dataArray.length} stocks loaded`;
+    document.getElementById('watchlistLastUpdate').style.color = '#00aa55';
+    
+  } catch (error) {
+    console.error('Error drawing watchlist treemap:', error);
+  }
+}
+
+// Watchlist treemap size selector
+document.getElementById('watchlistTreemapSizeBy')?.addEventListener('change', () => {
+  drawWatchlistTreemap();
+});
+
+// Search watchlists
+document.getElementById('watchlistSearch')?.addEventListener('input', () => {
+  displayWatchlists();
+});
+
+// Update watchlist stock data when main treemap updates
+const originalOnPolygonUpdate = window.electronAPI.onPolygonUpdate;
+window.electronAPI.onPolygonUpdate((data) => {
+  // Call original handler
+  treemapData.set(data.ticker, data);
+  lastUpdateTime = new Date();
+  updateLastUpdateDisplay();
+  
+  if (!window.treemapUpdateScheduled) {
+    window.treemapUpdateScheduled = true;
+    setTimeout(() => {
+      drawTreemap();
+      window.treemapUpdateScheduled = false;
+    }, 5000);
+  }
+  
+  // Update watchlist data if ticker is in current watchlist
+  if (currentWatchlist && currentWatchlist.tickers.includes(data.ticker)) {
+    watchlistStockData.set(data.ticker, data);
+    
+    // Update table if in list view
+    if (document.getElementById('watchlistContent').style.display === 'flex') {
+      displayWatchlistStocks();
+    }
+    
+    // Update treemap if in treemap view
+    if (document.getElementById('watchlistTreemapView').style.display === 'flex') {
+      if (!window.watchlistTreemapUpdateScheduled) {
+        window.watchlistTreemapUpdateScheduled = true;
+        setTimeout(() => {
+          drawWatchlistTreemap();
+          window.watchlistTreemapUpdateScheduled = false;
+        }, 5000);
+      }
+    }
+  }
+});
+
+// Utility function
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Modal close handlers
+document.getElementById('cancelWatchlistBtn')?.addEventListener('click', () => {
+  document.getElementById('watchlistModal').style.display = 'none';
+});
+
+document.getElementById('cancelAddStockBtn')?.addEventListener('click', () => {
+  document.getElementById('addStockModal').style.display = 'none';
+});
+
+// Click outside modal to close
+window.addEventListener('click', (e) => {
+  if (e.target.classList.contains('modal')) {
+    e.target.style.display = 'none';
+  }
+});
+
+// Initialize watchlists on page load
+loadWatchlists();
+
+// =====================================================
+// CANDLESTICK CHART FUNCTIONALITY
+// =====================================================
+
+let currentChartData = null;
+
+// Load chart button
+document.getElementById('loadChartBtn')?.addEventListener('click', async () => {
+  const ticker = document.getElementById('chartTickerInput')?.value.trim().toUpperCase();
+  const timeframe = document.getElementById('chartTimeframe')?.value;
+  const interval = document.getElementById('chartInterval')?.value;
+  
+  if (!ticker) {
+    alert('Please enter a ticker symbol');
+    return;
+  }
+  
+  await loadCandlestickChart(ticker, timeframe, interval);
+});
+
+// Allow Enter key in ticker input
+document.getElementById('chartTickerInput')?.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    document.getElementById('loadChartBtn').click();
+  }
+});
+
+// Calculate date range based on timeframe
+function getDateRange(timeframe) {
+  const to = new Date();
+  const from = new Date();
+  
+  switch(timeframe) {
+    case '1D':
+      from.setDate(to.getDate() - 1);
+      break;
+    case '5D':
+      from.setDate(to.getDate() - 7); // Get a bit more to account for weekends
+      break;
+    case '1M':
+      from.setMonth(to.getMonth() - 1);
+      break;
+    case '3M':
+      from.setMonth(to.getMonth() - 3);
+      break;
+    case '6M':
+      from.setMonth(to.getMonth() - 6);
+      break;
+    case '1Y':
+      from.setFullYear(to.getFullYear() - 1);
+      break;
+    case '2Y':
+      from.setFullYear(to.getFullYear() - 2);
+      break;
+    default:
+      from.setMonth(to.getMonth() - 1);
+  }
+  
+  // Format as YYYY-MM-DD
+  const formatDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  return {
+    from: formatDate(from),
+    to: formatDate(to)
+  };
+}
+
+// Determine timespan and multiplier from interval
+function getTimespanParams(interval) {
+  if (interval === 'day') {
+    return { timespan: 'day', multiplier: 1 };
+  }
+  // Minute intervals
+  return { timespan: 'minute', multiplier: parseInt(interval) };
+}
+
+// Load candlestick chart
+async function loadCandlestickChart(ticker, timeframe, interval) {
+  const chartDiv = document.getElementById('candlestickChart');
+  const loadingDiv = document.getElementById('chartLoading');
+  
+  // Show loading
+  loadingDiv.style.display = 'block';
+  chartDiv.innerHTML = '';
+  
+  try {
+    const dateRange = getDateRange(timeframe);
+    const { timespan, multiplier } = getTimespanParams(interval);
+    
+    console.log(`Loading chart for ${ticker}: ${dateRange.from} to ${dateRange.to}, ${multiplier} ${timespan}`);
+    
+    const result = await window.electronAPI.polygonGetHistoricalBars({
+      ticker: ticker,
+      from: dateRange.from,
+      to: dateRange.to,
+      timespan: timespan,
+      multiplier: multiplier
+    });
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to load chart data');
+    }
+    
+    if (!result.bars || result.bars.length === 0) {
+      throw new Error('No data available for this ticker and timeframe');
+    }
+    
+    currentChartData = result.bars;
+    drawCandlestickChart(ticker, result.bars, timespan);
+    
+    loadingDiv.style.display = 'none';
+    
+  } catch (error) {
+    console.error('Error loading chart:', error);
+    loadingDiv.style.display = 'none';
+    chartDiv.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #e74c3c;">
+        <div style="text-align: center;">
+          <h3>Error Loading Chart</h3>
+          <p>${error.message}</p>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// Draw candlestick chart with no gaps (excludes non-trading days)
+function drawCandlestickChart(ticker, bars, timespan) {
+  // Prepare data for Plotly
+  // The key: use a categorical x-axis with only actual trading days/times
+  
+  const dates = [];
+  const open = [];
+  const high = [];
+  const low = [];
+  const close = [];
+  const volume = [];
+  
+  bars.forEach((bar) => {
+    // Format timestamp based on timespan
+    let dateLabel;
+    const date = new Date(bar.t);
+    
+    if (timespan === 'day') {
+      // Daily: show date only
+      dateLabel = date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    } else {
+      // Intraday: show date and time
+      dateLabel = date.toLocaleString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+    
+    dates.push(dateLabel);
+    open.push(bar.o);
+    high.push(bar.h);
+    low.push(bar.l);
+    close.push(bar.c);
+    volume.push(bar.v);
+  });
+  
+  // Create candlestick trace
+  const candlestickTrace = {
+    type: 'candlestick',
+    x: dates,
+    open: open,
+    high: high,
+    low: low,
+    close: close,
+    name: ticker,
+    increasing: { line: { color: '#00aa55' } },
+    decreasing: { line: { color: '#e74c3c' } },
+    xaxis: 'x',
+    yaxis: 'y'
+  };
+  
+  // Create volume trace
+  const volumeTrace = {
+    type: 'bar',
+    x: dates,
+    y: volume,
+    name: 'Volume',
+    marker: {
+      color: volume.map((v, i) => close[i] >= open[i] ? '#00aa5533' : '#e74c3c33')
+    },
+    xaxis: 'x',
+    yaxis: 'y2'
+  };
+  
+  const layout = {
+    title: {
+      text: `${ticker} - ${timespan === 'day' ? 'Daily' : 'Intraday'} Chart`,
+      font: { color: '#e0e0e0', size: 18 }
+    },
+    plot_bgcolor: '#1a1a1a',
+    paper_bgcolor: '#1a1a1a',
+    font: { color: '#e0e0e0' },
+    xaxis: {
+      type: 'category', // KEY: Categorical x-axis = no gaps!
+      rangeslider: { visible: false },
+      gridcolor: '#333',
+      showgrid: true,
+      tickangle: -45,
+      tickfont: { size: 10 }
+    },
+    yaxis: {
+      title: 'Price ($)',
+      domain: [0.25, 1],
+      gridcolor: '#333',
+      showgrid: true
+    },
+    yaxis2: {
+      title: 'Volume',
+      domain: [0, 0.2],
+      gridcolor: '#333',
+      showgrid: false
+    },
+    margin: { l: 60, r: 40, t: 60, b: 80 },
+    hovermode: 'x unified',
+    showlegend: true,
+    legend: {
+      x: 0,
+      y: 1.1,
+      orientation: 'h',
+      font: { color: '#e0e0e0' }
+    }
+  };
+  
+  const config = {
+    responsive: true,
+    displayModeBar: true,
+    modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+    displaylogo: false
+  };
+  
+  Plotly.newPlot('candlestickChart', [candlestickTrace, volumeTrace], layout, config);
+}
+
+// Update chart when window resizes
+window.addEventListener('resize', () => {
+  if (currentChartData && document.getElementById('candlestickChart').innerHTML) {
+    const ticker = document.getElementById('chartTickerInput')?.value.trim().toUpperCase();
+    const interval = document.getElementById('chartInterval')?.value;
+    const { timespan } = getTimespanParams(interval);
+    drawCandlestickChart(ticker, currentChartData, timespan);
+  }
+});

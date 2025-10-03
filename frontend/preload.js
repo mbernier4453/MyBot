@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   polygonConnect: () => ipcRenderer.invoke('polygon-connect'),
   polygonDisconnect: () => ipcRenderer.invoke('polygon-disconnect'),
   polygonGetAllData: () => ipcRenderer.invoke('polygon-get-all-data'),
+  polygonGetHistoricalBars: (params) => ipcRenderer.invoke('polygon-get-historical-bars', params),
   onPolygonUpdate: (callback) => ipcRenderer.on('polygon-update', (event, data) => callback(data)),
   onPolygonStatus: (callback) => ipcRenderer.on('polygon-status', (event, status) => callback(status)),
   onPolygonError: (callback) => ipcRenderer.on('polygon-error', (event, error) => callback(error)),
