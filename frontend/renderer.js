@@ -2908,10 +2908,10 @@ function validateIntervalForTimeframe() {
   // Define valid intervals for each timeframe
   const validIntervals = {
     '1D': ['1', '5', '15', '30', '60'],
-    '5D': ['5', '15', '30', '60', '240'],
-    '1M': ['15', '30', '60', '240', 'day'],
-    '3M': ['60', '240', 'day'],
-    '6M': ['240', 'day'],
+    '5D': ['5', '15', '30', '60'],  // Removed 240 (4hr)
+    '1M': ['60', 'day'],  // Removed 15, 30, 240 - only 1hr and daily work
+    '3M': ['day'],  // Only daily works for 3M
+    '6M': ['day'],  // Only daily works for 6M (removed 240)
     '1Y': ['day', 'week'],
     '2Y': ['day', 'week'],
     '5Y': ['day', 'week', 'month'],
@@ -2975,7 +2975,8 @@ function getDateRange(timeframe) {
   
   switch(timeframe) {
     case '1D':
-      from.setDate(to.getDate() - 1);
+      // For 1D, show only today's data (start at midnight today)
+      from.setHours(0, 0, 0, 0);
       break;
     case '5D':
       from.setDate(to.getDate() - 7);
@@ -3217,7 +3218,11 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
       fillcolor: '#e74c3c'  // Solid fill
     },
     xaxis: 'x',
-    yaxis: 'y'
+    yaxis: 'y',
+    hoverinfo: 'text',  // Use custom hover text
+    text: dates.map((date, i) => 
+      `${date}<br>O: $${open[i].toFixed(2)}<br>H: $${high[i].toFixed(2)}<br>L: $${low[i].toFixed(2)}<br>C: $${close[i].toFixed(2)}`
+    )
   };
   
   // Create volume trace
@@ -3264,27 +3269,27 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
     },
     yaxis: {
       title: 'Price ($)',
-      domain: [0.22, 1],  // Move up to make more room for volume
+      domain: [0.23, 1],  // More room above volume
       gridcolor: '#333',
       showgrid: true
     },
     yaxis2: {
-      title: 'Volume',
-      domain: [0, 0.15],  // Moved down
+      title: '',  // No title for volume axis
+      domain: [0, 0.18],  // Increased height for volume chart
       gridcolor: '#333',
-      showgrid: false
+      showgrid: false,
+      showticklabels: false  // Hide volume numbers
     },
-    margin: { l: 60, r: 40, t: 60, b: 120 }, // Increased bottom margin for labels
-    hovermode: 'closest',  // Changed to closest for better hover
-    showlegend: true,
-    legend: {
-      x: 0.02,  // Top-left position
-      y: 0.98,
-      bgcolor: 'rgba(26, 26, 26, 0.7)',  // Semi-transparent background
-      bordercolor: '#333',
-      borderwidth: 1,
-      font: { color: '#e0e0e0', size: 11 }
-    }
+    margin: { l: 60, r: 40, t: 80, b: 140 }, // More top margin for hover info
+    hovermode: 'x unified',  // Shows vertical line across all traces
+    hoverlabel: {
+      bgcolor: 'rgba(26, 26, 26, 0.8)',  // Semi-transparent background (80% opacity)
+      bordercolor: '#444',
+      font: { color: '#e0e0e0', size: 11 },
+      align: 'left',
+      namelength: -1  // Show full text
+    },
+    showlegend: false  // Hide legend completely
   };
   
   const config = {
@@ -3309,11 +3314,15 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
         width: 2
       },
       xaxis: 'x',
-      yaxis: 'y'
+      yaxis: 'y',
+      hovertemplate: '%{x}<br>Close: $%{y:.2f}<extra></extra>'
     };
   } else {
     mainTrace = candlestickTrace;
   }
+  
+  // Update volume trace hover
+  volumeTrace.hovertemplate = 'Volume: %{y:,.0f}<extra></extra>';
   
   Plotly.newPlot('candlestickChart', [mainTrace, volumeTrace], layout, config);
 }
