@@ -6,6 +6,7 @@ const initSqlJs = require('sql.js');
 let mainWindow;
 let db = null;
 let SQL = null;
+let dbPath = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -56,6 +57,7 @@ ipcMain.handle('select-db', async () => {
       if (db) db.close();
       const buffer = fs.readFileSync(result.filePaths[0]);
       db = new SQL.Database(buffer);
+      dbPath = result.filePaths[0]; // Store the path for saving
       return { success: true, path: result.filePaths[0] };
     } catch (error) {
       return { success: false, error: error.message };
@@ -63,6 +65,24 @@ ipcMain.handle('select-db', async () => {
   }
   return { success: false, error: 'No file selected' };
 });
+
+// Helper function to save database to disk
+function saveDatabase() {
+  if (!db || !dbPath) {
+    console.error('[BACKEND] Cannot save: no database or path');
+    return false;
+  }
+  try {
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(dbPath, buffer);
+    console.log('[BACKEND] Database saved to:', dbPath);
+    return true;
+  } catch (error) {
+    console.error('[BACKEND] Error saving database:', error);
+    return false;
+  }
+}
 
 ipcMain.handle('get-runs', async () => {
   if (!db) return { success: false, error: 'No database connected' };
@@ -430,6 +450,174 @@ ipcMain.handle('get-comparison-data', async (event, runIds) => {
       }
     };
   } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-strategy-details', async (event, strategyId) => {
+  console.log('[BACKEND] get-strategy-details called for strategyId:', strategyId);
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    const stmt = db.prepare(`
+      SELECT 
+        id,
+        run_id,
+        ticker,
+        total_return,
+        cagr,
+        sharpe,
+        sortino,
+        vol,
+        maxdd,
+        win_rate,
+        net_win_rate,
+        avg_trade_pnl,
+        trades_total,
+        params_json,
+        metrics_json,
+        equity_json,
+        events_json,
+        buyhold_json,
+        created_at
+      FROM strategies
+      WHERE id = ?
+    `);
+    stmt.bind([strategyId]);
+    
+    if (stmt.step()) {
+      const row = stmt.getAsObject();
+      
+      // Parse JSON fields
+      try {
+        row.params = JSON.parse(row.params_json || '{}');
+        row.metrics = JSON.parse((row.metrics_json || '{}').replace(/:\s*NaN/g, ': null'));
+        row.equity = row.equity_json ? JSON.parse(row.equity_json) : null;
+        row.buyhold_equity = row.buyhold_json ? JSON.parse(row.buyhold_json) : null;
+        row.events = row.events_json ? JSON.parse(row.events_json) : [];
+      } catch (parseError) {
+        console.warn('[BACKEND] JSON parse error:', parseError);
+        row.params = {};
+        row.metrics = {};
+        row.equity = null;
+        row.buyhold_equity = null;
+        row.events = [];
+      }
+      
+      stmt.free();
+      
+      // Get benchmark equity from runs table
+      const runStmt = db.prepare('SELECT benchmark_equity_json FROM runs WHERE run_id = ?');
+      runStmt.bind([row.run_id]);
+      if (runStmt.step()) {
+        const runRow = runStmt.getAsObject();
+        try {
+          row.benchmark_equity = runRow.benchmark_equity_json ? JSON.parse(runRow.benchmark_equity_json) : null;
+        } catch (e) {
+          row.benchmark_equity = null;
+        }
+      }
+      runStmt.free();
+      
+      console.log('[BACKEND] Strategy details loaded:', {
+        id: row.id,
+        ticker: row.ticker,
+        hasEquity: !!row.equity,
+        hasBuyHold: !!row.buyhold_equity,
+        hasBenchmark: !!row.benchmark_equity,
+        eventsCount: row.events.length
+      });
+      
+      return { success: true, data: row };
+    }
+    
+    stmt.free();
+    return { success: false, error: 'Strategy not found' };
+  } catch (error) {
+    console.error('[BACKEND] Error loading strategy details:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('calculate-capm', async (event, strategyEquity, benchmarkEquity) => {
+  console.log('[BACKEND] calculate-capm called');
+  
+  try {
+    const { spawn } = require('child_process');
+    const pythonPath = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
+    const scriptPath = path.join(__dirname, '..', 'calculate_capm.py');
+    
+    return new Promise((resolve, reject) => {
+      const python = spawn(pythonPath, [scriptPath]);
+      
+      let stdout = '';
+      let stderr = '';
+      
+      // Send equity data as JSON to Python stdin
+      python.stdin.write(JSON.stringify({
+        strategy: strategyEquity,
+        benchmark: benchmarkEquity
+      }));
+      python.stdin.end();
+      
+      python.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      python.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      python.on('close', (code) => {
+        if (code !== 0) {
+          console.error('[BACKEND] CAPM calculation failed:', stderr);
+          resolve({ success: false, error: stderr || 'CAPM calculation failed' });
+        } else {
+          try {
+            const result = JSON.parse(stdout);
+            console.log('[BACKEND] CAPM result:', result);
+            resolve({ success: true, data: result });
+          } catch (e) {
+            console.error('[BACKEND] Failed to parse CAPM result:', e);
+            resolve({ success: false, error: 'Failed to parse CAPM result' });
+          }
+        }
+      });
+      
+      python.on('error', (err) => {
+        console.error('[BACKEND] Failed to spawn Python process:', err);
+        resolve({ success: false, error: err.message });
+      });
+    });
+  } catch (error) {
+    console.error('[BACKEND] Error in calculate-capm:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-run', async (event, runId) => {
+  console.log('[BACKEND] delete-run called for runId:', runId);
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    // Delete from all related tables using exec for immediate execution
+    db.exec(`
+      DELETE FROM trades WHERE run_id = '${runId}';
+      DELETE FROM portfolio_weights WHERE run_id = '${runId}';
+      DELETE FROM portfolio WHERE run_id = '${runId}';
+      DELETE FROM strategies WHERE run_id = '${runId}';
+      DELETE FROM runs WHERE run_id = '${runId}';
+    `);
+    
+    // Save database to persist the deletion
+    if (!saveDatabase()) {
+      return { success: false, error: 'Failed to save database after deletion' };
+    }
+    
+    console.log('[BACKEND] Successfully deleted run:', runId);
+    return { success: true };
+  } catch (error) {
+    console.error('[BACKEND] Error deleting run:', error);
     return { success: false, error: error.message };
   }
 });

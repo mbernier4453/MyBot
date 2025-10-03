@@ -15,6 +15,7 @@ from backtester.data import get_data  # assuming this exists (data_adapter wrapp
 import backtester.db as bt_db
 import os
 import csv
+import json
 
 def _bool(v, default=False):
     """Convert config value to bool."""
@@ -56,7 +57,31 @@ def main():
 
         # --- DB persistence (portfolio) ---
         if db_file:
-            bt_db.insert_portfolio_metrics(db_file, run_id, result.metrics)
+            # Serialize equity curves for tearsheet generation
+            equity_json = result.equity.to_json(orient='split', date_format='iso')
+            buyhold_json = None
+            if result.buyhold_equity is not None:
+                buyhold_json = result.buyhold_equity.to_json(orient='split', date_format='iso')
+            per_ticker_json = None
+            if result.per_ticker_equity:
+                # Convert dict of series to JSON
+                per_ticker_json = json.dumps({
+                    ticker: eq.to_json(orient='split', date_format='iso')
+                    for ticker, eq in result.per_ticker_equity.items()
+                })
+            
+            # Save benchmark equity for portfolio
+            if result.benchmark_equity is not None:
+                bench_json = result.benchmark_equity.to_json(orient='split', date_format='iso')
+                config_json = json.dumps(CONFIG, default=str)
+                bt_db.update_run_benchmark(db_file, run_id, bench_json, config_json)
+            
+            bt_db.insert_portfolio_metrics(
+                db_file, run_id, result.metrics,
+                equity_json=equity_json,
+                buyhold_equity_json=buyhold_json,
+                per_ticker_equity_json=per_ticker_json
+            )
             bt_db.insert_portfolio_weights(db_file, run_id, weights_eff)
             if get("SAVE_TRADES", True):
                 bt_db.insert_trades(db_file, run_id, result.trades)
@@ -87,11 +112,20 @@ def main():
     print(f"Run ID: {run_id} | Grid size: {len(params_list)}")
 
     bench_eq_full = get_benchmark_equity()
+    
+    # Save benchmark equity to DB for tearsheet generation
+    if db_file and bench_eq_full is not None:
+        bench_eq_full.name = f"Benchmark ({get('BENCHMARK_SYMBOL', 'SPY')})"
+        bench_json = bench_eq_full.to_json(orient='split', date_format='iso')
+        config_json = json.dumps(CONFIG, default=str)
+        bt_db.update_run_benchmark(db_file, run_id, bench_json, config_json)
 
     for sym in symbols:
         df = dfs[sym]
         recs = []
         bh_eq_full = get_buyhold_equity(df["Close"])
+        if bh_eq_full is not None:
+            bh_eq_full.name = f"{sym} Buy & Hold"
 
         for params in params_list:
             res = run_symbol(
@@ -102,6 +136,7 @@ def main():
             )
             m = res["metrics"]
             strat_eq = res["equity"]
+            events = res.get("events")
             extras = summarize_comparisons(strat_eq, bench_eq_full, bh_eq_full)
 
             if _bool(get("SAVE_METRICS"), True):
@@ -114,9 +149,27 @@ def main():
             # Merge buy & hold comparison metrics into m for database storage
             m_with_comparisons = {**m, **extras}
 
-            # DB insert for strategy (FIX: use sym/params/m)
+            # Serialize equity curve and events for tearsheet generation
+            equity_json = None
+            events_json = None
+            buyhold_json = None
             if db_file:
-                bt_db.insert_strategy_metrics(db_file, run_id, sym, params, m_with_comparisons)
+                # Convert equity series to JSON
+                strat_eq.name = f"{sym} Strategy"
+                equity_json = strat_eq.to_json(orient='split', date_format='iso')
+                # Convert buy & hold equity to JSON (only if enabled)
+                if bh_eq_full is not None:
+                    buyhold_json = bh_eq_full.to_json(orient='split', date_format='iso')
+                # Convert events list to JSON if exists
+                if events:
+                    events_json = json.dumps(events, default=str)
+                
+                bt_db.insert_strategy_metrics(
+                    db_file, run_id, sym, params, m_with_comparisons,
+                    equity_json=equity_json,
+                    events_json=events_json,
+                    buyhold_json=buyhold_json
+                )
 
             recs.append((m, params, strat_eq, res.get("events")))
         top_by_list = get("TOP_BY", ["total_return"])

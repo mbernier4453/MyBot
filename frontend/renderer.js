@@ -36,17 +36,29 @@ tradeSearch?.addEventListener('input', filterTrades);
 sideFilter?.addEventListener('change', filterTrades);
 compareBtn?.addEventListener('click', compareRuns);
 
+// Function to switch to a specific tab
+function switchToTab(tabName) {
+  tabs.forEach(t => t.classList.remove('active'));
+  tabContents.forEach(tc => tc.classList.remove('active'));
+  
+  const targetTab = document.querySelector(`.tab[data-tab="${tabName}"]`);
+  if (targetTab) {
+    targetTab.classList.add('active');
+  }
+  
+  const targetContent = document.getElementById(`${tabName}Tab`);
+  if (targetContent) {
+    targetContent.classList.add('active');
+  }
+}
+
 // Tab switching
 tabs.forEach(tab => {
   tab.addEventListener('click', () => {
     const targetTab = tab.dataset.tab;
     console.log('Tab clicked:', targetTab, 'Current run:', currentRun);
     
-    tabs.forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    
-    tabContents.forEach(tc => tc.classList.remove('active'));
-    document.getElementById(`${targetTab}Tab`).classList.add('active');
+    switchToTab(targetTab);
     
     // Load data for specific tabs
     if (currentRun) {
@@ -119,7 +131,10 @@ function displayRuns(runs) {
       <div class="run-item" data-run-id="${run.run_id}">
         <div class="run-item-header">
           <span class="run-id">${run.run_id}</span>
-          <span class="run-mode ${run.mode}">${run.mode || 'single'}</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="run-mode ${run.mode}">${run.mode || 'single'}</span>
+            <button class="btn-delete-run" onclick="deleteRun('${run.run_id}', event)" title="Delete run">🗑️</button>
+          </div>
         </div>
         <div class="run-info">📅 ${startDate}</div>
         <div class="run-info">⏱️ ${duration} • ${run.result_count || 0} results</div>
@@ -154,7 +169,15 @@ function displayRuns(runs) {
         const run = allRuns.find(r => r.run_id === runId);
         if (run) {
           currentRun = run;
+          
+          // Switch to overview tab
+          switchToTab('overview');
+          
+          // Load all run data
           loadRunDetails(run);
+          loadStrategies(runId);
+          loadPortfolio(runId);
+          loadTrades(runId);
         }
       }
     });
@@ -372,13 +395,14 @@ function displayStrategies(strategies) {
           <th>Win Rate</th>
           <th>Trades</th>
           <th>Parameters</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         ${strategies.map(s => {
           const bh = buyHoldMetrics[s.ticker] || {};
           return `
-          <tr>
+          <tr class="strategy-row" data-strategy-id="${s.id}" style="cursor: pointer;">
             <td class="ticker-cell">${s.ticker}</td>
             <td class="${getComparisonClass(s.total_return, bh.total_return, true)}">
               ${formatPercent(s.total_return)}
@@ -403,6 +427,11 @@ function displayStrategies(strategies) {
             <td style="font-size: 11px; color: var(--text-secondary);">
               ${Object.entries(s.params || {}).map(([k, v]) => `${k}:${v}`).join(', ')}
             </td>
+            <td>
+              <button class="btn-view-tearsheet" onclick="event.stopPropagation(); viewTearsheet(${s.id})">
+                View Tearsheet
+              </button>
+            </td>
           </tr>
         `;
         }).join('')}
@@ -411,6 +440,101 @@ function displayStrategies(strategies) {
   `;
   
   document.getElementById('strategiesContent').innerHTML = html;
+  
+  // Add click handlers to strategy rows
+  document.querySelectorAll('.strategy-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const strategyId = parseInt(row.dataset.strategyId);
+      displayStrategyOverview(strategyId);
+    });
+  });
+}
+
+async function displayStrategyOverview(strategyId) {
+  // Find the strategy in current strategies
+  const strategy = currentStrategies.find(s => s.id === strategyId);
+  if (!strategy) {
+    console.error('Strategy not found:', strategyId);
+    return;
+  }
+  
+  // Switch to overview tab
+  switchToTab('overview');
+  
+  // Display strategy details in overview
+  const bh = buyHoldMetrics[strategy.ticker] || {};
+  const hasBuyHold = Object.keys(bh).length > 0;
+  
+  const overviewHtml = `
+    <div style="padding: 20px;">
+      <h2 style="margin-bottom: 20px; color: var(--accent-green);">${strategy.ticker} - Strategy #${strategy.id}</h2>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        <div class="metric-card">
+          <div class="metric-label">Total Return</div>
+          <div class="metric-value" style="color: ${strategy.total_return >= 0 ? 'var(--positive)' : 'var(--negative)'};">
+            ${formatPercent(strategy.total_return)}
+          </div>
+          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercent(bh.total_return)}</div>` : ''}
+        </div>
+        
+        <div class="metric-card">
+          <div class="metric-label">CAGR</div>
+          <div class="metric-value">${formatPercent(strategy.cagr)}</div>
+          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercent(bh.cagr)}</div>` : ''}
+        </div>
+        
+        <div class="metric-card">
+          <div class="metric-label">Sharpe Ratio</div>
+          <div class="metric-value">${formatNumber(strategy.sharpe, 2)}</div>
+          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatNumber(bh.sharpe, 2)}</div>` : ''}
+        </div>
+        
+        <div class="metric-card">
+          <div class="metric-label">Sortino Ratio</div>
+          <div class="metric-value">${formatNumber(strategy.sortino, 2)}</div>
+          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatNumber(bh.sortino, 2)}</div>` : ''}
+        </div>
+        
+        <div class="metric-card">
+          <div class="metric-label">Volatility</div>
+          <div class="metric-value">${formatPercent(strategy.vol)}</div>
+          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercent(bh.vol)}</div>` : ''}
+        </div>
+        
+        <div class="metric-card">
+          <div class="metric-label">Max Drawdown</div>
+          <div class="metric-value" style="color: var(--negative);">${formatPercent(strategy.maxdd)}</div>
+          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercent(bh.maxdd)}</div>` : ''}
+        </div>
+        
+        <div class="metric-card">
+          <div class="metric-label">Win Rate</div>
+          <div class="metric-value">${formatPercent(strategy.win_rate)}</div>
+        </div>
+        
+        <div class="metric-card">
+          <div class="metric-label">Total Trades</div>
+          <div class="metric-value">${strategy.trades_total || 0}</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <h3 style="margin-bottom: 10px;">Parameters</h3>
+        <div style="background: var(--bg-secondary); padding: 15px; border-radius: 6px; font-family: 'SF Mono', 'Monaco', monospace; font-size: 12px;">
+          ${Object.entries(strategy.params || {}).map(([k, v]) => 
+            `<div style="margin-bottom: 5px;"><span style="color: var(--text-secondary);">${k}:</span> <span style="color: var(--accent-green);">${v}</span></div>`
+          ).join('')}
+        </div>
+      </div>
+      
+      <button class="btn-view-tearsheet" onclick="viewTearsheet(${strategy.id})" style="padding: 12px 24px; font-size: 14px;">
+        View Full Tearsheet
+      </button>
+    </div>
+  `;
+  
+  document.getElementById('overviewTab').innerHTML = overviewHtml;
 }
 
 function filterStrategies() {
@@ -658,4 +782,686 @@ function formatNumber(value, decimals = 2) {
 function setStatus(message, isError = false) {
   statusText.textContent = message;
   statusText.style.color = isError ? 'var(--negative)' : 'var(--text-secondary)';
+}
+
+// Tearsheet Functions
+async function viewTearsheet(strategyId) {
+  const modal = document.getElementById('tearsheetModal');
+  const loading = document.getElementById('tearsheetLoading');
+  const content = document.getElementById('tearsheetContent');
+  
+  // Show modal with loading state
+  modal.classList.add('show');
+  loading.style.display = 'flex';
+  content.style.display = 'none';
+  
+  try {
+    // Load strategy details
+    const result = await window.electronAPI.getStrategyDetails(strategyId);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to load strategy details');
+    }
+    
+    const strategy = result.data;
+    
+    // Update title
+    document.getElementById('tearsheetTitle').textContent = 
+      `${strategy.ticker} - Strategy #${strategy.id}`;
+    
+    // Show content early so DOM elements are accessible
+    loading.style.display = 'none';
+    content.style.display = 'block';
+    
+    // Display metrics
+    displayTearsheetMetrics(strategy);
+    
+    // Calculate and display CAPM (only if benchmark is available)
+    if (strategy.equity && strategy.benchmark_equity) {
+      await displayCapmMetrics(strategy, strategy.benchmark_equity);
+    } else {
+      document.getElementById('tearsheetCapm').innerHTML = 
+        '<p style="color: var(--text-secondary); font-size: 11px; text-align: center; padding: 20px;">CAPM analysis not available (benchmark disabled or missing)</p>';
+    }
+    
+    // Display equity chart
+    if (strategy.equity) {
+      displayEquityChart(strategy.equity, strategy.buyhold_equity, strategy.benchmark_equity, strategy.events);
+    } else {
+      document.getElementById('equityChart').innerHTML = 
+        '<p style="color: var(--text-secondary);">Equity data not available</p>';
+    }
+    
+    // Display vol-matched charts
+    if (strategy.equity && strategy.benchmark_equity) {
+      displayVolMatchedChart(strategy.equity, strategy.benchmark_equity, 'volMatchedBenchChart', 'Benchmark');
+    } else {
+      document.getElementById('volMatchedBenchChart').innerHTML = 
+        '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 11px;">Benchmark not available</div>';
+    }
+    
+    if (strategy.equity && strategy.buyhold_equity) {
+      displayVolMatchedChart(strategy.equity, strategy.buyhold_equity, 'volMatchedBuyHoldChart', 'Buy & Hold');
+    } else {
+      document.getElementById('volMatchedBuyHoldChart').innerHTML = 
+        '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 11px;">Buy & Hold not available</div>';
+    }
+    
+    // Display drawdown chart
+    if (strategy.equity) {
+      displayDrawdownChart(strategy.equity, strategy.buyhold_equity, strategy.benchmark_equity);
+    } else {
+      document.getElementById('drawdownChart').innerHTML = 
+        '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 11px;">Data not available</div>';
+    }
+    
+    // Display trade events
+    displayTradeEvents(strategy.events);
+    
+  } catch (error) {
+    console.error('Error loading tearsheet:', error);
+    loading.innerHTML = `
+      <div class="error-state" style="color: var(--negative); text-align: center;">
+        <p>❌ Failed to load tearsheet</p>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">
+          ${error.message}
+        </p>
+      </div>
+    `;
+  }
+}
+
+function closeTearsheet() {
+  document.getElementById('tearsheetModal').classList.remove('show');
+}
+
+function displayTearsheetMetrics(strategy) {
+  const m = strategy.metrics || {};
+  
+  // Get buy & hold and benchmark metrics from the metrics object
+  const stratMetrics = {
+    total_return: strategy.total_return,
+    cagr: strategy.cagr,
+    sharpe: strategy.sharpe,
+    sortino: strategy.sortino,
+    vol: strategy.vol,
+    maxdd: strategy.maxdd
+  };
+  
+  const bhMetrics = {
+    total_return: m.buyhold_total_return,
+    cagr: m.buyhold_cagr,
+    sharpe: m.buyhold_sharpe,
+    sortino: m.buyhold_sortino,
+    vol: m.buyhold_vol || m.vol, // Fallback
+    maxdd: m.buyhold_maxdd
+  };
+  
+  const benchMetrics = {
+    total_return: m.bench_total_return,
+    cagr: m.bench_cagr,
+    sharpe: m.bench_sharpe,
+    sortino: m.bench_sortino,
+    vol: m.bench_vol || m.vol, // Fallback
+    maxdd: m.bench_maxdd
+  };
+  
+  function formatMetricValue(value, isPercent = false, higherIsBetter = true) {
+    if (value === null || value === undefined || isNaN(value)) return '<span style="color: var(--text-secondary);">N/A</span>';
+    
+    const formatted = isPercent ? formatPercent(value) : formatNumber(value, 3);
+    return `<span class="metric-value">${formatted}</span>`;
+  }
+  
+  const metricsHtml = `
+    <div class="metric-row metric-row-header">
+      <div>Metric</div>
+      <div style="text-align: right;">Strategy</div>
+      <div style="text-align: right;">Buy & Hold</div>
+      <div style="text-align: right;">Benchmark</div>
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">Total Return</div>
+      ${formatMetricValue(stratMetrics.total_return, true)}
+      ${formatMetricValue(bhMetrics.total_return, true)}
+      ${formatMetricValue(benchMetrics.total_return, true)}
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">CAGR</div>
+      ${formatMetricValue(stratMetrics.cagr, true)}
+      ${formatMetricValue(bhMetrics.cagr, true)}
+      ${formatMetricValue(benchMetrics.cagr, true)}
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">Sharpe</div>
+      ${formatMetricValue(stratMetrics.sharpe, false)}
+      ${formatMetricValue(bhMetrics.sharpe, false)}
+      ${formatMetricValue(benchMetrics.sharpe, false)}
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">Sortino</div>
+      ${formatMetricValue(stratMetrics.sortino, false)}
+      ${formatMetricValue(bhMetrics.sortino, false)}
+      ${formatMetricValue(benchMetrics.sortino, false)}
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">Volatility</div>
+      ${formatMetricValue(stratMetrics.vol, true)}
+      ${formatMetricValue(bhMetrics.vol, true)}
+      ${formatMetricValue(benchMetrics.vol, true)}
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">Max Drawdown</div>
+      ${formatMetricValue(stratMetrics.maxdd, true)}
+      ${formatMetricValue(bhMetrics.maxdd, true)}
+      ${formatMetricValue(benchMetrics.maxdd, true)}
+    </div>
+  `;
+  
+  document.getElementById('tearsheetMetrics').innerHTML = metricsHtml;
+  
+  // Display trade summary
+  const tradeSummaryHtml = `
+    <div class="simple-metric">
+      <span class="simple-metric-label">Total Trades</span>
+      <span class="simple-metric-value">${strategy.trades_total || 0}</span>
+    </div>
+    <div class="simple-metric">
+      <span class="simple-metric-label">Win Rate</span>
+      <span class="simple-metric-value">${formatPercent(strategy.win_rate)}</span>
+    </div>
+    <div class="simple-metric">
+      <span class="simple-metric-label">Net Win Rate</span>
+      <span class="simple-metric-value">${formatPercent(strategy.net_win_rate)}</span>
+    </div>
+    <div class="simple-metric">
+      <span class="simple-metric-label">Avg Trade P&L</span>
+      <span class="simple-metric-value">$${formatNumber(strategy.avg_trade_pnl, 2)}</span>
+    </div>
+  `;
+  
+  document.getElementById('tradeSummary').innerHTML = tradeSummaryHtml;
+}
+
+async function displayCapmMetrics(strategy, benchmarkEquity) {
+  const capmDiv = document.getElementById('tearsheetCapm');
+  capmDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 11px;">Calculating...</div>';
+  
+  try {
+    // Calculate CAPM for strategy vs benchmark
+    const stratResult = await window.electronAPI.calculateCapm(strategy.equity, benchmarkEquity);
+    
+    if (!stratResult.success) {
+      throw new Error(stratResult.error || 'CAPM calculation failed');
+    }
+    
+    const stratCapm = stratResult.data;
+    
+    // Calculate CAPM for buy & hold vs benchmark if available
+    let bhCapm = null;
+    if (strategy.buyhold_equity) {
+      const bhResult = await window.electronAPI.calculateCapm(strategy.buyhold_equity, benchmarkEquity);
+      if (bhResult.success) {
+        bhCapm = bhResult.data;
+      }
+    }
+    
+    const capmHtml = `
+      <div class="metric-row header">
+        <div></div>
+        <div>Strategy</div>
+        <div>Buy & Hold</div>
+      </div>
+      <div class="metric-row">
+        <div style="color: var(--text-secondary);">Alpha</div>
+        <div>${formatPercent(stratCapm.alpha)}</div>
+        <div>${bhCapm ? formatPercent(bhCapm.alpha) : 'N/A'}</div>
+      </div>
+      <div class="metric-row">
+        <div style="color: var(--text-secondary);">Beta</div>
+        <div>${formatNumber(stratCapm.beta, 3)}</div>
+        <div>${bhCapm ? formatNumber(bhCapm.beta, 3) : 'N/A'}</div>
+      </div>
+      <div class="metric-row">
+        <div style="color: var(--text-secondary);">R²</div>
+        <div>${formatNumber(stratCapm.r_squared, 3)}</div>
+        <div>${bhCapm ? formatNumber(bhCapm.r_squared, 3) : 'N/A'}</div>
+      </div>
+      <div class="metric-row">
+        <div style="color: var(--text-secondary);">Tracking Error</div>
+        <div>${formatPercent(stratCapm.tracking_error)}</div>
+        <div>${bhCapm ? formatPercent(bhCapm.tracking_error) : 'N/A'}</div>
+      </div>
+      <div class="metric-row">
+        <div style="color: var(--text-secondary);">Info Ratio</div>
+        <div>${formatNumber(stratCapm.information_ratio, 3)}</div>
+        <div>${bhCapm ? formatNumber(bhCapm.information_ratio, 3) : 'N/A'}</div>
+      </div>
+    `;
+    
+    capmDiv.innerHTML = capmHtml;
+    
+  } catch (error) {
+    console.error('CAPM calculation error:', error);
+    capmDiv.innerHTML = `
+      <div style="color: var(--negative); text-align: center; padding: 10px; font-size: 11px;">
+        CAPM calculation failed
+      </div>
+    `;
+  }
+}
+
+function displayEquityChart(strategyEquity, buyholdEquity, benchmarkEquity, events = []) {
+  const traces = [];
+  
+  console.log('displayEquityChart called with:', {
+    hasStrategy: !!strategyEquity,
+    hasBuyHold: !!buyholdEquity,
+    hasBenchmark: !!benchmarkEquity,
+    eventsCount: events ? events.length : 0
+  });
+  
+  // Strategy equity trace
+  traces.push({
+    x: strategyEquity.index,
+    y: strategyEquity.data,
+    type: 'scatter',
+    mode: 'lines',
+    name: strategyEquity.name || 'Strategy',
+    line: { color: '#006633', width: 2.5 }
+  });
+  
+  // Buy & Hold equity trace (same ticker)
+  if (buyholdEquity && buyholdEquity.data && buyholdEquity.data.length > 0) {
+    traces.push({
+      x: buyholdEquity.index,
+      y: buyholdEquity.data,
+      type: 'scatter',
+      mode: 'lines',
+      name: buyholdEquity.name || 'Buy & Hold',
+      line: { color: '#228B22', width: 2.5 }
+    });
+  }
+  
+  // Benchmark equity trace (SPY)
+  if (benchmarkEquity && benchmarkEquity.data && benchmarkEquity.data.length > 0) {
+    traces.push({
+      x: benchmarkEquity.index,
+      y: benchmarkEquity.data,
+      type: 'scatter',
+      mode: 'lines',
+      name: benchmarkEquity.name || 'Benchmark (SPY)',
+      line: { color: '#00aa55', width: 2.5 }
+    });
+  }
+  
+  // Add trade markers
+  if (events && events.length > 0) {
+    // Create a map for faster lookup - need to normalize dates
+    const equityMap = new Map();
+    strategyEquity.index.forEach((dateStr, i) => {
+      // Normalize to just date part (YYYY-MM-DD)
+      const normalizedDate = new Date(dateStr).toISOString().split('T')[0];
+      equityMap.set(normalizedDate, strategyEquity.data[i]);
+    });
+    
+    // Separate buy and sell events
+    const buyEvents = events.filter(e => e.type === 'buy');
+    const sellEvents = events.filter(e => e.type === 'sell');
+    
+    console.log('Trade events:', { buyCount: buyEvents.length, sellCount: sellEvents.length });
+    
+    // Buy markers (green triangles pointing up)
+    if (buyEvents.length > 0) {
+      const buyX = [];
+      const buyY = [];
+      const buyText = [];
+      const buyCustomdata = [];
+      
+      buyEvents.forEach(e => {
+        const eventDate = new Date(e.ts).toISOString().split('T')[0];
+        const equity = equityMap.get(eventDate);
+        if (equity !== undefined) {
+          buyX.push(e.ts);
+          buyY.push(equity);
+          buyText.push(e.qty || 0);
+          buyCustomdata.push((e.price || 0).toFixed(2));
+        }
+      });
+      
+      if (buyX.length > 0) {
+        traces.push({
+          x: buyX,
+          y: buyY,
+          type: 'scatter',
+          mode: 'markers',
+          name: 'Buy',
+          marker: {
+            color: '#00cc55',
+            size: 10,
+            symbol: 'triangle-up',
+            line: { color: '#ffffff', width: 1.5 }
+          },
+          hovertemplate: '<b>BUY</b><br>Date: %{x}<br>Qty: %{text}<br>Price: $%{customdata}<extra></extra>',
+          text: buyText,
+          customdata: buyCustomdata
+        });
+      }
+    }
+    
+    // Sell markers (red triangles pointing down)
+    if (sellEvents.length > 0) {
+      const sellX = [];
+      const sellY = [];
+      const sellText = [];
+      const sellCustomdata = [];
+      
+      sellEvents.forEach(e => {
+        const eventDate = new Date(e.ts).toISOString().split('T')[0];
+        const equity = equityMap.get(eventDate);
+        if (equity !== undefined) {
+          sellX.push(e.ts);
+          sellY.push(equity);
+          sellText.push(e.qty || 0);
+          sellCustomdata.push((e.price || 0).toFixed(2));
+        }
+      });
+      
+      if (sellX.length > 0) {
+        traces.push({
+          x: sellX,
+          y: sellY,
+          type: 'scatter',
+          mode: 'markers',
+          name: 'Sell',
+          marker: {
+            color: '#ff4444',
+            size: 10,
+            symbol: 'triangle-down',
+            line: { color: '#ffffff', width: 1.5 }
+          },
+          hovertemplate: '<b>SELL</b><br>Date: %{x}<br>Qty: %{text}<br>Price: $%{customdata}<extra></extra>',
+          text: sellText,
+          customdata: sellCustomdata
+        });
+      }
+    }
+  }
+  
+  const layout = {
+    title: {
+      text: 'Equity Curve Comparison',
+      font: { color: '#e0e0e0', size: 18 }
+    },
+    xaxis: {
+      title: 'Date',
+      gridcolor: '#1a3d1a',
+      color: '#a0a0a0',
+      showgrid: true
+    },
+    yaxis: {
+      title: 'Portfolio Value ($)',
+      gridcolor: '#1a3d1a',
+      color: '#a0a0a0',
+      showgrid: true
+    },
+    plot_bgcolor: '#0a0a0a',
+    paper_bgcolor: '#0a0a0a',
+    font: { color: '#e0e0e0' },
+    hovermode: 'closest',
+    legend: {
+      x: 0.01,
+      y: 0.99,
+      bgcolor: 'rgba(10, 10, 10, 0.9)',
+      bordercolor: '#3e3e42',
+      borderwidth: 1,
+      font: { size: 12 }
+    },
+    margin: { l: 70, r: 40, t: 60, b: 60 },
+    height: 550
+  };
+  
+  const config = {
+    responsive: true,
+    displayModeBar: true,
+    displaylogo: false,
+    modeBarButtonsToRemove: ['lasso2d', 'select2d']
+  };
+  
+  Plotly.newPlot('equityChart', traces, layout, config);
+}
+
+function displayTradeEvents(events) {
+  const eventsDiv = document.getElementById('tradeEvents');
+  
+  if (!events || events.length === 0) {
+    eventsDiv.innerHTML = '<p style="color: var(--text-secondary);">No trade events recorded</p>';
+    return;
+  }
+  
+  const eventsHtml = events.map(event => {
+    // Parse timestamp - events use 'ts' field
+    const date = new Date(event.ts).toLocaleDateString();
+    // Events use 'type' field, not 'side'
+    const type = event.type || 'unknown';
+    const typeClass = type.toLowerCase();
+    
+    return `
+      <div class="event-item">
+        <span class="event-date">${date}</span>
+        <span class="event-side ${typeClass}">${type.toUpperCase()}</span>
+        <span class="event-details">
+          ${event.qty || 0} shares @ $${formatNumber(event.price || 0, 2)}
+          ${event.fee ? ` | Fee: $${formatNumber(event.fee, 2)}` : ''}
+        </span>
+      </div>
+    `;
+  }).join('');
+  
+  eventsDiv.innerHTML = eventsHtml;
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', (e) => {
+  const modal = document.getElementById('tearsheetModal');
+  if (e.target === modal) {
+    closeTearsheet();
+  }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeTearsheet();
+  }
+});
+
+// Delete Run Function
+async function deleteRun(runId, event) {
+  // Stop propagation to prevent selecting the run
+  event.stopPropagation();
+  
+  // Confirm deletion
+  const confirmed = confirm(`Are you sure you want to delete run "${runId}"?\n\nThis will permanently delete all associated strategies, trades, and results.`);
+  
+  if (!confirmed) {
+    return;
+  }
+  
+  setStatus('Deleting run...');
+  
+  try {
+    const result = await window.electronAPI.deleteRun(runId);
+    
+    if (result.success) {
+      setStatus(`Run "${runId}" deleted successfully`);
+      
+      // If this was the current run, clear the details panel
+      if (currentRun === runId) {
+        currentRun = null;
+        document.getElementById('overviewTab').innerHTML = 
+          '<div class="empty-state"><p>👈 Select a run to view details</p></div>';
+        document.getElementById('strategiesContent').innerHTML = 
+          '<div class="empty-state"><p>No strategies to display</p></div>';
+        document.getElementById('portfolioContent').innerHTML = 
+          '<div class="empty-state"><p>No portfolio data available</p></div>';
+        document.getElementById('tradesContent').innerHTML = 
+          '<div class="empty-state"><p>No trades to display</p></div>';
+      }
+      
+      // Refresh the runs list
+      await loadRuns();
+    } else {
+      setStatus(`Error deleting run: ${result.error}`, true);
+      alert(`Failed to delete run: ${result.error}`);
+    }
+  } catch (error) {
+    console.error('Error deleting run:', error);
+    setStatus('Error deleting run', true);
+    alert(`Failed to delete run: ${error.message}`);
+  }
+}
+
+function displayVolMatchedChart(strategyEquity, comparisonEquity, chartElementId, comparisonName) {
+  if (!comparisonEquity || !comparisonEquity.data || comparisonEquity.data.length === 0) {
+    document.getElementById(chartElementId).innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 11px;">Data not available</div>';
+    return;
+  }
+  
+  // Calculate returns
+  const stratReturns = [];
+  const compReturns = [];
+  const dates = [];
+  
+  for (let i = 1; i < strategyEquity.data.length; i++) {
+    const stratRet = (strategyEquity.data[i] - strategyEquity.data[i-1]) / strategyEquity.data[i-1];
+    const compRet = (comparisonEquity.data[i] - comparisonEquity.data[i-1]) / comparisonEquity.data[i-1];
+    
+    if (!isNaN(stratRet) && !isNaN(compRet) && isFinite(stratRet) && isFinite(compRet)) {
+      stratReturns.push(stratRet);
+      compReturns.push(compRet);
+      dates.push(strategyEquity.index[i]);
+    }
+  }
+  
+  // Calculate vol-matched returns (scale comparison to match strategy vol)
+  const stratVol = Math.sqrt(stratReturns.reduce((sum, r) => sum + r * r, 0) / stratReturns.length);
+  const compVol = Math.sqrt(compReturns.reduce((sum, r) => sum + r * r, 0) / compReturns.length);
+  const scaleFactor = compVol > 0 ? stratVol / compVol : 1;
+  
+  const volMatchedReturns = compReturns.map(r => r * scaleFactor);
+  
+  // Cumulative returns
+  let stratCum = [100000];
+  let compCum = [100000];
+  
+  for (let i = 0; i < stratReturns.length; i++) {
+    stratCum.push(stratCum[stratCum.length - 1] * (1 + stratReturns[i]));
+    compCum.push(compCum[compCum.length - 1] * (1 + volMatchedReturns[i]));
+  }
+  
+  const traces = [
+    {
+      x: [strategyEquity.index[0], ...dates],
+      y: stratCum,
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Strategy',
+      line: { color: '#006633', width: 2 }
+    },
+    {
+      x: [strategyEquity.index[0], ...dates],
+      y: compCum,
+      type: 'scatter',
+      mode: 'lines',
+      name: `${comparisonName} (Vol-Matched)`,
+      line: { color: '#228B22', width: 2 }
+    }
+  ];
+  
+  const layout = {
+    xaxis: { showticklabels: false, gridcolor: '#1a3d1a', color: '#a0a0a0' },
+    yaxis: { gridcolor: '#1a3d1a', color: '#a0a0a0', showticklabels: true },
+    plot_bgcolor: '#0a0a0a',
+    paper_bgcolor: '#0a0a0a',
+    font: { color: '#e0e0e0', size: 10 },
+    margin: { l: 45, r: 10, t: 10, b: 25 },
+    showlegend: true,
+    legend: { x: 0.02, y: 0.98, font: { size: 9 }, bgcolor: 'rgba(10, 10, 10, 0.8)' },
+    hovermode: 'x unified'
+  };
+  
+  Plotly.newPlot(chartElementId, traces, layout, { displayModeBar: false, responsive: true });
+}
+
+function displayDrawdownChart(strategyEquity, buyholdEquity, benchmarkEquity) {
+  const calculateDrawdown = (equity) => {
+    const drawdown = [];
+    let peak = equity.data[0];
+    
+    for (let i = 0; i < equity.data.length; i++) {
+      if (equity.data[i] > peak) peak = equity.data[i];
+      const dd = (equity.data[i] - peak) / peak;
+      drawdown.push(dd);
+    }
+    
+    return drawdown;
+  };
+  
+  const traces = [];
+  
+  // Strategy drawdown
+  traces.push({
+    x: strategyEquity.index,
+    y: calculateDrawdown(strategyEquity),
+    type: 'scatter',
+    mode: 'lines',
+    name: 'Strategy',
+    line: { color: '#006633', width: 2 },
+    fill: 'tozeroy',
+    fillcolor: 'rgba(0, 102, 51, 0.2)'
+  });
+  
+  // Buy & Hold drawdown
+  if (buyholdEquity && buyholdEquity.data && buyholdEquity.data.length > 0) {
+    traces.push({
+      x: buyholdEquity.index,
+      y: calculateDrawdown(buyholdEquity),
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Buy & Hold',
+      line: { color: '#228B22', width: 2 }
+    });
+  }
+  
+  // Benchmark drawdown
+  if (benchmarkEquity && benchmarkEquity.data && benchmarkEquity.data.length > 0) {
+    traces.push({
+      x: benchmarkEquity.index,
+      y: calculateDrawdown(benchmarkEquity),
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Benchmark',
+      line: { color: '#00aa55', width: 2 }
+    });
+  }
+  
+  const layout = {
+    xaxis: { showticklabels: false, gridcolor: '#3e3e42', color: '#999999' },
+    yaxis: { 
+      gridcolor: '#3e3e42', 
+      color: '#999999',
+      tickformat: '.0%',
+      showticklabels: true
+    },
+    plot_bgcolor: '#0a0a0a',
+    paper_bgcolor: '#0a0a0a',
+    font: { color: '#e0e0e0', size: 10 },
+    margin: { l: 45, r: 10, t: 10, b: 25 },
+    showlegend: true,
+    legend: { x: 0.02, y: 0.02, font: { size: 9 }, bgcolor: 'rgba(10, 10, 10, 0.8)' },
+    hovermode: 'x unified'
+  };
+  
+  Plotly.newPlot('drawdownChart', traces, layout, { displayModeBar: false, responsive: true });
 }

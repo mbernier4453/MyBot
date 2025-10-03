@@ -101,7 +101,9 @@ def init_db(db_path: str) -> str:
           notes TEXT,
           mode TEXT,
           started_at REAL,
-          completed_at REAL
+          completed_at REAL,
+          benchmark_equity_json TEXT,
+          config_json TEXT
         );""")
         
         cur.execute("""
@@ -121,6 +123,8 @@ def init_db(db_path: str) -> str:
           trades_total INTEGER,
           params_json TEXT,
           metrics_json TEXT,
+          equity_json TEXT,
+          events_json TEXT,
           created_at REAL,
           FOREIGN KEY(run_id) REFERENCES runs(run_id)
         );""")
@@ -139,6 +143,9 @@ def init_db(db_path: str) -> str:
           avg_trade_pnl REAL,
           trades_total INTEGER,
           metrics_json TEXT,
+          equity_json TEXT,
+          buyhold_equity_json TEXT,
+          per_ticker_equity_json TEXT,
           created_at REAL,
           FOREIGN KEY(run_id) REFERENCES runs(run_id)
         );""")
@@ -210,13 +217,25 @@ def finalize_run(db_file: str, run_id: str):
         con.execute("UPDATE runs SET completed_at=? WHERE run_id=?;", (time.time(), run_id))
         con.commit()
 
+def update_run_benchmark(db_file: str, run_id: str, benchmark_equity_json: str = None, config_json: str = None):
+    """Update run with benchmark equity curve and config snapshot."""
+    with _lock, sqlite3.connect(db_file) as con:
+        con.execute("""
+            UPDATE runs 
+            SET benchmark_equity_json=?, config_json=? 
+            WHERE run_id=?
+        """, (benchmark_equity_json, config_json, run_id))
+        con.commit()
+
 # ------------ Helpers ------------
 def _json(obj: Any) -> str:
     return json.dumps(obj, separators=(",", ":"), default=str)
 
 # ------------ Inserts ------------
 def insert_strategy_metrics(db_file: str, run_id: str, ticker: str,
-                            params: Dict[str, Any], metrics: Dict[str, Any]):
+                            params: Dict[str, Any], metrics: Dict[str, Any],
+                            equity_json: str = None, events_json: str = None,
+                            buyhold_json: str = None):
     core = {k: metrics.get(k) for k in [
         "total_return","cagr","sharpe","sortino","vol","maxdd",
         "win_rate","net_win_rate","avg_trade_pnl","trades_total"
@@ -225,18 +244,20 @@ def insert_strategy_metrics(db_file: str, run_id: str, ticker: str,
         con.execute("""
         INSERT INTO strategies(run_id,ticker,total_return,cagr,sharpe,sortino,vol,maxdd,
                                win_rate,net_win_rate,avg_trade_pnl,trades_total,
-                               params_json,metrics_json,created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                               params_json,metrics_json,created_at,equity_json,events_json,buyhold_json)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             run_id, ticker,
             core["total_return"], core["cagr"], core["sharpe"], core["sortino"],
             core["vol"], core["maxdd"], core["win_rate"], core["net_win_rate"],
             core["avg_trade_pnl"], core["trades_total"],
-            _json(params), _json(metrics), time.time()
+            _json(params), _json(metrics), time.time(), equity_json, events_json, buyhold_json
         ))
         con.commit()
 
-def insert_portfolio_metrics(db_file: str, run_id: str, metrics: Dict[str, Any]):
+def insert_portfolio_metrics(db_file: str, run_id: str, metrics: Dict[str, Any],
+                            equity_json: str = None, buyhold_equity_json: str = None,
+                            per_ticker_equity_json: str = None):
     core = {k: metrics.get(k) for k in [
         "total_return","cagr","sharpe","sortino","vol","maxdd",
         "win_rate","net_win_rate","avg_trade_pnl","trades_total"
@@ -245,14 +266,15 @@ def insert_portfolio_metrics(db_file: str, run_id: str, metrics: Dict[str, Any])
         con.execute("""
         INSERT OR REPLACE INTO portfolio(run_id,total_return,cagr,sharpe,sortino,vol,maxdd,
                                          win_rate,net_win_rate,avg_trade_pnl,trades_total,
-                                         metrics_json,created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                                         metrics_json,equity_json,buyhold_equity_json,
+                                         per_ticker_equity_json,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             run_id,
             core["total_return"], core["cagr"], core["sharpe"], core["sortino"],
             core["vol"], core["maxdd"], core["win_rate"], core["net_win_rate"],
             core["avg_trade_pnl"], core["trades_total"],
-            _json(metrics), time.time()
+            _json(metrics), equity_json, buyhold_equity_json, per_ticker_equity_json, time.time()
         ))
         con.commit()
 
@@ -291,7 +313,7 @@ def insert_trades(db_file: str, run_id: str, trades: List[Dict[str, Any]]):
         con.commit()
 
 __all__ = [
-    "init_db","ensure_run","finalize_run",
+    "init_db","ensure_run","finalize_run","update_run_benchmark",
     "insert_strategy_metrics","insert_portfolio_metrics",
     "insert_portfolio_weights","insert_trades"
 ]

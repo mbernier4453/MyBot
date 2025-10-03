@@ -5,26 +5,28 @@
 }
 
 :root {
-  --bg-primary: #1e1e1e;
-  --bg-secondary: #252526;
-  --bg-tertiary: #2d2d30;
-  --bg-hover: #37373d;
-  --border-color: #3e3e42;
-  --text-primary: #cccccc;
-  --text-secondary: #999999;
-  --accent-blue: #007acc;
-  --accent-green: #4ec9b0;
-  --accent-red: #f48771;
-  --accent-yellow: #dcdcaa;
-  --positive: #4ec9b0;
-  --negative: #f48771;
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1a1a1a;
+  --bg-hover: #1f2f1f;
+  --border-color: #1a3d1a;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --accent-blue: #00aa55;
+  --accent-green: #006633;
+  --accent-red: #ff4444;
+  --accent-yellow: #228B22;
+  --positive: #00cc55;
+  --negative: #ff4444;
 }
 
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .app-container {
@@ -520,6 +522,348 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--bg-hover);
+}
+
+/* Modal */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  animation: fadeIn 0.2s;
+}
+
+.modal.show {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 90%;
+  max-width: 1400px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.3s;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 32px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+}
+
+.spinner {
+  border: 3px solid var(--bg-tertiary);
+  border-top: 3px solid var(--accent-blue);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.tearsheet-modal .modal-content {
+  max-width: 95%;
+  width: 1800px;
+}
+
+.tearsheet-layout {
+  display: flex;
+  gap: 20px;
+  min-height: 600px;
+}
+
+.tearsheet-sidebar {
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  max-height: calc(90vh - 120px);
+}
+
+.tearsheet-charts {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  min-width: 0;
+}
+
+.tearsheet-charts-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.tearsheet-section {
+  margin-bottom: 0;
+}
+
+.tearsheet-section h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tearsheet-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.chart-main {
+  background-color: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 10px;
+  min-height: 400px;
+  width: 100%;
+}
+
+.chart-small {
+  background-color: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 8px;
+  height: 250px;
+}
+
+.chart-third {
+  min-width: 0;
+}
+
+.metrics-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 11px;
+  align-items: center;
+}
+
+.metric-row-header {
+  font-weight: 600;
+  color: var(--accent-blue);
+  background: var(--bg-tertiary);
+}
+
+.metric-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.metric-value {
+  text-align: right;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Fira Mono', 'Roboto Mono', 'Consolas', monospace;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.metrics-simple {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metrics-capm {
+  display: flex;
+  flex-direction: column;
+}
+
+.metrics-capm .metric-row {
+  grid-template-columns: 100px 1fr 1fr;
+  gap: 6px;
+  padding: 6px;
+  font-size: 11px;
+}
+
+.simple-metric {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.simple-metric-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.simple-metric-value {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.simple-metric-value {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Fira Mono', 'Roboto Mono', 'Consolas', monospace;
+  font-weight: 600;
+}
+
+#tradeEvents {
+  background-color: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 15px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.event-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+}
+
+.event-item:last-child {
+  border-bottom: none;
+}
+
+.event-date {
+  color: var(--text-secondary);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Fira Mono', 'Roboto Mono', 'Consolas', monospace;
+  min-width: 100px;
+}
+
+.event-side {
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.event-side.buy {
+  color: var(--positive);
+}
+
+.event-side.sell {
+  color: var(--negative);
+}
+
+.event-details {
+  color: var(--text-secondary);
+}
+
+.btn-view-tearsheet {
+  padding: 4px 12px;
+  font-size: 11px;
+  background-color: var(--accent-blue);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-view-tearsheet:hover {
+  background-color: #005a9e;
+}
+
+.btn-delete-run {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  opacity: 0.6;
+  transition: opacity 0.2s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-delete-run:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.btn-delete-run:active {
+  transform: scale(0.95);
 }
 
 /* Utility Classes */

@@ -3,32 +3,32 @@
 # Legend: # ✅ implemented · # ⚠️ limited/conditional · # ⏳ not used
 
 #=========================MAIN=========================
-RUN_ID = "DBRerun"                         # ✅ name or "auto" for timestamp
-NOTES = ""                              # ⏳ freeform string per run
-# TICKERS = ["SPY","QQQ"]               # ✅ list of symbols
-TICKERS = [
-    "XLF",  # Financial Select Sector SPDR
-    "XLK",  # Technology Select Sector SPDR
-    "XLE",  # Energy Select Sector SPDR
-    "XLY",  # Consumer Discretionary Select Sector SPDR
-    "XLI",  # Industrial Select Sector SPDR
-    "XLV",  # Health Care Select Sector SPDR
-    "XLB",  # Materials Select Sector SPDR
-    "XLU",  # Utilities Select Sector SPDR
-    "XLRE", # Real Estate Select Sector SPDR
-    "XLC",  # Communication Services Select Sector SPDR
-    "UCC",  # ProShares Ultra Consumer Services (2x leveraged)
-    "UGE",  # ProShares Ultra Consumer Goods (2x leveraged)
-    "DIG",  # ProShares Ultra Oil & Gas (2x leveraged)
-    "UYG",  # ProShares Ultra Financials (2x leveraged)
-    "RXL",  # ProShares Ultra Health Care (2x leveraged)
-    "UXI",  # ProShares Ultra Industrials (2x leveraged)
-    "UYM",  # ProShares Ultra Basic Materials (2x leveraged)
-    "URE",  # ProShares Ultra Real Estate (2x leveraged)
-    "ROM",  # ProShares Ultra Technology (2x leveraged)
-    "LTL",  # ProShares Ultra Telecommunications (2x leveraged)
-    "UPW"   # ProShares Ultra Utilities (2x leveraged)
-]
+RUN_ID = "PortTestFrontend"                     # ✅ name or "auto" for timestamp
+NOTES = "Testing strategy + buy/hold + benchmark"  # ✅ freeform string per run
+TICKERS = ["SPY","QQQ"]                 # ✅ list of symbols (just 2 for quick test)
+# TICKERS = [
+#     "XLF",  # Financial Select Sector SPDR
+#     "XLK",  # Technology Select Sector SPDR
+#     "XLE",  # Energy Select Sector SPDR
+#     "XLY",  # Consumer Discretionary Select Sector SPDR
+#     "XLI",  # Industrial Select Sector SPDR
+#     "XLV",  # Health Care Select Sector SPDR
+#     "XLB",  # Materials Select Sector SPDR
+#     "XLU",  # Utilities Select Sector SPDR
+#     "XLRE", # Real Estate Select Sector SPDR
+#     "XLC",  # Communication Services Select Sector SPDR
+#     "UCC",  # ProShares Ultra Consumer Services (2x leveraged)
+#     "UGE",  # ProShares Ultra Consumer Goods (2x leveraged)
+#     "DIG",  # ProShares Ultra Oil & Gas (2x leveraged)
+#     "UYG",  # ProShares Ultra Financials (2x leveraged)
+#     "RXL",  # ProShares Ultra Health Care (2x leveraged)
+#     "UXI",  # ProShares Ultra Industrials (2x leveraged)
+#     "UYM",  # ProShares Ultra Basic Materials (2x leveraged)
+#     "URE",  # ProShares Ultra Real Estate (2x leveraged)
+#     "ROM",  # ProShares Ultra Technology (2x leveraged)
+#     "LTL",  # ProShares Ultra Telecommunications (2x leveraged)
+#     "UPW"   # ProShares Ultra Utilities (2x leveraged)
+# ]
 # ✅ list of symbols
 INITIAL_CAPITAL = 100_000.0             # ✅
 START = "2000-01-01"                    # ✅
@@ -36,15 +36,15 @@ END = "2025-09-01"                              # ✅ None = today
 TIMESCALE = "1Day"                      # ⚠️ "1Day","5Min","15Min" (daily-only now)
 BUY_HOLD_ENABLED = True                 # ✅ buy-hold baseline
 BENCHMARK_ENABLED = True                # ✅ benchmark baseline
-BENCHMARK_SYMBOL = "SPY"                # ✅ benchmark ticker
+BENCHMARK_SYMBOL = "QQQ"                # ✅ benchmark ticker
 RF_ANNUAL = 0.02                        # ✅ 2% annual
 PERIODS_PER_YEAR = 252                  # ✅ trading periods per year
 
 #===========Portfolio Mode Config Example===============
-PORTFOLIO_MODE = False  # master toggle
+PORTFOLIO_MODE = True  # master toggle
 PORTFOLIO_WEIGHTS = {           # Fixed target weights (sum should be 1.0; if None -> equal weights auto)
-    "SPY": 0.60,
-    "QQQ": 0.40,
+    "SPY": 0.40,
+    "QQQ": 0.60,
 }
 PORTFOLIO_TARGET_UTILIZATION = 0.95  # portion of capital to use (0.0–1.0)
 PORTFOLIO_USE_PARAM_GRID = False  # False => use PORTFOLIO_STRATEGIES, True => use PORTFOLIO_PARAM_GRID
@@ -110,10 +110,12 @@ ADJUST = "split_and_div"       # ✅ "split_and_div","split_only","none"
 #========================= Indicators ====================
 # RSI grid (engine should sweep cartesian product if lists provided)
 RSI_ENABLED = True                                          # ✅
-RSI_PERIOD = [14]                      # ✅
+RSI_PERIOD = [14]                      # ✅ Just 1 for quick test
 # RSI_PERIOD = [12,13,14,15,16,17,18,19]                      # ✅
-RSI_BUY_BELOW = [5,10,15,20,25,30,35,40,45]              # ✅
-RSI_SELL_ABOVE = [55,60,65,70,75,80,85,90,95]            # ✅
+RSI_BUY_BELOW = [30, 35]              # ✅ Just 2 for quick test
+RSI_SELL_ABOVE = [70, 75]            # ✅ Just 2 for quick test
+# Full grid: RSI_BUY_BELOW = [5,10,15,20,25,30,35,40,45]
+# Full grid: RSI_SELL_ABOVE = [55,60,65,70,75,80,85,90,95]
 
 # Bollinger Bands
 BOLLINGER_BANDS_ENABLED = False  # ⏳
@@ -166,20 +168,20 @@ SAVE_EQUITY = False                       # ⏳ persist equity curve per run
 SAVE_VIZ_DATA = False                     # ⏳ persist 3D viz table
 
 # Charts and reports
-MAKE_CHARTS = True                # ✅ toggle charts for tearsheets + main standalone
+MAKE_CHARTS = False               # ✅ toggle charts for tearsheets + main standalone (disabled for test)
 CHART_PATH = "./results/charts"       # ✅ where to save main chart HTML
 
 
 MIN_TRADES_FILTER = 5                    # ✅ min trades to qualify for top-K printout (default 1)
-MAKE_TEARSHEETS = True                   # ✅ full report with KPIs and plots
+MAKE_TEARSHEETS = False                  # ✅ full report with KPIs and plots (disabled for test)
 RUN_CAPM = True                           # ✅ include CAPM analysis in tearsheet
 TEARSHEETS_DIR = "./results/tearsheets"   # ✅ where to save tearsheets
 
 # Print and selection
 # TOP_BY = ["total_return", "sharpe", "sortino", "vol", "cagr"]      # ✅ metrics to sort by for top-K printout(s) ["total_return", "sharpe", "sortino", "vol", "maxdd", "cagr", "trades_total"]
-TOP_BY = ["total_return", "sharpe","sortino"]      # ✅ metrics to sort by for top-K printout(s) ["total_return", "sharpe", "sortino", "vol", "maxdd", "cagr", "trades_total"]
-TOP_K = 3                           # ✅ top K to print/tearsheet per metric
-PRINT_TOP_K = False                     # ✅ whether to print top-K summary
+TOP_BY = ["total_return"]      # ✅ metrics to sort by for top-K printout(s) - just 1 for test
+TOP_K = 1                           # ✅ top K to print/tearsheet per metric - just 1 for test
+PRINT_TOP_K = True                  # ✅ whether to print top-K summary
 # Metadata snapshots
 SAVE_CONFIG_SNAPSHOT = True               # ⏳ write a copy of this config under results
 SAVE_GIT_COMMIT = True                    # ⏳ record git commit hash if repo present
