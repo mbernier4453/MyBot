@@ -2908,10 +2908,10 @@ function validateIntervalForTimeframe() {
   // Define valid intervals for each timeframe
   const validIntervals = {
     '1D': ['1', '5', '15', '30', '60'],
-    '5D': ['5', '15', '30', '60'],  // Removed 240 (4hr)
-    '1M': ['60', 'day'],  // Removed 15, 30, 240 - only 1hr and daily work
-    '3M': ['day'],  // Only daily works for 3M
-    '6M': ['day'],  // Only daily works for 6M (removed 240)
+    '5D': ['5', '15', '30', '60', '240'],  // All intraday intervals
+    '1M': ['15', '30', '60', '240', 'day'],  // 15min to daily
+    '3M': ['15', '60', '240', 'day'],  // 15min, 1hr, 4hr, daily
+    '6M': ['240', 'day'],  // 4hr and daily
     '1Y': ['day', 'week'],
     '2Y': ['day', 'week'],
     '5Y': ['day', 'week', 'month'],
@@ -2971,7 +2971,7 @@ document.getElementById('chartType')?.addEventListener('change', () => {
 // Calculate date range based on timeframe
 function getDateRange(timeframe) {
   const to = new Date();
-  const from = new Date();
+  let from = new Date();
   
   switch(timeframe) {
     case '1D':
@@ -2979,35 +2979,44 @@ function getDateRange(timeframe) {
       from.setHours(0, 0, 0, 0);
       break;
     case '5D':
-      from.setDate(to.getDate() - 7);
+      from = new Date(to.getTime() - (7 * 24 * 60 * 60 * 1000));
       break;
     case '1M':
-      from.setMonth(to.getMonth() - 1);
+      from = new Date(to);
+      from.setMonth(from.getMonth() - 1);
       break;
     case '3M':
-      from.setMonth(to.getMonth() - 3);
+      from = new Date(to);
+      from.setMonth(from.getMonth() - 3);
       break;
     case '6M':
-      from.setMonth(to.getMonth() - 6);
+      from = new Date(to);
+      from.setMonth(from.getMonth() - 6);
       break;
     case '1Y':
-      from.setFullYear(to.getFullYear() - 1);
+      from = new Date(to);
+      from.setFullYear(from.getFullYear() - 1);
       break;
     case '2Y':
-      from.setFullYear(to.getFullYear() - 2);
+      from = new Date(to);
+      from.setFullYear(from.getFullYear() - 2);
       break;
     case '5Y':
-      from.setFullYear(to.getFullYear() - 5);
+      from = new Date(to);
+      from.setFullYear(from.getFullYear() - 5);
       break;
     case '10Y':
-      from.setFullYear(to.getFullYear() - 10);
+      from = new Date(to);
+      from.setFullYear(from.getFullYear() - 10);
       break;
     case 'ALL':
       // Go back 20 years for "all available"
-      from.setFullYear(to.getFullYear() - 20);
+      from = new Date(to);
+      from.setFullYear(from.getFullYear() - 20);
       break;
     default:
-      from.setFullYear(to.getFullYear() - 1);
+      from = new Date(to);
+      from.setFullYear(from.getFullYear() - 1);
   }
   
   // Format as YYYY-MM-DD
@@ -3157,7 +3166,7 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
         day: 'numeric' 
       });
     } else if (timespan === 'hour') {
-      // Hourly: show date and time
+      // Hourly: Always show date and time for multi-day ranges
       dateLabel = date.toLocaleString('en-US', { 
         month: 'short', 
         day: 'numeric',
@@ -3165,19 +3174,25 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
         hour12: true
       });
     } else {
-      // Minutes: show time only if same day, otherwise show date + time
-      const now = new Date();
-      const isToday = date.toDateString() === now.toDateString();
-      if (isToday || totalBars < 100) {
-        dateLabel = date.toLocaleTimeString('en-US', { 
+      // Minutes: Check if we span multiple days
+      const firstBar = bars[0];
+      const lastBar = bars[bars.length - 1];
+      const firstDate = new Date(firstBar.t);
+      const lastDate = new Date(lastBar.t);
+      const spanMultipleDays = firstDate.toDateString() !== lastDate.toDateString();
+      
+      if (spanMultipleDays) {
+        // Multi-day range: always show date + time
+        dateLabel = date.toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric',
           hour: 'numeric',
           minute: '2-digit',
           hour12: true
         });
       } else {
-        dateLabel = date.toLocaleString('en-US', { 
-          month: 'short', 
-          day: 'numeric',
+        // Single day: show time only
+        dateLabel = date.toLocaleTimeString('en-US', { 
           hour: 'numeric',
           minute: '2-digit',
           hour12: true
@@ -3250,17 +3265,14 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
   if (extendedHours) chartTitle += ' (w/ Extended Hours)';
   
   const layout = {
-    title: {
-      text: chartTitle,
-      font: { color: '#e0e0e0', size: 18 }
-    },
-    plot_bgcolor: '#1a1a1a',
-    paper_bgcolor: '#1a1a1a',
+    plot_bgcolor: '#000000',
+    paper_bgcolor: '#000000',
     font: { color: '#e0e0e0' },
     xaxis: {
       type: 'category', // KEY: Categorical x-axis = no gaps!
       rangeslider: { visible: false },
-      gridcolor: '#333',
+      gridcolor: '#1a1a1a',
+      griddash: 'dot',
       showgrid: true,
       tickangle: tickAngle,
       tickfont: { size: tickFontSize },
@@ -3268,15 +3280,16 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
       automargin: true
     },
     yaxis: {
-      title: 'Price ($)',
       domain: [0.23, 1],  // More room above volume
-      gridcolor: '#333',
-      showgrid: true
+      gridcolor: '#1a1a1a',
+      griddash: 'dot',
+      showgrid: true,
+      tickprefix: '$'
     },
     yaxis2: {
       title: '',  // No title for volume axis
       domain: [0, 0.18],  // Increased height for volume chart
-      gridcolor: '#333',
+      gridcolor: '#1a1a1a',
       showgrid: false,
       showticklabels: false  // Hide volume numbers
     },

@@ -335,8 +335,17 @@ ipcMain.handle('polygon-get-historical-bars', async (event, { ticker, from, to, 
           const minute = date.getUTCMinutes();
           const timeInMinutes = hour * 60 + minute;
           
+          // For multi-hour bars (like 4-hour), check if bar START overlaps with regular hours
           // Regular market hours: 9:30 AM (570 min) to 4:00 PM (960 min) ET
-          return timeInMinutes >= 570 && timeInMinutes < 960;
+          // Keep bar if it starts during market hours OR if it would contain market hours
+          if (timespan === 'hour' && multiplier > 1) {
+            // For 4-hour bars: keep if bar starts between 6:30 AM and 4:00 PM
+            // This ensures we get bars that include regular market hours
+            return timeInMinutes >= 390 && timeInMinutes < 960;
+          } else {
+            // For minute and 1-hour bars: strict filtering
+            return timeInMinutes >= 570 && timeInMinutes < 960;
+          }
         });
         console.log(`After filtering: ${bars.length} bars`);
       }
