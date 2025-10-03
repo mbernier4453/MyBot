@@ -13,15 +13,15 @@
     <!-- Main Dashboard Navigation -->
     <nav class="main-nav">
       <div class="nav-brand">
-        <h1>📈 Trading Dashboard</h1>
+        <h1>Trading Dashboard</h1>
       </div>
       <div class="nav-tabs">
-        <button class="main-tab active" data-main-tab="home">🏠 Home</button>
-        <button class="main-tab" data-main-tab="screener">🔍 Screener</button>
-        <button class="main-tab" data-main-tab="watchlists">⭐ Watchlists</button>
-        <button class="main-tab" data-main-tab="charting">📊 Charting</button>
-        <button class="main-tab" data-main-tab="backtesting">⚙️ Backtesting</button>
-        <button class="main-tab" data-main-tab="results">📋 Results</button>
+        <button class="main-tab active" data-main-tab="home">Home</button>
+        <button class="main-tab" data-main-tab="screener">Screener</button>
+        <button class="main-tab" data-main-tab="watchlists">Watchlists</button>
+        <button class="main-tab" data-main-tab="charting">Charting</button>
+        <button class="main-tab" data-main-tab="backtesting">Backtesting</button>
+        <button class="main-tab" data-main-tab="results">Results</button>
       </div>
     </nav>
 
@@ -64,7 +64,7 @@
       <div id="screenerPage" class="main-page">
         <div class="page-content">
           <div class="empty-page">
-            <h2>🔍 Stock Screener</h2>
+            <h2>Stock Screener</h2>
             <p>Coming soon: Advanced stock screening tools</p>
           </div>
         </div>
@@ -76,7 +76,7 @@
           <!-- Sidebar with watchlist list -->
           <div class="watchlist-sidebar">
             <div class="watchlist-sidebar-header">
-              <h2>⭐ Watchlists</h2>
+              <h2>Watchlists</h2>
               <button id="createWatchlistBtn" class="btn btn-primary">+ New</button>
             </div>
             <div class="watchlist-search">
@@ -84,7 +84,7 @@
             </div>
             <div id="watchlistsList" class="watchlists-list">
               <div class="empty-state">
-                <p>📝 No watchlists yet</p>
+                <p>No watchlists yet</p>
                 <p style="font-size: 12px; color: #666;">Create your first watchlist</p>
               </div>
             </div>
@@ -108,9 +108,9 @@
                 </div>
                 <div class="watchlist-actions">
                   <button id="addStockBtn" class="btn btn-primary">+ Add Stock</button>
-                  <button id="viewTreemapBtn" class="btn">🗺️ View Treemap</button>
-                  <button id="editWatchlistBtn" class="btn">✏️ Edit</button>
-                  <button id="deleteWatchlistBtn" class="btn btn-danger">🗑️ Delete</button>
+                  <button id="viewTreemapBtn" class="btn">View Treemap</button>
+                  <button id="editWatchlistBtn" class="btn">Edit</button>
+                  <button id="deleteWatchlistBtn" class="btn btn-danger">✕ Delete</button>
                 </div>
               </div>
 
@@ -167,7 +167,7 @@
           <!-- Sidebar with ticker selection -->
           <div class="chart-sidebar">
             <div class="chart-sidebar-header">
-              <h2>📊 Select Ticker</h2>
+              <h2>Select Ticker</h2>
             </div>
             
             <!-- Ticker input section -->
@@ -258,6 +258,13 @@
                   <span>Extended Hours</span>
                 </label>
               </div>
+              <div class="control-group">
+                <label for="chartType">Chart Type:</label>
+                <select id="chartType">
+                  <option value="candlestick" selected>Candlestick</option>
+                  <option value="line">Line</option>
+                </select>
+              </div>
             </div>
             <div class="chart-display">
               <div id="candlestickChart"></div>
@@ -266,7 +273,7 @@
               </div>
               <div id="chartEmptyState" class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center;">
                 <div style="text-align: center;">
-                  <h3>📈 Select a ticker to view chart</h3>
+                  <h3>Select a ticker to view chart</h3>
                   <p style="color: #666; margin-top: 10px;">Enter a ticker or choose from your watchlist</p>
                 </div>
               </div>
@@ -279,7 +286,7 @@
       <div id="backtestingPage" class="main-page">
         <div class="page-content">
           <div class="empty-page">
-            <h2>⚙️ Backtesting Engine</h2>
+            <h2>Backtesting Engine</h2>
             <p>Coming soon: Configure and run backtests</p>
           </div>
         </div>
@@ -288,7 +295,7 @@
       <!-- Results Page (Current functionality) -->
       <div id="resultsPage" class="main-page">
         <div class="page-header">
-          <h2>📋 Backtest Results</h2>
+          <h2>Backtest Results</h2>
           <div class="header-controls">
             <button id="selectDbBtn" class="btn btn-primary">Select Database</button>
             <span id="dbPath" class="db-path"></span>

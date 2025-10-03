@@ -151,11 +151,11 @@ function displayRuns(runs) {
           <span class="run-id">${run.run_id}</span>
           <div style="display: flex; align-items: center; gap: 8px;">
             <span class="run-mode ${run.mode}">${run.mode || 'single'}</span>
-            <button class="btn-delete-run" onclick="deleteRun('${run.run_id}', event)" title="Delete run">🗑️</button>
+            <button class="btn-delete-run" onclick="deleteRun('${run.run_id}', event)" title="Delete run">✕</button>
           </div>
         </div>
-        <div class="run-info">📅 ${startDate}</div>
-        <div class="run-info">⏱️ ${duration} • ${run.result_count || 0} results</div>
+        <div class="run-info">${startDate}</div>
+        <div class="run-info">${duration} • ${run.result_count || 0} results</div>
         ${run.notes ? `<div class="run-notes">${run.notes}</div>` : ''}
       </div>
     `;
@@ -955,7 +955,7 @@ async function viewPortfolioTearsheet(runId) {
     console.error('Error loading portfolio tearsheet:', error);
     loading.innerHTML = `
       <div class="error-state" style="color: var(--negative); text-align: center;">
-        <p>❌ Failed to load portfolio tearsheet</p>
+        <p>Failed to load portfolio tearsheet</p>
         <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">
           ${error.message}
         </p>
@@ -1199,7 +1199,7 @@ async function viewTearsheet(strategyId) {
     console.error('Error loading tearsheet:', error);
     loading.innerHTML = `
       <div class="error-state" style="color: var(--negative); text-align: center;">
-        <p>❌ Failed to load tearsheet</p>
+        <p>Failed to load tearsheet</p>
         <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">
           ${error.message}
         </p>
@@ -2269,7 +2269,7 @@ function displayWatchlists() {
   if (filtered.length === 0) {
     listEl.innerHTML = `
       <div class="empty-state">
-        <p>📝 No watchlists ${searchQuery ? 'found' : 'yet'}</p>
+        <p>No watchlists ${searchQuery ? 'found' : 'yet'}</p>
         <p style="font-size: 12px; color: #666;">${searchQuery ? 'Try a different search' : 'Create your first watchlist'}</p>
       </div>
     `;
@@ -2959,6 +2959,15 @@ document.getElementById('extendedHoursToggle')?.addEventListener('change', () =>
   }
 });
 
+// Chart type toggle
+document.getElementById('chartType')?.addEventListener('change', () => {
+  if (currentChartTicker) {
+    const timeframe = document.getElementById('chartTimeframe')?.value;
+    const interval = document.getElementById('chartInterval')?.value;
+    loadCandlestickChart(currentChartTicker, timeframe, interval);
+  }
+});
+
 // Calculate date range based on timeframe
 function getDateRange(timeframe) {
   const to = new Date();
@@ -3187,7 +3196,10 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
   // The includeOtc parameter primarily affects intraday (minute/hour) data
   // To get "regular hours only" daily data, we may need to use a different endpoint
   
-  // Create candlestick trace
+  // Get chart type
+  const chartType = document.getElementById('chartType')?.value || 'candlestick';
+  
+  // Create candlestick trace with solid filled candles
   const candlestickTrace = {
     type: 'candlestick',
     x: dates,
@@ -3196,8 +3208,14 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
     low: low,
     close: close,
     name: ticker,
-    increasing: { line: { color: '#00aa55' } },
-    decreasing: { line: { color: '#e74c3c' } },
+    increasing: { 
+      line: { color: '#00aa55', width: 1 },
+      fillcolor: '#00aa55'  // Solid fill
+    },
+    decreasing: { 
+      line: { color: '#e74c3c', width: 1 },
+      fillcolor: '#e74c3c'  // Solid fill
+    },
     xaxis: 'x',
     yaxis: 'y'
   };
@@ -3246,24 +3264,26 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
     },
     yaxis: {
       title: 'Price ($)',
-      domain: [0.25, 1],
+      domain: [0.22, 1],  // Move up to make more room for volume
       gridcolor: '#333',
       showgrid: true
     },
     yaxis2: {
       title: 'Volume',
-      domain: [0, 0.2],
+      domain: [0, 0.15],  // Moved down
       gridcolor: '#333',
       showgrid: false
     },
     margin: { l: 60, r: 40, t: 60, b: 120 }, // Increased bottom margin for labels
-    hovermode: 'x unified',
+    hovermode: 'closest',  // Changed to closest for better hover
     showlegend: true,
     legend: {
-      x: 0,
-      y: 1.1,
-      orientation: 'h',
-      font: { color: '#e0e0e0' }
+      x: 0.02,  // Top-left position
+      y: 0.98,
+      bgcolor: 'rgba(26, 26, 26, 0.7)',  // Semi-transparent background
+      bordercolor: '#333',
+      borderwidth: 1,
+      font: { color: '#e0e0e0', size: 11 }
     }
   };
   
@@ -3274,7 +3294,28 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
     displaylogo: false
   };
   
-  Plotly.newPlot('candlestickChart', [candlestickTrace, volumeTrace], layout, config);
+  // Choose trace based on chart type
+  let mainTrace;
+  if (chartType === 'line') {
+    // Create line chart trace
+    mainTrace = {
+      type: 'scatter',
+      mode: 'lines',
+      x: dates,
+      y: close,
+      name: ticker,
+      line: {
+        color: '#4a9eff',
+        width: 2
+      },
+      xaxis: 'x',
+      yaxis: 'y'
+    };
+  } else {
+    mainTrace = candlestickTrace;
+  }
+  
+  Plotly.newPlot('candlestickChart', [mainTrace, volumeTrace], layout, config);
 }
 
 // Update live candle with websocket data
