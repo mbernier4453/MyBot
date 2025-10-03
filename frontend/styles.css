@@ -1478,22 +1478,266 @@ textarea.form-input {
 }
 
 /* Charting Page */
-.charting-container {
+.charting-layout {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chart-sidebar {
+  width: 300px;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  height: 100%;
+  overflow-y: auto;
+}
+
+.chart-sidebar-header {
   padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chart-sidebar-header h2 {
+  font-size: 18px;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.chart-input-section {
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chart-input-section label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.ticker-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.ticker-input-group input {
+  flex: 1;
+  padding: 10px 12px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  transition: border-color 0.2s;
+}
+
+.ticker-input-group input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.btn-icon {
+  padding: 10px 16px;
+  background-color: var(--accent-blue);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-icon:hover {
+  background-color: #0056b3;
+}
+
+.chart-watchlist-section {
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chart-watchlist-section label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.chart-ticker-list {
+  margin-top: 15px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.ticker-list-item {
+  padding: 10px 12px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ticker-list-item:hover {
+  background-color: var(--bg-tertiary);
+  border-color: var(--accent-blue);
+}
+
+.ticker-list-item.active {
+  background-color: var(--bg-tertiary);
+  border-color: var(--accent-blue);
+}
+
+.ticker-list-symbol {
+  font-weight: 600;
+  color: var(--accent-blue);
+  font-size: 13px;
+}
+
+.ticker-list-price {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.chart-live-info {
+  padding: 20px;
+  background-color: var(--bg-tertiary);
+  border-top: 2px solid var(--border-color);
+}
+
+.live-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.live-ticker {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-blue);
+}
+
+.live-status {
+  font-size: 16px;
+  color: #00aa55;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.live-price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.live-price-row:last-child {
+  border-bottom: none;
+}
+
+.live-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.live-value {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.chart-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chart-live-info-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.live-info-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.live-ticker-large {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent-blue);
+}
+
+.live-price-large {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.live-change-large {
+  font-size: 20px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+.live-info-right {
+  display: flex;
+  gap: 30px;
+}
+
+.live-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.live-stat-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.live-stat-value {
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .chart-controls {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 15px;
-  padding: 15px;
+  padding: 15px 20px;
   background-color: var(--bg-secondary);
-  border-radius: 8px;
-  margin-bottom: 20px;
-  border: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .control-group {
@@ -1509,7 +1753,6 @@ textarea.form-input {
   white-space: nowrap;
 }
 
-.control-group input,
 .control-group select {
   padding: 8px 12px;
   background-color: var(--bg-primary);
@@ -1519,40 +1762,38 @@ textarea.form-input {
   font-size: 13px;
   font-family: inherit;
   transition: border-color 0.2s;
+  cursor: pointer;
 }
 
-.control-group input:focus,
 .control-group select:focus {
   outline: none;
   border-color: var(--accent-blue);
 }
 
-#chartTickerInput {
-  width: 150px;
-  text-transform: uppercase;
+.live-update-toggle {
+  display: flex;
+  align-items: center;
 }
 
-.chart-btn {
-  padding: 8px 20px;
-  background-color: var(--accent-blue);
-  color: white;
-  border: none;
-  border-radius: 4px;
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
-  font-weight: 600;
+  color: var(--text-primary);
   cursor: pointer;
-  transition: background-color 0.2s;
+  user-select: none;
 }
 
-.chart-btn:hover {
-  background-color: #0056b3;
+.toggle-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 .chart-display {
   flex: 1;
-  background-color: var(--bg-secondary);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
   overflow: hidden;
   position: relative;
 }

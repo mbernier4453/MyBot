@@ -92,9 +92,16 @@ async function fetchInitialData() {
             response.tickers.forEach(snapshot => {
               // Only process S&P 500 stocks
               if (SP500_TICKERS.includes(snapshot.ticker)) {
-                const todaysChange = snapshot.todaysChangePerc || 0;
                 const prevClose = snapshot.prevDay?.c || snapshot.day?.c || 100;
                 const currentPrice = snapshot.day?.c || prevClose;
+                
+                // Calculate change from previous day's close
+                const change = currentPrice - prevClose;
+                const changePercent = prevClose > 0 ? ((change / prevClose) * 100) : 0;
+                
+                if (snapshot.ticker === 'AAPL') {
+                  console.log(`[SNAPSHOT] ${snapshot.ticker}: prevClose=$${prevClose.toFixed(2)}, current=$${currentPrice.toFixed(2)}, change=${changePercent.toFixed(2)}%`);
+                }
                 
                 const stockInfo = {
                   ticker: snapshot.ticker,
@@ -103,10 +110,11 @@ async function fetchInitialData() {
                   low: snapshot.day?.l || currentPrice,
                   close: currentPrice,
                   volume: snapshot.day?.v || 0,
+                  prevClose: prevClose, // Store previous close for reference
                   marketCap: (MARKET_CAPS[snapshot.ticker] || 100) * 1e9, // Convert billions to actual value
                   timestamp: Date.now(),
-                  change: currentPrice - prevClose,
-                  changePercent: todaysChange
+                  change: change,
+                  changePercent: changePercent
                 };
                 
                 stockData.set(snapshot.ticker, stockInfo);
@@ -191,25 +199,31 @@ function connectPolygon() {
         // Handle aggregate bars (AM = Aggregate Minute)
         if (msg.ev === 'AM') {
           const ticker = msg.sym;
+          
+          // Get previous data to preserve prevClose
+          const prevData = stockData.get(ticker);
+          const prevClose = prevData?.prevClose || msg.c;
+          const currentPrice = msg.c;
+          const change = currentPrice - prevClose;
+          const changePercent = prevClose > 0 ? ((change / prevClose) * 100) : 0;
+          
+          if (ticker === 'AAPL') {
+            console.log(`[WEBSOCKET] ${ticker}: prevClose=$${prevClose.toFixed(2)}, current=$${currentPrice.toFixed(2)}, change=${changePercent.toFixed(2)}%`);
+          }
+          
           const data = {
             ticker: ticker,
             open: msg.o,
             high: msg.h,
             low: msg.l,
-            close: msg.c,
+            close: currentPrice,
             volume: msg.v,
+            prevClose: prevClose, // Preserve yesterday's close
             marketCap: (MARKET_CAPS[ticker] || 100) * 1e9,
             timestamp: msg.s,
-            change: null,
-            changePercent: null
+            change: change,
+            changePercent: changePercent
           };
-          
-          // Calculate change if we have previous data
-          if (stockData.has(ticker)) {
-            const prevData = stockData.get(ticker);
-            data.change = data.close - prevData.open;
-            data.changePercent = ((data.close - prevData.open) / prevData.open) * 100;
-          }
           
           stockData.set(ticker, data);
           
@@ -278,7 +292,7 @@ ipcMain.handle('polygon-get-all-data', () => {
 });
 
 // Fetch historical bars for candlestick chart
-ipcMain.handle('polygon-get-historical-bars', async (event, { ticker, from, to, timespan, multiplier }) => {
+ipcMain.handle('polygon-get-historical-bars', async (event, { ticker, from, to, timespan, multiplier, includeExtendedHours }) => {
   const apiKey = process.env.POLYGON_API_KEY;
   
   if (!apiKey) {
@@ -286,22 +300,53 @@ ipcMain.handle('polygon-get-historical-bars', async (event, { ticker, from, to, 
   }
 
   try {
-    // Build the URL for aggregates endpoint
-    // Format: /v2/aggs/ticker/{stocksTicker}/range/{multiplier}/{timespan}/{from}/{to}
-    const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+    // For daily/weekly/monthly aggregates, use regular aggregates endpoint
+    // For intraday (minute/hour), use includeOtc parameter which actually works
+    let url;
     
-    console.log(`Fetching historical data: ${ticker} from ${from} to ${to}`);
+    if (timespan === 'day' || timespan === 'week' || timespan === 'month') {
+      // For daily+ data, always fetch without extended hours
+      // Daily bars should represent regular trading hours (9:30 AM - 4:00 PM ET)
+      url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+      console.log(`Fetching ${timespan} data (regular hours only): ${ticker}`);
+    } else {
+      // For intraday data (minute/hour), use includeOtc parameter
+      // When false, this filters out extended hours data
+      const extendedHours = includeExtendedHours ? 'true' : 'false';
+      url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&includeOtc=${extendedHours}&apiKey=${apiKey}`;
+      console.log(`Fetching intraday data: ${ticker} (Extended Hours: ${extendedHours})`);
+    }
+    
+    console.log(`Date Range: ${from} to ${to} (${multiplier} ${timespan})`);
+    console.log(`URL: ${url.replace(apiKey, 'HIDDEN')}`);
     
     const response = await fetch(url);
     const data = await response.json();
     
     if (data.status === 'OK' && data.results && data.results.length > 0) {
-      console.log(`Received ${data.results.length} bars for ${ticker}`);
+      let bars = data.results;
+      
+      // For intraday data when extended hours are OFF, filter by time
+      if (!includeExtendedHours && (timespan === 'minute' || timespan === 'hour')) {
+        console.log(`Filtering out extended hours (before: ${bars.length} bars)`);
+        bars = bars.filter(bar => {
+          const date = new Date(bar.t);
+          const hour = date.getUTCHours() - 4; // Convert to ET (approximate)
+          const minute = date.getUTCMinutes();
+          const timeInMinutes = hour * 60 + minute;
+          
+          // Regular market hours: 9:30 AM (570 min) to 4:00 PM (960 min) ET
+          return timeInMinutes >= 570 && timeInMinutes < 960;
+        });
+        console.log(`After filtering: ${bars.length} bars`);
+      }
+      
+      console.log(`Received ${bars.length} bars for ${ticker}`);
       return { 
         success: true, 
-        bars: data.results,
+        bars: bars,
         ticker: data.ticker,
-        resultsCount: data.resultsCount
+        resultsCount: bars.length
       };
     } else {
       console.error('No data received from Polygon:', data);

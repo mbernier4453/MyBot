@@ -2680,6 +2680,39 @@ window.electronAPI.onPolygonUpdate((data) => {
       }
     }
   }
+  
+  // Update chart if this is the currently selected ticker
+  if (currentChartTicker === data.ticker) {
+    // Update live info panel
+    updateChartLiveInfo(data.ticker);
+    
+    // Update chart ticker list if visible
+    const tickerItem = document.querySelector(`.ticker-list-item[data-ticker="${data.ticker}"]`);
+    if (tickerItem) {
+      const priceEl = tickerItem.querySelector('.ticker-list-price');
+      if (priceEl) {
+        priceEl.textContent = `$${data.close.toFixed(2)}`;
+        const changeClass = data.changePercent >= 0 ? 'stock-change-positive' : 'stock-change-negative';
+        priceEl.className = `ticker-list-price ${changeClass}`;
+      }
+    }
+    
+    // Update live candle if enabled and chart is visible
+    if (liveUpdateEnabled && currentChartData && document.getElementById('chartingPage').classList.contains('active')) {
+      const now = Date.now();
+      // Update chart every 30 seconds max to avoid too frequent redraws
+      if (now - lastChartUpdate > 30000) {
+        lastChartUpdate = now;
+        
+        // For intraday charts, we could append the latest data
+        // For now, we'll just update the last bar with live data
+        const interval = document.getElementById('chartInterval')?.value;
+        if (interval !== 'day') {
+          updateLiveCandle(data);
+        }
+      }
+    }
+  }
 });
 
 // Utility function
@@ -2713,25 +2746,216 @@ loadWatchlists();
 // =====================================================
 
 let currentChartData = null;
+let currentChartTicker = null;
+let liveChartData = new Map(); // Store live candle data
+let liveUpdateEnabled = true;
+let lastChartUpdate = Date.now();
 
-// Load chart button
-document.getElementById('loadChartBtn')?.addEventListener('click', async () => {
-  const ticker = document.getElementById('chartTickerInput')?.value.trim().toUpperCase();
-  const timeframe = document.getElementById('chartTimeframe')?.value;
-  const interval = document.getElementById('chartInterval')?.value;
+// Initialize chart watchlist dropdown
+function initializeChartWatchlists() {
+  const select = document.getElementById('chartWatchlistSelect');
+  if (!select) return;
   
-  if (!ticker) {
-    alert('Please enter a ticker symbol');
+  select.innerHTML = '<option value="">Choose a watchlist...</option>';
+  
+  watchlists.forEach(w => {
+    const option = document.createElement('option');
+    option.value = w.id;
+    option.textContent = `${w.name} (${w.tickers.length})`;
+    select.appendChild(option);
+  });
+}
+
+// Handle watchlist selection
+document.getElementById('chartWatchlistSelect')?.addEventListener('change', (e) => {
+  const watchlistId = e.target.value;
+  if (!watchlistId) {
+    document.getElementById('chartTickerList').innerHTML = `
+      <div class="empty-state" style="padding: 20px; font-size: 12px;">
+        Select a watchlist to see tickers
+      </div>
+    `;
     return;
   }
   
-  await loadCandlestickChart(ticker, timeframe, interval);
+  const watchlist = watchlists.find(w => w.id === watchlistId);
+  if (!watchlist || watchlist.tickers.length === 0) {
+    document.getElementById('chartTickerList').innerHTML = `
+      <div class="empty-state" style="padding: 20px; font-size: 12px;">
+        No tickers in this watchlist
+      </div>
+    `;
+    return;
+  }
+  
+  // Display tickers
+  const tickerListHtml = watchlist.tickers.map(ticker => {
+    const data = treemapData.get(ticker);
+    const priceText = data ? `$${data.close.toFixed(2)}` : 'Loading...';
+    const changeClass = data && data.changePercent >= 0 ? 'stock-change-positive' : 'stock-change-negative';
+    
+    return `
+      <div class="ticker-list-item ${currentChartTicker === ticker ? 'active' : ''}" data-ticker="${ticker}">
+        <span class="ticker-list-symbol">${ticker}</span>
+        <span class="ticker-list-price ${changeClass}">${priceText}</span>
+      </div>
+    `;
+  }).join('');
+  
+  document.getElementById('chartTickerList').innerHTML = tickerListHtml;
+  
+  // Add click handlers
+  document.querySelectorAll('.ticker-list-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const ticker = item.dataset.ticker;
+      selectChartTicker(ticker);
+    });
+  });
+});
+
+// Ticker input button
+document.getElementById('chartTickerBtn')?.addEventListener('click', () => {
+  const ticker = document.getElementById('chartTickerInput')?.value.trim().toUpperCase();
+  if (ticker) {
+    selectChartTicker(ticker);
+  }
 });
 
 // Allow Enter key in ticker input
 document.getElementById('chartTickerInput')?.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') {
-    document.getElementById('loadChartBtn').click();
+    document.getElementById('chartTickerBtn')?.click();
+  }
+});
+
+// Select a ticker for charting
+async function selectChartTicker(ticker) {
+  currentChartTicker = ticker;
+  document.getElementById('chartTickerInput').value = ticker;
+  
+  // Update active state in ticker list
+  document.querySelectorAll('.ticker-list-item').forEach(item => {
+    if (item.dataset.ticker === ticker) {
+      item.classList.add('active');
+    } else {
+      item.classList.remove('active');
+    }
+  });
+  
+  // Show top info bar
+  document.getElementById('chartLiveInfoTop').style.display = 'flex';
+  document.getElementById('chartLiveTickerTop').textContent = ticker;
+  
+  // Update live info immediately
+  updateChartLiveInfo(ticker);
+  
+  // Validate and adjust interval based on timeframe
+  validateIntervalForTimeframe();
+  
+  // Load historical chart
+  const timeframe = document.getElementById('chartTimeframe')?.value || '1Y';
+  const interval = document.getElementById('chartInterval')?.value || 'day';
+  await loadCandlestickChart(ticker, timeframe, interval);
+}
+
+// Update live info panel
+function updateChartLiveInfo(ticker) {
+  const data = treemapData.get(ticker);
+  if (!data) return;
+  
+  // Log the calculation details
+  console.log(`[LIVE INFO] ${ticker}:`);
+  console.log(`  Current Price: $${data.close?.toFixed(2)}`);
+  console.log(`  Previous Close: $${data.prevClose?.toFixed(2)}`);
+  console.log(`  Change: $${data.change?.toFixed(2)}`);
+  console.log(`  Change %: ${data.changePercent?.toFixed(2)}%`);
+  
+  const changeClass = data.changePercent >= 0 ? 'stock-change-positive' : 'stock-change-negative';
+  const changeSign = data.changePercent >= 0 ? '+' : '';
+  const priceText = `$${data.close ? data.close.toFixed(2) : 'N/A'}`;
+  const changeText = `${changeSign}${data.changePercent ? data.changePercent.toFixed(2) : '0.00'}%`;
+  const volumeText = data.volume ? (data.volume / 1000000).toFixed(1) + 'M' : 'N/A';
+  const marketCapText = data.marketCap ? '$' + (data.marketCap / 1e9).toFixed(1) + 'B' : 'N/A';
+  
+  // Update top bar
+  const priceTopEl = document.getElementById('chartLivePriceTop');
+  const changeTopEl = document.getElementById('chartLiveChangeTop');
+  const volumeTopEl = document.getElementById('chartLiveVolumeTop');
+  const marketCapTopEl = document.getElementById('chartLiveMarketCapTop');
+  
+  if (priceTopEl) priceTopEl.textContent = priceText;
+  if (changeTopEl) {
+    changeTopEl.textContent = changeText;
+    changeTopEl.className = `live-change-large ${changeClass}`;
+  }
+  if (volumeTopEl) volumeTopEl.textContent = volumeText;
+  if (marketCapTopEl) marketCapTopEl.textContent = marketCapText;
+}
+
+// Live update toggle
+document.getElementById('liveUpdateToggle')?.addEventListener('change', (e) => {
+  liveUpdateEnabled = e.target.checked;
+});
+
+// Validate interval for timeframe
+function validateIntervalForTimeframe() {
+  const timeframe = document.getElementById('chartTimeframe')?.value;
+  const intervalSelect = document.getElementById('chartInterval');
+  if (!timeframe || !intervalSelect) return;
+  
+  const currentInterval = intervalSelect.value;
+  
+  // Define valid intervals for each timeframe
+  const validIntervals = {
+    '1D': ['1', '5', '15', '30', '60'],
+    '5D': ['5', '15', '30', '60', '240'],
+    '1M': ['15', '30', '60', '240', 'day'],
+    '3M': ['60', '240', 'day'],
+    '6M': ['240', 'day'],
+    '1Y': ['day', 'week'],
+    '2Y': ['day', 'week'],
+    '5Y': ['day', 'week', 'month'],
+    '10Y': ['week', 'month'],
+    'ALL': ['week', 'month']
+  };
+  
+  const allowed = validIntervals[timeframe] || ['day'];
+  
+  // Disable all options first
+  Array.from(intervalSelect.options).forEach(option => {
+    option.disabled = !allowed.includes(option.value);
+  });
+  
+  // If current interval is not valid, select the first valid one
+  if (!allowed.includes(currentInterval)) {
+    intervalSelect.value = allowed[allowed.length - 1]; // Default to largest valid interval
+  }
+}
+
+// Timeframe/interval change handlers
+document.getElementById('chartTimeframe')?.addEventListener('change', () => {
+  validateIntervalForTimeframe();
+  if (currentChartTicker) {
+    const timeframe = document.getElementById('chartTimeframe')?.value;
+    const interval = document.getElementById('chartInterval')?.value;
+    loadCandlestickChart(currentChartTicker, timeframe, interval);
+  }
+});
+
+document.getElementById('chartInterval')?.addEventListener('change', () => {
+  if (currentChartTicker) {
+    const timeframe = document.getElementById('chartTimeframe')?.value;
+    const interval = document.getElementById('chartInterval')?.value;
+    loadCandlestickChart(currentChartTicker, timeframe, interval);
+  }
+});
+
+// Extended hours toggle
+document.getElementById('extendedHoursToggle')?.addEventListener('change', () => {
+  if (currentChartTicker) {
+    const timeframe = document.getElementById('chartTimeframe')?.value;
+    const interval = document.getElementById('chartInterval')?.value;
+    loadCandlestickChart(currentChartTicker, timeframe, interval);
   }
 });
 
@@ -2745,7 +2969,7 @@ function getDateRange(timeframe) {
       from.setDate(to.getDate() - 1);
       break;
     case '5D':
-      from.setDate(to.getDate() - 7); // Get a bit more to account for weekends
+      from.setDate(to.getDate() - 7);
       break;
     case '1M':
       from.setMonth(to.getMonth() - 1);
@@ -2762,8 +2986,18 @@ function getDateRange(timeframe) {
     case '2Y':
       from.setFullYear(to.getFullYear() - 2);
       break;
+    case '5Y':
+      from.setFullYear(to.getFullYear() - 5);
+      break;
+    case '10Y':
+      from.setFullYear(to.getFullYear() - 10);
+      break;
+    case 'ALL':
+      // Go back 20 years for "all available"
+      from.setFullYear(to.getFullYear() - 20);
+      break;
     default:
-      from.setMonth(to.getMonth() - 1);
+      from.setFullYear(to.getFullYear() - 1);
   }
   
   // Format as YYYY-MM-DD
@@ -2784,32 +3018,53 @@ function getDateRange(timeframe) {
 function getTimespanParams(interval) {
   if (interval === 'day') {
     return { timespan: 'day', multiplier: 1 };
+  } else if (interval === 'week') {
+    return { timespan: 'week', multiplier: 1 };
+  } else if (interval === 'month') {
+    return { timespan: 'month', multiplier: 1 };
+  } else if (interval === '240') {
+    // 4 hour = 240 minutes
+    return { timespan: 'hour', multiplier: 4 };
+  } else if (parseInt(interval) >= 60) {
+    // Hour intervals
+    return { timespan: 'hour', multiplier: parseInt(interval) / 60 };
+  } else {
+    // Minute intervals
+    return { timespan: 'minute', multiplier: parseInt(interval) };
   }
-  // Minute intervals
-  return { timespan: 'minute', multiplier: parseInt(interval) };
 }
 
 // Load candlestick chart
 async function loadCandlestickChart(ticker, timeframe, interval) {
   const chartDiv = document.getElementById('candlestickChart');
   const loadingDiv = document.getElementById('chartLoading');
+  const emptyState = document.getElementById('chartEmptyState');
   
-  // Show loading
+  // Hide empty state, show loading
+  if (emptyState) emptyState.style.display = 'none';
   loadingDiv.style.display = 'block';
   chartDiv.innerHTML = '';
   
   try {
     const dateRange = getDateRange(timeframe);
     const { timespan, multiplier } = getTimespanParams(interval);
+    const extendedHoursCheckbox = document.getElementById('extendedHoursToggle');
+    const extendedHours = extendedHoursCheckbox?.checked === true;
     
-    console.log(`Loading chart for ${ticker}: ${dateRange.from} to ${dateRange.to}, ${multiplier} ${timespan}`);
+    console.log(`[CHART LOAD] ${ticker}:`);
+    console.log(`  Timeframe: ${timeframe}, Interval: ${interval}`);
+    console.log(`  Date Range: ${dateRange.from} to ${dateRange.to}`);
+    console.log(`  Timespan: ${multiplier} ${timespan}`);
+    console.log(`  Extended Hours Checkbox Checked: ${extendedHoursCheckbox?.checked}`);
+    console.log(`  Extended Hours Parameter: ${extendedHours}`);
     
     const result = await window.electronAPI.polygonGetHistoricalBars({
       ticker: ticker,
       from: dateRange.from,
       to: dateRange.to,
       timespan: timespan,
-      multiplier: multiplier
+      multiplier: multiplier,
+      includeExtendedHours: extendedHours
     });
     
     if (!result.success) {
@@ -2821,7 +3076,7 @@ async function loadCandlestickChart(ticker, timeframe, interval) {
     }
     
     currentChartData = result.bars;
-    drawCandlestickChart(ticker, result.bars, timespan);
+    drawCandlestickChart(ticker, result.bars, timespan, timeframe);
     
     loadingDiv.style.display = 'none';
     
@@ -2840,7 +3095,7 @@ async function loadCandlestickChart(ticker, timeframe, interval) {
 }
 
 // Draw candlestick chart with no gaps (excludes non-trading days)
-function drawCandlestickChart(ticker, bars, timespan) {
+function drawCandlestickChart(ticker, bars, timespan, timeframe) {
   // Prepare data for Plotly
   // The key: use a categorical x-axis with only actual trading days/times
   
@@ -2851,27 +3106,73 @@ function drawCandlestickChart(ticker, bars, timespan) {
   const close = [];
   const volume = [];
   
-  bars.forEach((bar) => {
+  // Determine tick angle and font size based on timeframe and data length
+  const totalBars = bars.length;
+  let tickAngle = -45;
+  let tickFontSize = 10;
+  let showEveryNth = 1;
+  
+  // Adjust display based on number of bars
+  if (totalBars > 500) {
+    tickAngle = -90;
+    tickFontSize = 8;
+    showEveryNth = Math.ceil(totalBars / 50); // Show ~50 labels max
+  } else if (totalBars > 200) {
+    showEveryNth = Math.ceil(totalBars / 100);
+  }
+  
+  bars.forEach((bar, index) => {
     // Format timestamp based on timespan
     let dateLabel;
     const date = new Date(bar.t);
     
-    if (timespan === 'day') {
-      // Daily: show date only
+    if (timespan === 'month') {
+      // Monthly: show month and year
       dateLabel = date.toLocaleDateString('en-US', { 
         year: 'numeric', 
+        month: 'short'
+      });
+    } else if (timespan === 'week') {
+      // Weekly: show month, day, year
+      dateLabel = date.toLocaleDateString('en-US', { 
+        year: '2-digit', 
         month: 'short', 
         day: 'numeric' 
       });
-    } else {
-      // Intraday: show date and time
+    } else if (timespan === 'day') {
+      // Daily: show date
+      dateLabel = date.toLocaleDateString('en-US', { 
+        year: '2-digit', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    } else if (timespan === 'hour') {
+      // Hourly: show date and time
       dateLabel = date.toLocaleString('en-US', { 
         month: 'short', 
         day: 'numeric',
         hour: 'numeric',
-        minute: '2-digit',
         hour12: true
       });
+    } else {
+      // Minutes: show time only if same day, otherwise show date + time
+      const now = new Date();
+      const isToday = date.toDateString() === now.toDateString();
+      if (isToday || totalBars < 100) {
+        dateLabel = date.toLocaleTimeString('en-US', { 
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+      } else {
+        dateLabel = date.toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+      }
     }
     
     dates.push(dateLabel);
@@ -2881,6 +3182,10 @@ function drawCandlestickChart(ticker, bars, timespan) {
     close.push(bar.c);
     volume.push(bar.v);
   });
+  
+  // Note: For daily bars, Polygon's API may include extended hours data in the OHLC by default
+  // The includeOtc parameter primarily affects intraday (minute/hour) data
+  // To get "regular hours only" daily data, we may need to use a different endpoint
   
   // Create candlestick trace
   const candlestickTrace = {
@@ -2910,9 +3215,20 @@ function drawCandlestickChart(ticker, bars, timespan) {
     yaxis: 'y2'
   };
   
+  // Get chart title based on timespan
+  let chartTitle = ticker;
+  if (timespan === 'month') chartTitle += ' - Monthly';
+  else if (timespan === 'week') chartTitle += ' - Weekly';
+  else if (timespan === 'day') chartTitle += ' - Daily';
+  else if (timespan === 'hour') chartTitle += ' - Hourly';
+  else chartTitle += ' - Intraday';
+  
+  const extendedHours = document.getElementById('extendedHoursToggle')?.checked;
+  if (extendedHours) chartTitle += ' (w/ Extended Hours)';
+  
   const layout = {
     title: {
-      text: `${ticker} - ${timespan === 'day' ? 'Daily' : 'Intraday'} Chart`,
+      text: chartTitle,
       font: { color: '#e0e0e0', size: 18 }
     },
     plot_bgcolor: '#1a1a1a',
@@ -2923,8 +3239,10 @@ function drawCandlestickChart(ticker, bars, timespan) {
       rangeslider: { visible: false },
       gridcolor: '#333',
       showgrid: true,
-      tickangle: -45,
-      tickfont: { size: 10 }
+      tickangle: tickAngle,
+      tickfont: { size: tickFontSize },
+      nticks: Math.min(totalBars, 50), // Limit number of ticks shown
+      automargin: true
     },
     yaxis: {
       title: 'Price ($)',
@@ -2938,7 +3256,7 @@ function drawCandlestickChart(ticker, bars, timespan) {
       gridcolor: '#333',
       showgrid: false
     },
-    margin: { l: 60, r: 40, t: 60, b: 80 },
+    margin: { l: 60, r: 40, t: 60, b: 120 }, // Increased bottom margin for labels
     hovermode: 'x unified',
     showlegend: true,
     legend: {
@@ -2959,12 +3277,71 @@ function drawCandlestickChart(ticker, bars, timespan) {
   Plotly.newPlot('candlestickChart', [candlestickTrace, volumeTrace], layout, config);
 }
 
+// Update live candle with websocket data
+function updateLiveCandle(data) {
+  if (!currentChartData || currentChartData.length === 0) return;
+  
+  try {
+    // Get the last bar
+    const lastBar = currentChartData[currentChartData.length - 1];
+    const barTime = new Date(lastBar.t);
+    const now = new Date();
+    
+    // Check if we're still in the same time period as the last bar
+    const interval = document.getElementById('chartInterval')?.value;
+    const { timespan, multiplier } = getTimespanParams(interval);
+    
+    let sameBar = false;
+    if (timespan === 'minute') {
+      // For minute bars, check if we're in the same minute interval
+      const barMinute = Math.floor(barTime.getTime() / (multiplier * 60000));
+      const nowMinute = Math.floor(now.getTime() / (multiplier * 60000));
+      sameBar = barMinute === nowMinute;
+    }
+    
+    if (sameBar) {
+      // Update the last bar with live data
+      lastBar.c = data.close;
+      lastBar.h = Math.max(lastBar.h, data.close);
+      lastBar.l = Math.min(lastBar.l, data.close);
+      lastBar.v += data.volume || 0;
+      
+      // Redraw chart
+      const ticker = document.getElementById('chartTickerInput')?.value.trim().toUpperCase();
+      if (ticker) {
+        drawCandlestickChart(ticker, currentChartData, timespan);
+      }
+    }
+  } catch (error) {
+    console.error('Error updating live candle:', error);
+  }
+}
+
 // Update chart when window resizes
 window.addEventListener('resize', () => {
   if (currentChartData && document.getElementById('candlestickChart').innerHTML) {
     const ticker = document.getElementById('chartTickerInput')?.value.trim().toUpperCase();
     const interval = document.getElementById('chartInterval')?.value;
     const { timespan } = getTimespanParams(interval);
-    drawCandlestickChart(ticker, currentChartData, timespan);
+    if (ticker) {
+      drawCandlestickChart(ticker, currentChartData, timespan);
+    }
   }
 });
+
+// Initialize chart watchlists when watchlists are loaded/updated
+function refreshChartWatchlists() {
+  initializeChartWatchlists();
+}
+
+// Call refresh when watchlist changes
+const originalSaveWatchlists = saveWatchlistsToStorage;
+window.saveWatchlistsToStorage = function() {
+  originalSaveWatchlists();
+  refreshChartWatchlists();
+};
+
+// Initialize on load
+setTimeout(() => {
+  initializeChartWatchlists();
+}, 1000);

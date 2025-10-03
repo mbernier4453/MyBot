@@ -163,23 +163,73 @@
 
       <!-- Charting Page -->
       <div id="chartingPage" class="main-page">
-        <div class="page-content">
-          <div class="charting-container">
-            <div class="chart-controls">
-              <div class="control-group">
-                <label for="chartTickerInput">Ticker:</label>
-                <input type="text" id="chartTickerInput" placeholder="Enter ticker (e.g., AAPL)" />
+        <div class="charting-layout">
+          <!-- Sidebar with ticker selection -->
+          <div class="chart-sidebar">
+            <div class="chart-sidebar-header">
+              <h2>📊 Select Ticker</h2>
+            </div>
+            
+            <!-- Ticker input section -->
+            <div class="chart-input-section">
+              <label>Enter Ticker</label>
+              <div class="ticker-input-group">
+                <input type="text" id="chartTickerInput" placeholder="e.g., AAPL" />
+                <button id="chartTickerBtn" class="btn-icon">→</button>
               </div>
+            </div>
+
+            <!-- Watchlist selection -->
+            <div class="chart-watchlist-section">
+              <label>Or Select from Watchlist</label>
+              <select id="chartWatchlistSelect" class="form-input">
+                <option value="">Choose a watchlist...</option>
+              </select>
+              <div id="chartTickerList" class="chart-ticker-list">
+                <div class="empty-state" style="padding: 20px; font-size: 12px;">
+                  Select a watchlist to see tickers
+                </div>
+              </div>
+            </div>
+
+
+          </div>
+
+          <!-- Main chart area -->
+          <div class="chart-main-area">
+            <!-- Live Info Bar at Top -->
+            <div id="chartLiveInfoTop" class="chart-live-info-top" style="display: none;">
+              <div class="live-info-left">
+                <span id="chartLiveTickerTop" class="live-ticker-large">-</span>
+                <span id="chartLivePriceTop" class="live-price-large">$0.00</span>
+                <span id="chartLiveChangeTop" class="live-change-large">+0.00%</span>
+              </div>
+              <div class="live-info-right">
+                <div class="live-stat">
+                  <span class="live-stat-label">Volume:</span>
+                  <span id="chartLiveVolumeTop" class="live-stat-value">0</span>
+                </div>
+                <div class="live-stat">
+                  <span class="live-stat-label">Market Cap:</span>
+                  <span id="chartLiveMarketCapTop" class="live-stat-value">-</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="chart-controls">
               <div class="control-group">
                 <label for="chartTimeframe">Timeframe:</label>
                 <select id="chartTimeframe">
                   <option value="1D">1 Day</option>
                   <option value="5D">5 Days</option>
-                  <option value="1M" selected>1 Month</option>
+                  <option value="1M">1 Month</option>
                   <option value="3M">3 Months</option>
                   <option value="6M">6 Months</option>
-                  <option value="1Y">1 Year</option>
+                  <option value="1Y" selected>1 Year</option>
                   <option value="2Y">2 Years</option>
+                  <option value="5Y">5 Years</option>
+                  <option value="10Y">10 Years</option>
+                  <option value="ALL">All Available</option>
                 </select>
               </div>
               <div class="control-group">
@@ -190,15 +240,35 @@
                   <option value="15">15 Min</option>
                   <option value="30">30 Min</option>
                   <option value="60">1 Hour</option>
+                  <option value="240">4 Hour</option>
                   <option value="day" selected>Daily</option>
+                  <option value="week">Weekly</option>
+                  <option value="month">Monthly</option>
                 </select>
               </div>
-              <button id="loadChartBtn" class="chart-btn">Load Chart</button>
+              <div class="live-update-toggle">
+                <label class="toggle-label">
+                  <input type="checkbox" id="liveUpdateToggle" checked />
+                  <span>Live Updates</span>
+                </label>
+              </div>
+              <div class="live-update-toggle">
+                <label class="toggle-label">
+                  <input type="checkbox" id="extendedHoursToggle" checked />
+                  <span>Extended Hours</span>
+                </label>
+              </div>
             </div>
             <div class="chart-display">
               <div id="candlestickChart"></div>
               <div id="chartLoading" style="display: none; text-align: center; padding: 40px; color: #666;">
                 <p>Loading chart data...</p>
+              </div>
+              <div id="chartEmptyState" class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center;">
+                <div style="text-align: center;">
+                  <h3>📈 Select a ticker to view chart</h3>
+                  <p style="color: #666; margin-top: 10px;">Enter a ticker or choose from your watchlist</p>
+                </div>
               </div>
             </div>
           </div>
