@@ -45,7 +45,6 @@
         <div class="tabs">
           <button class="tab active" data-tab="overview">Overview</button>
           <button class="tab" data-tab="strategies">Strategies</button>
-          <button class="tab" data-tab="portfolio">Portfolio</button>
           <button class="tab" data-tab="trades">Trades</button>
           <button class="tab" data-tab="compare">Compare</button>
         </div>
@@ -144,46 +143,50 @@
         </div>
         <div id="tearsheetContent" style="display: none;">
           <div class="tearsheet-layout">
-            <!-- Left Column: Metrics -->
-            <div class="tearsheet-sidebar">
-              <div class="tearsheet-section">
-                <h3>Performance Metrics</h3>
-                <div id="tearsheetMetrics" class="metrics-comparison"></div>
+            <!-- Top Section: Sidebar + Main Chart -->
+            <div class="tearsheet-top-section">
+              <!-- Left: Metrics -->
+              <div class="tearsheet-sidebar">
+                <div class="tearsheet-section">
+                  <h3>Performance Metrics</h3>
+                  <div id="tearsheetMetrics" class="metrics-comparison"></div>
+                </div>
+                
+                <div class="tearsheet-section">
+                  <h3>CAPM Analysis</h3>
+                  <div id="tearsheetCapm" class="metrics-capm"></div>
+                </div>
+                
+                <div class="tearsheet-section">
+                  <h3>Trade Summary</h3>
+                  <div id="tradeSummary" class="metrics-simple"></div>
+                </div>
               </div>
               
-              <div class="tearsheet-section">
-                <h3>CAPM Analysis</h3>
-                <div id="tearsheetCapm" class="metrics-capm"></div>
-              </div>
-              
-              <div class="tearsheet-section">
-                <h3>Trade Summary</h3>
-                <div id="tradeSummary" class="metrics-simple"></div>
+              <!-- Right: Main Equity Chart -->
+              <div class="tearsheet-main-chart-container">
+                <div class="tearsheet-section">
+                  <h3>Equity Curve Comparison</h3>
+                  <div id="equityChart" class="chart-main"></div>
+                </div>
               </div>
             </div>
             
-            <!-- Right Column: Charts -->
-            <div class="tearsheet-charts">
-              <div class="tearsheet-section">
-                <h3>Equity Curve Comparison</h3>
-                <div id="equityChart" class="chart-main"></div>
+            <!-- Bottom Section: Three Charts Full Width -->
+            <div class="tearsheet-charts-row">
+              <div class="tearsheet-section chart-third">
+                <h4>Vol-Matched vs Benchmark</h4>
+                <div id="volMatchedBenchChart" class="chart-small"></div>
               </div>
               
-              <div class="tearsheet-charts-row">
-                <div class="tearsheet-section chart-third">
-                  <h4>Vol-Matched vs Benchmark</h4>
-                  <div id="volMatchedBenchChart" class="chart-small"></div>
-                </div>
-                
-                <div class="tearsheet-section chart-third">
-                  <h4>Vol-Matched vs Buy & Hold</h4>
-                  <div id="volMatchedBuyHoldChart" class="chart-small"></div>
-                </div>
-                
-                <div class="tearsheet-section chart-third">
-                  <h4>Drawdown Comparison</h4>
-                  <div id="drawdownChart" class="chart-small"></div>
-                </div>
+              <div class="tearsheet-section chart-third">
+                <h4>Vol-Matched vs Buy & Hold</h4>
+                <div id="volMatchedBuyHoldChart" class="chart-small"></div>
+              </div>
+              
+              <div class="tearsheet-section chart-third">
+                <h4>Drawdown Comparison</h4>
+                <div id="drawdownChart" class="chart-small"></div>
               </div>
             </div>
           </div>

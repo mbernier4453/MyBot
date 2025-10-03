@@ -57,10 +57,18 @@ def init_db(db_path: str) -> str:
             if pw_cols and "target_weight" not in pw_cols:
                 needs_reset = True
             
-            # Check runs table for missing completed_at
+            # Check runs table for missing completed_at or benchmark columns
             cur.execute("PRAGMA table_info(runs);")
             runs_cols = {row[1] for row in cur.fetchall()}
-            if runs_cols and "completed_at" not in runs_cols:
+            if runs_cols and ("completed_at" not in runs_cols or 
+                            "benchmark_equity_json" not in runs_cols or 
+                            "benchmark_config_json" not in runs_cols):
+                needs_reset = True
+            
+            # Check strategies table for missing buyhold_json
+            cur.execute("PRAGMA table_info(strategies);")
+            strat_cols = {row[1] for row in cur.fetchall()}
+            if strat_cols and "buyhold_json" not in strat_cols:
                 needs_reset = True
             
             # Check portfolio table for missing metric columns
@@ -103,7 +111,7 @@ def init_db(db_path: str) -> str:
           started_at REAL,
           completed_at REAL,
           benchmark_equity_json TEXT,
-          config_json TEXT
+          benchmark_config_json TEXT
         );""")
         
         cur.execute("""
@@ -125,6 +133,7 @@ def init_db(db_path: str) -> str:
           metrics_json TEXT,
           equity_json TEXT,
           events_json TEXT,
+          buyhold_json TEXT,
           created_at REAL,
           FOREIGN KEY(run_id) REFERENCES runs(run_id)
         );""")
@@ -187,10 +196,14 @@ def init_db(db_path: str) -> str:
                         mode = row[2] if len(row) > 2 and len(old_cols) > 2 else "unknown"
                         started_at = row[3] if len(row) > 3 and len(old_cols) > 3 else time.time()
                         completed_at = row[4] if len(row) > 4 and len(old_cols) > 4 else None
+                        # New columns default to NULL
+                        benchmark_equity_json = None
+                        benchmark_config_json = None
                         
                         if run_id:
-                            cur.execute("INSERT OR IGNORE INTO runs VALUES (?,?,?,?,?)", 
-                                      (run_id, notes, mode, started_at, completed_at))
+                            cur.execute("INSERT OR IGNORE INTO runs VALUES (?,?,?,?,?,?,?)", 
+                                      (run_id, notes, mode, started_at, completed_at,
+                                       benchmark_equity_json, benchmark_config_json))
             except Exception as e:
                 print(f"[DB] Warning: Could not restore runs backup: {e}")
                 pass
@@ -217,14 +230,14 @@ def finalize_run(db_file: str, run_id: str):
         con.execute("UPDATE runs SET completed_at=? WHERE run_id=?;", (time.time(), run_id))
         con.commit()
 
-def update_run_benchmark(db_file: str, run_id: str, benchmark_equity_json: str = None, config_json: str = None):
+def update_run_benchmark(db_file: str, run_id: str, benchmark_equity_json: str = None, benchmark_config_json: str = None):
     """Update run with benchmark equity curve and config snapshot."""
     with _lock, sqlite3.connect(db_file) as con:
         con.execute("""
             UPDATE runs 
-            SET benchmark_equity_json=?, config_json=? 
+            SET benchmark_equity_json=?, benchmark_config_json=? 
             WHERE run_id=?
-        """, (benchmark_equity_json, config_json, run_id))
+        """, (benchmark_equity_json, benchmark_config_json, run_id))
         con.commit()
 
 # ------------ Helpers ------------

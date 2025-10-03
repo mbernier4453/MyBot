@@ -46,6 +46,26 @@ class PortfolioResult:
         self.per_ticker_positions = per_ticker_positions
         self.metrics = kpis_from_equity(equity)
         
+        # Add buy & hold metrics
+        if buyhold_equity is not None and len(buyhold_equity) > 0:
+            bh_metrics = kpis_from_equity(buyhold_equity)
+            self.metrics['buyhold_total_return'] = bh_metrics.get('total_return')
+            self.metrics['buyhold_cagr'] = bh_metrics.get('cagr')
+            self.metrics['buyhold_sharpe'] = bh_metrics.get('sharpe')
+            self.metrics['buyhold_sortino'] = bh_metrics.get('sortino')
+            self.metrics['buyhold_vol'] = bh_metrics.get('vol')
+            self.metrics['buyhold_maxdd'] = bh_metrics.get('maxdd')
+        
+        # Add benchmark metrics
+        if benchmark_equity is not None and len(benchmark_equity) > 0:
+            bench_metrics = kpis_from_equity(benchmark_equity)
+            self.metrics['bench_total_return'] = bench_metrics.get('total_return')
+            self.metrics['bench_cagr'] = bench_metrics.get('cagr')
+            self.metrics['bench_sharpe'] = bench_metrics.get('sharpe')
+            self.metrics['bench_sortino'] = bench_metrics.get('sortino')
+            self.metrics['bench_vol'] = bench_metrics.get('vol')
+            self.metrics['bench_maxdd'] = bench_metrics.get('maxdd')
+        
         # Add trade-specific metrics
         self._add_trade_metrics()
     

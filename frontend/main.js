@@ -94,7 +94,8 @@ ipcMain.handle('get-runs', async () => {
         notes,
         mode,
         started_at,
-        completed_at
+        completed_at,
+        benchmark_equity_json
       FROM runs
       ORDER BY started_at DESC
     `);
@@ -102,6 +103,19 @@ ipcMain.handle('get-runs', async () => {
     const runs = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();
+      
+      // Parse benchmark equity if available
+      if (row.benchmark_equity_json) {
+        try {
+          row.benchmark_equity = JSON.parse(row.benchmark_equity_json);
+          delete row.benchmark_equity_json;
+        } catch (e) {
+          console.error('[BACKEND] Error parsing benchmark_equity_json:', e);
+          row.benchmark_equity = null;
+        }
+      } else {
+        row.benchmark_equity = null;
+      }
       
       // Count results based on mode
       let resultCount = 0;
@@ -269,6 +283,9 @@ ipcMain.handle('get-portfolio', async (event, runId) => {
         avg_trade_pnl,
         trades_total,
         metrics_json,
+        equity_json,
+        buyhold_equity_json,
+        per_ticker_equity_json,
         created_at
       FROM portfolio
       WHERE run_id = ?
@@ -305,6 +322,34 @@ ipcMain.handle('get-portfolio', async (event, runId) => {
     } catch (parseError) {
       console.warn('[BACKEND] JSON parse error for portfolio:', parseError);
       portfolio.metrics = {};
+    }
+    
+    // Parse equity JSON data
+    if (portfolio.equity_json) {
+      try {
+        portfolio.equity = JSON.parse(portfolio.equity_json);
+      } catch (e) {
+        console.warn('[BACKEND] Failed to parse equity_json:', e);
+        portfolio.equity = null;
+      }
+    }
+    
+    if (portfolio.buyhold_equity_json) {
+      try {
+        portfolio.buyhold_equity = JSON.parse(portfolio.buyhold_equity_json);
+      } catch (e) {
+        console.warn('[BACKEND] Failed to parse buyhold_equity_json:', e);
+        portfolio.buyhold_equity = null;
+      }
+    }
+    
+    if (portfolio.per_ticker_equity_json) {
+      try {
+        portfolio.per_ticker_equity = JSON.parse(portfolio.per_ticker_equity_json);
+      } catch (e) {
+        console.warn('[BACKEND] Failed to parse per_ticker_equity_json:', e);
+        portfolio.per_ticker_equity = null;
+      }
     }
     
     // Ensure numeric fields are valid

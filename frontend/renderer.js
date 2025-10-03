@@ -264,6 +264,32 @@ async function loadRunDetails(run) {
           ${createMetricCard('Total Trades', p.trades_total || 0)}
         </div>
       `;
+      
+      // Add portfolio weights if available
+      if (p.weights && p.weights.length > 0) {
+        overviewHtml += `
+          <div class="info-section">
+            <h3>Portfolio Weights</h3>
+            <div class="weights-grid">
+              ${p.weights.map(w => `
+                <div class="weight-item">
+                  <span class="weight-ticker">${w.ticker}</span>
+                  <span class="weight-value">${formatPercent(w.target_weight)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+      
+      // Add tearsheet button
+      overviewHtml += `
+        <div class="portfolio-actions">
+          <button class="btn btn-primary" onclick="viewPortfolioTearsheet('${run.run_id}')">
+            📊 View Portfolio Tearsheet
+          </button>
+        </div>
+      `;
     }
   } else {
     console.log('Loading strategies for single mode run:', run.run_id);
@@ -576,6 +602,12 @@ async function loadPortfolio(runId) {
 
 function displayPortfolio(portfolio) {
   const html = `
+    <div style="margin-bottom: 20px;">
+      <button class="btn-view-tearsheet" onclick="viewPortfolioTearsheet('${portfolio.run_id}')" style="padding: 12px 24px; font-size: 14px;">
+        📊 View Portfolio Tearsheet
+      </button>
+    </div>
+    
     <div class="metrics-grid">
       ${createMetricCard('Total Return', formatPercent(portfolio.total_return), portfolio.total_return >= 0)}
       ${createMetricCard('CAGR', formatPercent(portfolio.cagr), portfolio.cagr >= 0)}
@@ -785,6 +817,259 @@ function setStatus(message, isError = false) {
 }
 
 // Tearsheet Functions
+async function viewPortfolioTearsheet(runId) {
+  const modal = document.getElementById('tearsheetModal');
+  const loading = document.getElementById('tearsheetLoading');
+  const content = document.getElementById('tearsheetContent');
+  
+  // Show modal with loading state
+  modal.classList.add('show');
+  loading.style.display = 'flex';
+  content.style.display = 'none';
+  
+  try {
+    // Load portfolio details
+    const result = await window.electronAPI.getPortfolio(runId);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to load portfolio details');
+    }
+    
+    const portfolio = result.data;
+    
+    // Get benchmark data from the run
+    const run = allRuns.find(r => r.run_id === runId);
+    let benchmarkEquity = null;
+    if (run && run.benchmark_equity) {
+      benchmarkEquity = run.benchmark_equity;
+    }
+    
+    // Update title
+    document.getElementById('tearsheetTitle').textContent = 
+      `Portfolio - ${portfolio.run_id}`;
+    
+    // Show content early so DOM elements are accessible
+    loading.style.display = 'none';
+    content.style.display = 'block';
+    
+    // Display metrics
+    console.log('Portfolio object:', portfolio);
+    console.log('Portfolio.metrics:', portfolio.metrics);
+    console.log('Portfolio.metrics keys:', Object.keys(portfolio.metrics || {}));
+    console.log('Looking for buyhold_total_return:', portfolio.metrics?.buyhold_total_return);
+    console.log('Looking for bench_total_return:', portfolio.metrics?.bench_total_return);
+    displayPortfolioTearsheetMetrics(portfolio, benchmarkEquity);
+    
+    // Calculate and display CAPM if both portfolio and benchmark available
+    if (portfolio.equity && benchmarkEquity) {
+      await displayPortfolioCapmMetrics(portfolio, benchmarkEquity);
+    } else {
+      document.getElementById('tearsheetCapm').innerHTML = 
+        '<p style="color: var(--text-secondary); font-size: 11px; text-align: center; padding: 20px;">CAPM analysis not available (benchmark data missing)</p>';
+    }
+    
+    // Display equity chart with all three curves
+    if (portfolio.equity) {
+      displayEquityChart(portfolio.equity, portfolio.buyhold_equity, benchmarkEquity, []);
+    } else {
+      document.getElementById('equityChart').innerHTML = 
+        '<p style="color: var(--text-secondary);">Equity data not available</p>';
+    }
+    
+    // Display vol-matched charts
+    if (portfolio.equity && benchmarkEquity) {
+      displayVolMatchedChart(portfolio.equity, benchmarkEquity, 'volMatchedBenchChart', 'Benchmark');
+    } else {
+      document.getElementById('volMatchedBenchChart').innerHTML = 
+        '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 11px;">Benchmark not available</div>';
+    }
+    
+    if (portfolio.equity && portfolio.buyhold_equity) {
+      displayVolMatchedChart(portfolio.equity, portfolio.buyhold_equity, 'volMatchedBuyHoldChart', 'Buy & Hold');
+    } else {
+      document.getElementById('volMatchedBuyHoldChart').innerHTML = 
+        '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 11px;">Buy & Hold not available</div>';
+    }
+    
+    // Display drawdown chart with all three curves
+    if (portfolio.equity) {
+      displayDrawdownChart(portfolio.equity, portfolio.buyhold_equity, benchmarkEquity);
+    } else {
+      document.getElementById('drawdownChart').innerHTML = 
+        '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 11px;">Data not available</div>';
+    }
+    
+  } catch (error) {
+    console.error('Error loading portfolio tearsheet:', error);
+    loading.innerHTML = `
+      <div class="error-state" style="color: var(--negative); text-align: center;">
+        <p>❌ Failed to load portfolio tearsheet</p>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">
+          ${error.message}
+        </p>
+      </div>
+    `;
+  }
+}
+
+function displayPortfolioTearsheetMetrics(portfolio, benchmarkEquity) {
+  const metricsDiv = document.getElementById('tearsheetMetrics');
+  
+  function formatMetricValue(value, isPercent = false) {
+    if (value === null || value === undefined || isNaN(value)) return '<span style="color: var(--text-secondary);">N/A</span>';
+    
+    const formatted = isPercent ? formatPercent(value) : formatNumber(value, 3);
+    return `<span class="metric-value">${formatted}</span>`;
+  }
+  
+  // Portfolio metrics are at top level, buy & hold and benchmark are in metrics object
+  const m = portfolio.metrics || {};
+  
+  const metricsHtml = `
+    <div class="metric-row header">
+      <div>Metric</div>
+      <div style="text-align: right;">Portfolio</div>
+      <div style="text-align: right;">Buy & Hold</div>
+      <div style="text-align: right;">Benchmark</div>
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">Total Return</div>
+      ${formatMetricValue(portfolio.total_return, true)}
+      ${formatMetricValue(m.buyhold_total_return, true)}
+      ${formatMetricValue(m.bench_total_return, true)}
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">CAGR</div>
+      ${formatMetricValue(portfolio.cagr, true)}
+      ${formatMetricValue(m.buyhold_cagr, true)}
+      ${formatMetricValue(m.bench_cagr, true)}
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">Sharpe</div>
+      ${formatMetricValue(portfolio.sharpe, false)}
+      ${formatMetricValue(m.buyhold_sharpe, false)}
+      ${formatMetricValue(m.bench_sharpe, false)}
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">Sortino</div>
+      ${formatMetricValue(portfolio.sortino, false)}
+      ${formatMetricValue(m.buyhold_sortino, false)}
+      ${formatMetricValue(m.bench_sortino, false)}
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">Volatility</div>
+      ${formatMetricValue(portfolio.vol, true)}
+      ${formatMetricValue(m.buyhold_vol, true)}
+      ${formatMetricValue(m.bench_vol, true)}
+    </div>
+    <div class="metric-row">
+      <div class="metric-label">Max Drawdown</div>
+      ${formatMetricValue(portfolio.maxdd, true)}
+      ${formatMetricValue(m.buyhold_maxdd, true)}
+      ${formatMetricValue(m.bench_maxdd, true)}
+    </div>
+  `;
+  
+  metricsDiv.innerHTML = metricsHtml;
+  
+  // Trade summary
+  const tradeSummaryDiv = document.getElementById('tradeSummary');
+  const tradeSummaryHtml = `
+    <div class="simple-metric">
+      <span class="simple-metric-label">Total Trades</span>
+      <span class="simple-metric-value">${portfolio.trades_total || 0}</span>
+    </div>
+    <div class="simple-metric">
+      <span class="simple-metric-label">Win Rate</span>
+      <span class="simple-metric-value">${formatPercent(portfolio.win_rate)}</span>
+    </div>
+    <div class="simple-metric">
+      <span class="simple-metric-label">Net Win Rate</span>
+      <span class="simple-metric-value">${formatPercent(portfolio.net_win_rate)}</span>
+    </div>
+    <div class="simple-metric">
+      <span class="simple-metric-label">Avg Trade P&L</span>
+      <span class="simple-metric-value">${formatNumber(portfolio.avg_trade_pnl, 2)}</span>
+    </div>
+  `;
+  
+  tradeSummaryDiv.innerHTML = tradeSummaryHtml;
+}
+
+async function displayPortfolioCapmMetrics(portfolio, benchmarkEquity) {
+  try {
+    console.log('displayPortfolioCapmMetrics called');
+    console.log('portfolio.equity:', portfolio.equity);
+    console.log('portfolio.buyhold_equity:', portfolio.buyhold_equity);
+    console.log('benchmarkEquity:', benchmarkEquity);
+    
+    // Calculate CAPM for Portfolio vs Benchmark
+    const portfolioResult = await window.electronAPI.calculateCapm(
+      portfolio.equity,
+      benchmarkEquity
+    );
+    
+    // Calculate CAPM for Buy & Hold vs Benchmark
+    const buyholdResult = await window.electronAPI.calculateCapm(
+      portfolio.buyhold_equity,
+      benchmarkEquity
+    );
+    
+    console.log('Portfolio CAPM result:', portfolioResult);
+    console.log('Buy & Hold CAPM result:', buyholdResult);
+    
+    if (!portfolioResult.success && !buyholdResult.success) {
+      document.getElementById('tearsheetCapm').innerHTML = 
+        `<p style="color: var(--negative); font-size: 11px; text-align: center; padding: 20px;">CAPM calculation failed</p>`;
+      return;
+    }
+    
+    const portfolioCapm = portfolioResult.success ? portfolioResult.data : {};
+    const buyholdCapm = buyholdResult.success ? buyholdResult.data : {};
+    
+    const capmHtml = `
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+        <div class="metric-row header" style="grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 5px;">
+          <div>Metric</div>
+          <div style="text-align: right;">Portfolio</div>
+          <div style="text-align: right;">Buy & Hold</div>
+        </div>
+        <div class="metric-row" style="grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div class="metric-label">Alpha</div>
+          <div style="text-align: right;">${formatPercent(portfolioCapm.alpha)}</div>
+          <div style="text-align: right;">${formatPercent(buyholdCapm.alpha)}</div>
+        </div>
+        <div class="metric-row" style="grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div class="metric-label">Beta</div>
+          <div style="text-align: right;">${formatNumber(portfolioCapm.beta, 3)}</div>
+          <div style="text-align: right;">${formatNumber(buyholdCapm.beta, 3)}</div>
+        </div>
+        <div class="metric-row" style="grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div class="metric-label">R²</div>
+          <div style="text-align: right;">${formatNumber(portfolioCapm.r_squared, 3)}</div>
+          <div style="text-align: right;">${formatNumber(buyholdCapm.r_squared, 3)}</div>
+        </div>
+        <div class="metric-row" style="grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div class="metric-label">Tracking Error</div>
+          <div style="text-align: right;">${formatPercent(portfolioCapm.tracking_error)}</div>
+          <div style="text-align: right;">${formatPercent(buyholdCapm.tracking_error)}</div>
+        </div>
+        <div class="metric-row" style="grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div class="metric-label">Info Ratio</div>
+          <div style="text-align: right;">${formatNumber(portfolioCapm.information_ratio, 3)}</div>
+          <div style="text-align: right;">${formatNumber(buyholdCapm.information_ratio, 3)}</div>
+        </div>
+      </div>
+    `;
+    
+    document.getElementById('tearsheetCapm').innerHTML = capmHtml;
+  } catch (error) {
+    console.error('Error calculating CAPM:', error);
+    document.getElementById('tearsheetCapm').innerHTML = 
+      `<p style="color: var(--negative); font-size: 11px; text-align: center; padding: 20px;">CAPM calculation error: ${error.message}</p>`;
+  }
+}
+
 async function viewTearsheet(strategyId) {
   const modal = document.getElementById('tearsheetModal');
   const loading = document.getElementById('tearsheetLoading');
@@ -1068,7 +1353,7 @@ function displayEquityChart(strategyEquity, buyholdEquity, benchmarkEquity, even
     type: 'scatter',
     mode: 'lines',
     name: strategyEquity.name || 'Strategy',
-    line: { color: '#006633', width: 2.5 }
+    line: { color: '#00aa55', width: 2.5 }
   });
   
   // Buy & Hold equity trace (same ticker)
@@ -1079,7 +1364,7 @@ function displayEquityChart(strategyEquity, buyholdEquity, benchmarkEquity, even
       type: 'scatter',
       mode: 'lines',
       name: buyholdEquity.name || 'Buy & Hold',
-      line: { color: '#228B22', width: 2.5 }
+      line: { color: '#c8f0c8', width: 2.5 }
     });
   }
   
@@ -1091,7 +1376,7 @@ function displayEquityChart(strategyEquity, buyholdEquity, benchmarkEquity, even
       type: 'scatter',
       mode: 'lines',
       name: benchmarkEquity.name || 'Benchmark (SPY)',
-      line: { color: '#00aa55', width: 2.5 }
+      line: { color: '#808080', width: 2.5 }
     });
   }
   
@@ -1195,13 +1480,15 @@ function displayEquityChart(strategyEquity, buyholdEquity, benchmarkEquity, even
     },
     xaxis: {
       title: 'Date',
-      gridcolor: '#1a3d1a',
+      gridcolor: '#2a2a2a',
+      griddash: 'dash',
       color: '#a0a0a0',
       showgrid: true
     },
     yaxis: {
       title: 'Portfolio Value ($)',
-      gridcolor: '#1a3d1a',
+      gridcolor: '#2a2a2a',
+      griddash: 'dash',
       color: '#a0a0a0',
       showgrid: true
     },
@@ -1367,7 +1654,7 @@ function displayVolMatchedChart(strategyEquity, comparisonEquity, chartElementId
       type: 'scatter',
       mode: 'lines',
       name: 'Strategy',
-      line: { color: '#006633', width: 2 }
+      line: { color: '#00aa55', width: 2 }
     },
     {
       x: [strategyEquity.index[0], ...dates],
@@ -1375,13 +1662,13 @@ function displayVolMatchedChart(strategyEquity, comparisonEquity, chartElementId
       type: 'scatter',
       mode: 'lines',
       name: `${comparisonName} (Vol-Matched)`,
-      line: { color: '#228B22', width: 2 }
+      line: { color: comparisonName.includes('Benchmark') ? '#808080' : '#c8f0c8', width: 2 }
     }
   ];
   
   const layout = {
-    xaxis: { showticklabels: false, gridcolor: '#1a3d1a', color: '#a0a0a0' },
-    yaxis: { gridcolor: '#1a3d1a', color: '#a0a0a0', showticklabels: true },
+    xaxis: { showticklabels: false, gridcolor: '#2a2a2a', griddash: 'dash', color: '#a0a0a0' },
+    yaxis: { gridcolor: '#2a2a2a', griddash: 'dash', color: '#a0a0a0', showticklabels: true },
     plot_bgcolor: '#0a0a0a',
     paper_bgcolor: '#0a0a0a',
     font: { color: '#e0e0e0', size: 10 },
@@ -1417,9 +1704,9 @@ function displayDrawdownChart(strategyEquity, buyholdEquity, benchmarkEquity) {
     type: 'scatter',
     mode: 'lines',
     name: 'Strategy',
-    line: { color: '#006633', width: 2 },
+    line: { color: '#00aa55', width: 2 },
     fill: 'tozeroy',
-    fillcolor: 'rgba(0, 102, 51, 0.2)'
+    fillcolor: 'rgba(0, 170, 85, 0.15)'
   });
   
   // Buy & Hold drawdown
@@ -1430,7 +1717,9 @@ function displayDrawdownChart(strategyEquity, buyholdEquity, benchmarkEquity) {
       type: 'scatter',
       mode: 'lines',
       name: 'Buy & Hold',
-      line: { color: '#228B22', width: 2 }
+      line: { color: '#c8f0c8', width: 2 },
+      fill: 'tozeroy',
+      fillcolor: 'rgba(200, 240, 200, 0.1)'
     });
   }
   
@@ -1442,14 +1731,17 @@ function displayDrawdownChart(strategyEquity, buyholdEquity, benchmarkEquity) {
       type: 'scatter',
       mode: 'lines',
       name: 'Benchmark',
-      line: { color: '#00aa55', width: 2 }
+      line: { color: '#808080', width: 2 },
+      fill: 'tozeroy',
+      fillcolor: 'rgba(128, 128, 128, 0.08)'
     });
   }
   
   const layout = {
-    xaxis: { showticklabels: false, gridcolor: '#3e3e42', color: '#999999' },
+    xaxis: { showticklabels: false, gridcolor: '#2a2a2a', griddash: 'dash', color: '#999999' },
     yaxis: { 
-      gridcolor: '#3e3e42', 
+      gridcolor: '#2a2a2a',
+      griddash: 'dash',
       color: '#999999',
       tickformat: '.0%',
       showticklabels: true

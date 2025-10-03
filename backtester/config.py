@@ -3,7 +3,7 @@
 # Legend: # ✅ implemented · # ⚠️ limited/conditional · # ⏳ not used
 
 #=========================MAIN=========================
-RUN_ID = "PortTestFrontend"                     # ✅ name or "auto" for timestamp
+RUN_ID = "RegTestFrontend1"                     # ✅ name or "auto" for timestamp
 NOTES = "Testing strategy + buy/hold + benchmark"  # ✅ freeform string per run
 TICKERS = ["SPY","QQQ"]                 # ✅ list of symbols (just 2 for quick test)
 # TICKERS = [
@@ -41,7 +41,7 @@ RF_ANNUAL = 0.02                        # ✅ 2% annual
 PERIODS_PER_YEAR = 252                  # ✅ trading periods per year
 
 #===========Portfolio Mode Config Example===============
-PORTFOLIO_MODE = True  # master toggle
+PORTFOLIO_MODE = False  # master toggle
 PORTFOLIO_WEIGHTS = {           # Fixed target weights (sum should be 1.0; if None -> equal weights auto)
     "SPY": 0.40,
     "QQQ": 0.60,
@@ -161,7 +161,8 @@ SAVE_METRICS = True                       # ✅ write metrics CSV rows
 
 # Database
 SAVE_DB = True                 # enable DB persistence
-DB_PATH = "./results/db"       # folder or file; folder -> backtests.db inside
+import os as _os
+DB_PATH = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "results", "db")  # absolute path to project root results/db
 SAVE_TRADES = True             # store individual trades
 MIN_TRADES_FILTER = 5          # used for ranking filters (if implemented)
 SAVE_EQUITY = False                       # ⏳ persist equity curve per run
