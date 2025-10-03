@@ -396,6 +396,16 @@ body {
   border-bottom: 1px solid var(--border-color);
 }
 
+.sortable-header {
+  user-select: none;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.sortable-header:hover {
+  color: var(--accent-green);
+  background-color: rgba(78, 201, 176, 0.1);
+}
+
 .data-table td {
   padding: 10px;
   border-bottom: 1px solid var(--border-color);

@@ -62,18 +62,9 @@
             <select id="tickerFilter" class="filter-select">
               <option value="">All Tickers</option>
             </select>
-            <select id="sortBy" class="filter-select">
-              <option value="total_return">Total Return</option>
-              <option value="sharpe">Sharpe</option>
-              <option value="sortino">Sortino</option>
-              <option value="cagr">CAGR</option>
-              <option value="maxdd">Max Drawdown</option>
-              <option value="win_rate">Win Rate</option>
-            </select>
-            <label class="checkbox-label">
-              <input type="checkbox" id="sortDesc" checked>
-              Descending
-            </label>
+            <span style="margin-left: 20px; color: var(--text-secondary); font-size: 13px;">
+              💡 Click column headers to sort
+            </span>
           </div>
           <div id="strategiesContent" class="strategies-content">
             <div class="empty-state">

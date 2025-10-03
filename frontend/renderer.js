@@ -6,6 +6,8 @@ let selectedRuns = new Set();
 let currentStrategies = [];
 let currentTrades = [];
 let buyHoldMetrics = {};
+let currentSortField = 'total_return';
+let currentSortDesc = true;
 
 // DOM Elements
 const selectDbBtn = document.getElementById('selectDbBtn');
@@ -19,8 +21,6 @@ const tabContents = document.querySelectorAll('.tab-content');
 const runSearch = document.getElementById('runSearch');
 const modeFilter = document.getElementById('modeFilter');
 const tickerFilter = document.getElementById('tickerFilter');
-const sortBy = document.getElementById('sortBy');
-const sortDesc = document.getElementById('sortDesc');
 const tradeSearch = document.getElementById('tradeSearch');
 const sideFilter = document.getElementById('sideFilter');
 const compareBtn = document.getElementById('compareBtn');
@@ -30,8 +30,6 @@ selectDbBtn.addEventListener('click', selectDatabase);
 runSearch?.addEventListener('input', filterRuns);
 modeFilter?.addEventListener('change', filterRuns);
 tickerFilter?.addEventListener('change', filterStrategies);
-sortBy?.addEventListener('change', filterStrategies);
-sortDesc?.addEventListener('change', filterStrategies);
 tradeSearch?.addEventListener('input', filterTrades);
 sideFilter?.addEventListener('change', filterTrades);
 compareBtn?.addEventListener('click', compareRuns);
@@ -406,20 +404,41 @@ function displayStrategies(strategies) {
       <strong>Note:</strong> Buy & hold comparison data not available. Re-run your backtest with the updated code to enable color-coded performance comparison.
     </div>` : '';
   
+  const getSortIndicator = (field) => {
+    if (currentSortField !== field) return '';
+    return currentSortDesc ? ' ▼' : ' ▲';
+  };
+  
   const html = `
     ${noticeHtml}
     <table class="data-table">
       <thead>
         <tr>
           <th>Ticker</th>
-          <th>Total Return</th>
-          <th>CAGR</th>
-          <th>Sharpe</th>
-          <th>Sortino</th>
-          <th>Volatility</th>
-          <th>Max DD</th>
-          <th>Win Rate</th>
-          <th>Trades</th>
+          <th class="sortable-header" onclick="sortByColumn('total_return')" style="cursor: pointer;">
+            Total Return${getSortIndicator('total_return')}
+          </th>
+          <th class="sortable-header" onclick="sortByColumn('cagr')" style="cursor: pointer;">
+            CAGR${getSortIndicator('cagr')}
+          </th>
+          <th class="sortable-header" onclick="sortByColumn('sharpe')" style="cursor: pointer;">
+            Sharpe${getSortIndicator('sharpe')}
+          </th>
+          <th class="sortable-header" onclick="sortByColumn('sortino')" style="cursor: pointer;">
+            Sortino${getSortIndicator('sortino')}
+          </th>
+          <th class="sortable-header" onclick="sortByColumn('vol')" style="cursor: pointer;">
+            Volatility${getSortIndicator('vol')}
+          </th>
+          <th class="sortable-header" onclick="sortByColumn('maxdd')" style="cursor: pointer;">
+            Max DD${getSortIndicator('maxdd')}
+          </th>
+          <th class="sortable-header" onclick="sortByColumn('win_rate')" style="cursor: pointer;">
+            Win Rate${getSortIndicator('win_rate')}
+          </th>
+          <th class="sortable-header" onclick="sortByColumn('trades_total')" style="cursor: pointer;">
+            Trades${getSortIndicator('trades_total')}
+          </th>
           <th>Parameters</th>
           <th>Actions</th>
         </tr>
@@ -563,10 +582,23 @@ async function displayStrategyOverview(strategyId) {
   document.getElementById('overviewTab').innerHTML = overviewHtml;
 }
 
+function sortByColumn(field) {
+  // Toggle sort direction if clicking the same column
+  if (currentSortField === field) {
+    currentSortDesc = !currentSortDesc;
+  } else {
+    currentSortField = field;
+    currentSortDesc = true; // Default to descending for new column
+  }
+  
+  filterStrategies();
+}
+
+// Make sortByColumn globally accessible for onclick handlers
+window.sortByColumn = sortByColumn;
+
 function filterStrategies() {
   const selectedTicker = tickerFilter.value;
-  const sortField = sortBy.value;
-  const descending = sortDesc.checked;
   
   let filtered = currentStrategies;
   
@@ -577,9 +609,9 @@ function filterStrategies() {
   
   // Sort
   filtered.sort((a, b) => {
-    const valA = a[sortField] || 0;
-    const valB = b[sortField] || 0;
-    return descending ? valB - valA : valA - valB;
+    const valA = a[currentSortField] || 0;
+    const valB = b[currentSortField] || 0;
+    return currentSortDesc ? valB - valA : valA - valB;
   });
   
   displayStrategies(filtered);
