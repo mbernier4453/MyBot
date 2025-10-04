@@ -319,6 +319,13 @@
               <button id="rsiTickerBtn" class="btn btn-primary">Load</button>
             </div>
             <div class="control-group">
+              <label for="rsiPeriod">RSI Period:</label>
+              <select id="rsiPeriod" class="form-input">
+                <option value="14" selected>14 Days</option>
+                <option value="30">30 Days</option>
+              </select>
+            </div>
+            <div class="control-group">
               <label for="rsiBollingerPeriod">Bollinger Period:</label>
               <select id="rsiBollingerPeriod" class="form-input">
                 <option value="20" selected>20 Days</option>
@@ -345,7 +352,7 @@
                   <thead>
                     <tr>
                       <th>Ticker</th>
-                      <th>RSI (14D)</th>
+                      <th id="rsiBasketTableHeader">RSI (14D)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -360,7 +367,7 @@
             <!-- Top-Middle Panel: RSI History -->
             <div class="rsi-panel rsi-history-panel">
               <div class="rsi-panel-header">
-                <h3><span id="rsiHistorySymbol">-</span> RSI (14D) History</h3>
+                <h3><span id="rsiHistorySymbol">-</span> <span id="rsiHistoryHeader">RSI (14D)</span> History</h3>
               </div>
               <div class="rsi-table-container">
                 <table id="rsiHistoryTable" class="rsi-table">
@@ -391,7 +398,7 @@
                 <table id="rsiSynergyTable" class="rsi-table">
                   <thead>
                     <tr>
-                      <th>Period (14)</th>
+                      <th id="rsiSynergyTableHeader">Period (14)</th>
                       <th>RSI</th>
                     </tr>
                   </thead>
@@ -407,7 +414,7 @@
             <!-- Bottom Panel: Bollinger Bands of RSI Chart -->
             <div class="rsi-panel rsi-chart-panel">
               <div class="rsi-panel-header">
-                <h3><span id="rsiChartSymbol">-</span> Bollinger Bands of RSI (14D)</h3>
+                <h3><span id="rsiChartSymbol">-</span> <span id="rsiChartHeader">Bollinger Bands of RSI (14D)</span></h3>
               </div>
               <div id="rsiBollingerChart" class="rsi-chart-container"></div>
               <div id="rsiChartLoading" class="loading-state" style="display: none;">

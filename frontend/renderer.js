@@ -3768,6 +3768,24 @@ function initializeRSIDashboard() {
     }
   });
 
+  // RSI period change - reload all data
+  document.getElementById('rsiPeriod').addEventListener('change', () => {
+    // Update all headers first
+    updateRSIHeaders();
+    
+    const sourceSelect = document.getElementById('rsiSourceSelect');
+    const watchlistSelect = document.getElementById('rsiWatchlistSelect');
+    
+    if (sourceSelect.value === 'watchlist' && watchlistSelect.value) {
+      loadRSIWatchlistData(watchlistSelect.value);
+    } else if (sourceSelect.value === 'single') {
+      const ticker = document.getElementById('rsiTickerInput').value.trim().toUpperCase();
+      if (ticker) {
+        loadRSISingleTicker(ticker);
+      }
+    }
+  });
+  
   // Bollinger period change - refresh chart if symbol selected
   document.getElementById('rsiBollingerPeriod').addEventListener('change', () => {
     if (rsiSelectedSymbol) {
@@ -3811,15 +3829,19 @@ async function loadRSIWatchlistData(watchlistName) {
   rsiCurrentWatchlist = watchlistName;
   rsiBasketData = [];
 
+  // Get selected RSI period
+  const rsiPeriodSelect = document.getElementById('rsiPeriod');
+  const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
+  
   // Fetch daily RSI for each ticker
   const promises = watchlist.tickers.map(async (ticker) => {
     try {
       // Get 1 year of daily data for RSI calculation
       const data = await fetchRSIMarketData(ticker, '1Y', 'day');
       
-      if (data && data.length > 14) {
+      if (data && data.length > rsiPeriod) {
         const closes = data.map(bar => bar.c);
-        const rsiValues = calculateRSI(closes, 14);
+        const rsiValues = calculateRSI(closes, rsiPeriod);
         
         if (rsiValues && rsiValues.length > 0) {
           const currentRSI = rsiValues[rsiValues.length - 1].rsi;
@@ -3859,6 +3881,7 @@ async function loadRSIWatchlistData(watchlistName) {
   // Sort by RSI descending
   rsiBasketData.sort((a, b) => b.rsi - a.rsi);
 
+  updateRSIHeaders();
   renderRSIBasketTable();
   
   document.getElementById('rsiBasketCount').textContent = `${rsiBasketData.length} symbols`;
@@ -3868,12 +3891,16 @@ async function loadRSIWatchlistData(watchlistName) {
 async function loadRSISingleTicker(ticker) {
   console.log('Loading RSI data for single ticker:', ticker);
   
+  // Get selected RSI period
+  const rsiPeriodSelect = document.getElementById('rsiPeriod');
+  const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
+  
   try {
     const data = await fetchRSIMarketData(ticker, '1Y', 'day');
     
-    if (data && data.length > 14) {
+    if (data && data.length > rsiPeriod) {
       const closes = data.map(bar => bar.c);
-      const rsiValues = calculateRSI(closes, 14);
+      const rsiValues = calculateRSI(closes, rsiPeriod);
       
       if (rsiValues && rsiValues.length > 0) {
         const currentRSI = rsiValues[rsiValues.length - 1].rsi;
@@ -3900,12 +3927,43 @@ async function loadRSISingleTicker(ticker) {
           bollingerStatus: bollingerStatus
         }];
         
+        updateRSIHeaders();
         renderRSIBasketTable();
         document.getElementById('rsiBasketCount').textContent = '1 symbol';
       }
     }
   } catch (error) {
     console.error(`Error fetching RSI for ${ticker}:`, error);
+  }
+}
+
+// Update all headers with current RSI period
+function updateRSIHeaders() {
+  const rsiPeriodSelect = document.getElementById('rsiPeriod');
+  const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
+  
+  // Update basket table column header
+  const basketTableHeader = document.getElementById('rsiBasketTableHeader');
+  if (basketTableHeader) {
+    basketTableHeader.textContent = `RSI (${rsiPeriod}D)`;
+  }
+  
+  // Update history panel header
+  const historyHeader = document.getElementById('rsiHistoryHeader');
+  if (historyHeader) {
+    historyHeader.textContent = `RSI (${rsiPeriod}D)`;
+  }
+  
+  // Update synergy table header
+  const synergyTableHeader = document.getElementById('rsiSynergyTableHeader');
+  if (synergyTableHeader) {
+    synergyTableHeader.textContent = `Period (${rsiPeriod})`;
+  }
+  
+  // Update chart panel header
+  const chartHeader = document.getElementById('rsiChartHeader');
+  if (chartHeader) {
+    chartHeader.textContent = `Bollinger Bands of RSI (${rsiPeriod}D)`;
   }
 }
 
@@ -3967,10 +4025,13 @@ async function selectRSISymbol(ticker) {
   console.log('Selected RSI symbol:', ticker);
   rsiSelectedSymbol = ticker;
 
+  // Update all headers
+  updateRSIHeaders();
+  
   // Update selection in basket table
   renderRSIBasketTable();
 
-  // Update panel headers
+  // Update panel headers with symbol names
   document.getElementById('rsiHistorySymbol').textContent = ticker;
   document.getElementById('rsiSynergySymbol').textContent = ticker;
   document.getElementById('rsiChartSymbol').textContent = ticker;
@@ -4013,9 +4074,13 @@ async function renderRSIHistory(ticker, tickerData) {
         return barDate >= fromDate && barDate <= toDate;
       });
 
-      if (windowData.length > 14) {
+      // Get selected RSI period
+      const rsiPeriodSelect = document.getElementById('rsiPeriod');
+      const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
+      
+      if (windowData.length > rsiPeriod) {
         const closes = windowData.map(bar => bar.c);
-        const rsiValues = calculateRSI(closes, 14);
+        const rsiValues = calculateRSI(closes, rsiPeriod);
 
         if (rsiValues && rsiValues.length > 0) {
           // Find min and max RSI
@@ -4074,13 +4139,17 @@ async function renderRSISynergy(ticker) {
 
   tbody.innerHTML = '';
 
+  // Get selected RSI period
+  const rsiPeriodSelect = document.getElementById('rsiPeriod');
+  const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
+  
   for (const tf of timeframes) {
     try {
       const data = await fetchRSIMarketData(ticker, tf.timeframe, tf.interval);
       
-      if (data && data.length > 14) {
+      if (data && data.length > rsiPeriod) {
         const closes = data.map(bar => bar.c);
-        const rsiValues = calculateRSI(closes, 14);
+        const rsiValues = calculateRSI(closes, rsiPeriod);
         
         if (rsiValues && rsiValues.length > 0) {
           const currentRSI = rsiValues[rsiValues.length - 1].rsi;
@@ -4127,7 +4196,9 @@ async function renderRSIBollingerChart(ticker, tickerData) {
   loadingDiv.style.display = 'flex';
 
   try {
-    // Get selected Bollinger period and std dev
+    // Get selected RSI period, Bollinger period and std dev
+    const rsiPeriodSelect = document.getElementById('rsiPeriod');
+    const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
     const bollingerPeriodSelect = document.getElementById('rsiBollingerPeriod');
     const bollingerPeriod = parseInt(bollingerPeriodSelect?.value || '20');
     const stdDevSlider = document.getElementById('rsiBollingerStdDev');
@@ -4136,7 +4207,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
     // Get 2 years of daily data for better Bollinger Bands
     const data = await fetchRSIMarketData(ticker, '2Y', 'day');
     
-    const minBars = 14 + bollingerPeriod; // Need RSI period + Bollinger period
+    const minBars = rsiPeriod + bollingerPeriod; // Need RSI period + Bollinger period
     if (!data || data.length < minBars) {
       emptyDiv.style.display = 'flex';
       loadingDiv.style.display = 'none';
@@ -4145,7 +4216,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
 
     const closes = data.map(bar => bar.c);
     const dates = data.map(bar => new Date(bar.t));
-    const rsiValues = calculateRSI(closes, 14);
+    const rsiValues = calculateRSI(closes, rsiPeriod);
     
     if (!rsiValues || rsiValues.length < bollingerPeriod) {
       emptyDiv.style.display = 'flex';
@@ -4195,9 +4266,9 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       y: rsiLine,
       type: 'scatter',
       mode: 'lines',
-      name: 'RSI (14D)',
+      name: `RSI (${rsiPeriod}D)`,
       line: { color: '#4a9eff', width: 2 },
-      hovertemplate: '%{x}<br>RSI: %{y:.2f}<extra></extra>'
+      hovertemplate: `%{x}<br>RSI(${rsiPeriod}): %{y:.2f}<extra></extra>`
     };
 
     const lowerTrace = {
