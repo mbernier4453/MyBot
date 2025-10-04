@@ -1480,15 +1480,150 @@ textarea.form-input {
 /* Charting Page */
 .charting-layout {
   display: flex;
+  flex-direction: column;
   height: 100%;
   overflow: hidden;
   position: relative;
 }
 
+/* Chart Tab Bar */
+.chart-tab-bar {
+  display: flex;
+  align-items: center;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  height: 42px;
+  flex-shrink: 0;
+  padding-left: 70px; /* Space for hamburger menu */
+}
+
+.chart-tabs-container {
+  display: flex;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 2px;
+  scrollbar-width: thin;
+}
+
+.chart-tabs-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.chart-tabs-container::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+.chart-tabs-container::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 2px;
+}
+
+.chart-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 120px;
+  max-width: 200px;
+  position: relative;
+  user-select: none;
+}
+
+.chart-tab:hover {
+  background: var(--bg-tertiary);
+}
+
+.chart-tab.active {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-blue);
+  border-bottom: 2px solid var(--bg-tertiary);
+  margin-bottom: -1px;
+}
+
+.chart-tab-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-tab.active .chart-tab-label {
+  color: var(--accent-blue);
+}
+
+.chart-tab-close {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color 0.2s;
+  line-height: 1;
+}
+
+.chart-tab-close:hover {
+  color: #e0e0e0;
+}
+
+.chart-new-tab-btn {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 18px;
+  font-weight: bold;
+  width: 32px;
+  height: 32px;
+  margin: 0 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.chart-new-tab-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+/* Chart Tab Contents */
+.chart-tab-contents {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.chart-tab-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chart-tab-content.active {
+  display: flex;
+}
+
 .sidebar-toggle {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: 10px;
+  left: 10px;
   z-index: 1001;
   background: #111111;
   border: 1px solid #1a1a1a;
@@ -1731,9 +1866,10 @@ textarea.form-input {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
+  padding: 10px 20px;
   background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
   border-bottom: 2px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .live-info-left {
@@ -1803,9 +1939,10 @@ textarea.form-input {
   align-items: center;
   justify-content: space-between;
   gap: 15px;
-  padding: 15px 20px;
+  padding: 8px 20px;
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .control-group {
@@ -1864,7 +2001,24 @@ textarea.form-input {
   background-color: var(--bg-primary);
   overflow: hidden;
   position: relative;
-  min-height: calc(100vh - 180px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chart-canvas {
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 600px;
+}
+
+.chart-loading,
+.chart-empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #candlestickChart {

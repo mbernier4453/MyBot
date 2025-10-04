@@ -2777,7 +2777,608 @@ window.addEventListener('click', (e) => {
 loadWatchlists();
 
 // =====================================================
-// CANDLESTICK CHART FUNCTIONALITY
+// CHART TAB SYSTEM
+// =====================================================
+
+let chartTabs = [];
+let activeChartTabId = null;
+let nextChartTabId = 1;
+
+class ChartTab {
+  constructor(id) {
+    this.id = id;
+    this.ticker = null;
+    this.timeframe = '1Y';
+    this.interval = 'day';
+    this.chartType = 'candlestick';
+    this.liveUpdateEnabled = true;
+    this.extendedHoursEnabled = true;
+    this.crosshairLocked = false;
+    this.chartData = null;
+    this.liveData = new Map();
+    
+    // Create tab element
+    this.tabElement = this.createTabElement();
+    
+    // Create content element from template
+    this.contentElement = this.createContentElement();
+    
+    // Initialize event listeners for this tab's controls
+    this.initializeControls();
+  }
+  
+  createTabElement() {
+    const tab = document.createElement('div');
+    tab.className = 'chart-tab';
+    tab.dataset.tabId = this.id;
+    tab.innerHTML = `
+      <span class="chart-tab-label">New Chart</span>
+      <button class="chart-tab-close">×</button>
+    `;
+    
+    // Tab click to activate
+    tab.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('chart-tab-close')) {
+        activateChartTab(this.id);
+      }
+    });
+    
+    // Close button
+    tab.querySelector('.chart-tab-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeChartTab(this.id);
+    });
+    
+    return tab;
+  }
+  
+  createContentElement() {
+    const template = document.getElementById('chartTabTemplate');
+    const content = template.content.cloneNode(true).firstElementChild;
+    content.dataset.tabId = this.id;
+    return content;
+  }
+  
+  initializeControls() {
+    const content = this.contentElement;
+    
+    // Timeframe
+    const timeframeSelect = content.querySelector('.chart-timeframe-select');
+    timeframeSelect.addEventListener('change', () => {
+      this.timeframe = timeframeSelect.value;
+      this.validateIntervalForTimeframe();
+      if (this.ticker) {
+        this.loadChart();
+      }
+    });
+    
+    // Interval
+    const intervalSelect = content.querySelector('.chart-interval-select');
+    intervalSelect.addEventListener('change', () => {
+      this.interval = intervalSelect.value;
+      this.updateExtendedHoursVisibility();
+      if (this.ticker) {
+        this.loadChart();
+      }
+    });
+    
+    // Live updates
+    const liveUpdateToggle = content.querySelector('.chart-live-update-toggle');
+    liveUpdateToggle.addEventListener('change', (e) => {
+      this.liveUpdateEnabled = e.target.checked;
+    });
+    
+    // Extended hours
+    const extendedHoursToggle = content.querySelector('.chart-extended-hours-checkbox');
+    extendedHoursToggle.addEventListener('change', () => {
+      this.extendedHoursEnabled = extendedHoursToggle.checked;
+      if (this.ticker) {
+        this.loadChart();
+      }
+    });
+    
+    // Chart type
+    const chartTypeSelect = content.querySelector('.chart-type-select');
+    chartTypeSelect.addEventListener('change', () => {
+      this.chartType = chartTypeSelect.value;
+      if (this.ticker && this.chartData) {
+        this.drawChart(this.chartData);
+      }
+    });
+    
+    // Crosshair lock
+    const crosshairLockToggle = content.querySelector('.chart-crosshair-lock-toggle');
+    crosshairLockToggle.addEventListener('change', (e) => {
+      this.crosshairLocked = e.target.checked;
+      const chartCanvas = content.querySelector('.chart-canvas');
+      
+      if (this.crosshairLocked) {
+        // Lock crosshair
+        Plotly.relayout(chartCanvas, {
+          'yaxis.showspikes': false,
+          'hovermode': 'x'
+        });
+      } else {
+        // Unlock crosshair
+        Plotly.relayout(chartCanvas, {
+          'yaxis.showspikes': true,
+          'hovermode': 'closest'
+        });
+      }
+    });
+  }
+  
+  validateIntervalForTimeframe() {
+    const content = this.contentElement;
+    const intervalSelect = content.querySelector('.chart-interval-select');
+    const currentInterval = intervalSelect.value;
+    
+    const validIntervals = {
+      '1D': ['1', '5', '15', '30', '60'],
+      '5D': ['5', '15', '30', '60', '240'],
+      '1M': ['15', '30', '60', '240', 'day'],
+      '3M': ['15', '30', '60', '240', 'day'],
+      '1Y': ['day', 'week'],
+      '2Y': ['day', 'week'],
+      '5Y': ['day', 'week', 'month'],
+      '10Y': ['week', 'month'],
+      'ALL': ['week', 'month']
+    };
+    
+    const allowed = validIntervals[this.timeframe] || ['day'];
+    
+    Array.from(intervalSelect.options).forEach(option => {
+      option.disabled = !allowed.includes(option.value);
+    });
+    
+    if (!allowed.includes(currentInterval)) {
+      intervalSelect.value = allowed[allowed.length - 1];
+      this.interval = intervalSelect.value;
+    }
+    
+    setTimeout(() => this.updateExtendedHoursVisibility(), 0);
+  }
+  
+  updateExtendedHoursVisibility() {
+    const content = this.contentElement;
+    const extendedHoursToggle = content.querySelector('.chart-extended-hours-toggle');
+    const intradayTimeframes = ['1D', '5D', '1M', '3M'];
+    
+    if (extendedHoursToggle) {
+      if (intradayTimeframes.includes(this.timeframe)) {
+        extendedHoursToggle.style.display = '';
+      } else {
+        extendedHoursToggle.style.display = 'none';
+      }
+    }
+  }
+  
+  setTicker(ticker) {
+    this.ticker = ticker;
+    this.tabElement.querySelector('.chart-tab-label').textContent = ticker;
+    this.updateLiveInfo();
+    this.loadChart();
+  }
+  
+  updateLiveInfo() {
+    if (!this.ticker) return;
+    
+    const content = this.contentElement;
+    const liveInfoBar = content.querySelector('.chart-live-info-top');
+    const data = treemapData.get(this.ticker);
+    
+    if (data) {
+      liveInfoBar.style.display = 'flex';
+      content.querySelector('.chart-live-ticker').textContent = this.ticker;
+      content.querySelector('.chart-live-price').textContent = `$${data.close.toFixed(2)}`;
+      
+      const changeEl = content.querySelector('.chart-live-change');
+      const changePercent = data.changePercent;
+      changeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+      changeEl.style.backgroundColor = changePercent >= 0 ? '#00aa55' : '#ff4444';
+      changeEl.style.color = 'white';
+      
+      content.querySelector('.chart-live-volume').textContent = (data.volume / 1e6).toFixed(2) + 'M';
+      content.querySelector('.chart-live-marketcap').textContent = (data.marketCap / 1e9).toFixed(2) + 'B';
+    } else {
+      liveInfoBar.style.display = 'none';
+    }
+  }
+  
+  async loadChart() {
+    if (!this.ticker) return;
+    
+    const content = this.contentElement;
+    const chartCanvas = content.querySelector('.chart-canvas');
+    const loadingEl = content.querySelector('.chart-loading');
+    const emptyStateEl = content.querySelector('.chart-empty-state');
+    
+    // Show loading
+    chartCanvas.innerHTML = '';
+    loadingEl.style.display = 'block';
+    emptyStateEl.style.display = 'none';
+    
+    try {
+      const dateRange = this.getDateRange();
+      const { timespan, multiplier } = this.getTimespanParams();
+      
+      const result = await window.electronAPI.polygonGetHistoricalBars({
+        ticker: this.ticker,
+        from: dateRange.from,
+        to: dateRange.to,
+        timespan,
+        multiplier,
+        includeExtendedHours: this.extendedHoursEnabled
+      });
+      
+      loadingEl.style.display = 'none';
+      
+      if (!result.success || !result.bars || result.bars.length === 0) {
+        throw new Error('No data available for this ticker and timeframe');
+      }
+      
+      this.chartData = result.bars;
+      this.drawChart(result.bars, timespan);
+      
+    } catch (error) {
+      loadingEl.style.display = 'none';
+      chartCanvas.innerHTML = `<div style="text-align: center; padding: 40px; color: #ff4444;">${error.message}</div>`;
+    }
+  }
+  
+  getDateRange() {
+    const now = new Date();
+    const to = new Date(now.getTime());
+    const from = new Date(now.getTime());
+    const isIntraday = this.interval !== 'day' && this.interval !== 'week' && this.interval !== 'month';
+    
+    switch(this.timeframe) {
+      case '1D':
+        from.setHours(0, 0, 0, 0);
+        break;
+      case '5D':
+        from.setTime(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+        break;
+      case '1M':
+        from.setMonth(from.getMonth() - 1);
+        break;
+      case '3M':
+        from.setMonth(from.getMonth() - 3);
+        break;
+      case '1Y':
+        from.setFullYear(from.getFullYear() - 1);
+        break;
+      case '2Y':
+        from.setFullYear(from.getFullYear() - 2);
+        break;
+      case '5Y':
+        from.setFullYear(from.getFullYear() - 5);
+        break;
+      case '10Y':
+        from.setFullYear(from.getFullYear() - 10);
+        break;
+      case 'ALL':
+        from.setFullYear(from.getFullYear() - 20);
+        break;
+      default:
+        from.setFullYear(from.getFullYear() - 1);
+    }
+    
+    const formatDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    return { from: formatDate(from), to: formatDate(to) };
+  }
+  
+  getTimespanParams() {
+    const intervalMap = {
+      '1': { timespan: 'minute', multiplier: 1 },
+      '5': { timespan: 'minute', multiplier: 5 },
+      '15': { timespan: 'minute', multiplier: 15 },
+      '30': { timespan: 'minute', multiplier: 30 },
+      '60': { timespan: 'hour', multiplier: 1 },
+      '240': { timespan: 'hour', multiplier: 4 },
+      'day': { timespan: 'day', multiplier: 1 },
+      'week': { timespan: 'week', multiplier: 1 },
+      'month': { timespan: 'month', multiplier: 1 }
+    };
+    
+    return intervalMap[this.interval] || { timespan: 'day', multiplier: 1 };
+  }
+  
+  drawChart(bars, timespan) {
+    const content = this.contentElement;
+    const chartCanvas = content.querySelector('.chart-canvas');
+    
+    // Prepare formatted data
+    const dates = [];
+    const open = [];
+    const high = [];
+    const low = [];
+    const close = [];
+    const volume = [];
+    
+    const totalBars = bars.length;
+    let tickAngle = -45;
+    let tickFontSize = 10;
+    
+    if (totalBars > 500) {
+      tickAngle = -90;
+      tickFontSize = 8;
+    }
+    
+    bars.forEach((bar) => {
+      let dateLabel;
+      const date = new Date(bar.t);
+      
+      if (timespan === 'month') {
+        dateLabel = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      } else if (timespan === 'week') {
+        dateLabel = date.toLocaleDateString('en-US', { year: '2-digit', month: 'short', day: 'numeric' });
+      } else if (timespan === 'day') {
+        dateLabel = date.toLocaleDateString('en-US', { year: '2-digit', month: 'short', day: 'numeric' });
+      } else if (timespan === 'hour') {
+        dateLabel = date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', hour12: true });
+      } else {
+        const firstBar = bars[0];
+        const lastBar = bars[bars.length - 1];
+        const firstDate = new Date(firstBar.t);
+        const lastDate = new Date(lastBar.t);
+        const spanMultipleDays = firstDate.toDateString() !== lastDate.toDateString();
+        
+        if (spanMultipleDays) {
+          dateLabel = date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+        } else {
+          dateLabel = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        }
+      }
+      
+      dates.push(dateLabel);
+      open.push(bar.o);
+      high.push(bar.h);
+      low.push(bar.l);
+      close.push(bar.c);
+      volume.push(bar.v);
+    });
+    
+    const candlestickTrace = {
+      type: 'candlestick',
+      x: dates,
+      open: open,
+      high: high,
+      low: low,
+      close: close,
+      name: this.ticker,
+      increasing: { 
+        line: { color: '#00aa55', width: 1 },
+        fillcolor: '#00aa55'
+      },
+      decreasing: { 
+        line: { color: '#e74c3c', width: 1 },
+        fillcolor: '#e74c3c'
+      },
+      xaxis: 'x',
+      yaxis: 'y',
+      hoverinfo: 'text',
+      text: dates.map((date, i) => 
+        `${date}<br>O: $${open[i].toFixed(2)}<br>H: $${high[i].toFixed(2)}<br>L: $${low[i].toFixed(2)}<br>C: $${close[i].toFixed(2)}`
+      )
+    };
+    
+    const volumeTrace = {
+      type: 'bar',
+      x: dates,
+      y: volume,
+      name: 'Volume',
+      marker: {
+        color: volume.map((v, i) => close[i] >= open[i] ? '#00aa5533' : '#e74c3c33')
+      },
+      xaxis: 'x',
+      yaxis: 'y2',
+      hovertemplate: 'Volume: %{y:,.0f}<extra></extra>'
+    };
+    
+    const layout = {
+      plot_bgcolor: '#000000',
+      paper_bgcolor: '#000000',
+      font: { color: '#e0e0e0' },
+      xaxis: {
+        type: 'category',
+        rangeslider: { visible: false },
+        gridcolor: '#1a1a1a',
+        griddash: 'dot',
+        showgrid: false,
+        tickangle: tickAngle,
+        tickfont: { size: tickFontSize },
+        nticks: Math.min(15, Math.ceil(totalBars / 20)),
+        automargin: true,
+        showspikes: true,
+        spikemode: 'across',
+        spikesnap: 'cursor',
+        spikecolor: '#666',
+        spikethickness: 0.5,
+        spikedash: 'dot'
+      },
+      yaxis: {
+        domain: [0.23, 1],
+        gridcolor: '#1a1a1a',
+        griddash: 'dot',
+        showgrid: true,
+        tickprefix: '$',
+        showspikes: true,
+        spikemode: 'across',
+        spikesnap: 'cursor',
+        spikecolor: '#666',
+        spikethickness: 0.5,
+        spikedash: 'dot'
+      },
+      yaxis2: {
+        title: '',
+        domain: [0, 0.18],
+        gridcolor: '#1a1a1a',
+        showgrid: false,
+        showticklabels: false
+      },
+      margin: { l: 60, r: 40, t: 10, b: 80 },
+      hovermode: 'closest',
+      hoverlabel: {
+        bgcolor: 'rgba(26, 26, 26, 0.95)',
+        bordercolor: '#444',
+        font: { color: '#e0e0e0', size: 12 },
+        align: 'left',
+        namelength: -1
+      },
+      showlegend: false,
+      dragmode: 'pan'
+    };
+    
+    const config = {
+      responsive: true,
+      displayModeBar: true,
+      modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+      displaylogo: false,
+      modeBarButtonsToAdd: [{
+        name: 'Pan',
+        icon: Plotly.Icons.pan,
+        click: function(gd) {
+          Plotly.relayout(gd, 'dragmode', 'pan');
+        }
+      }]
+    };
+    
+    let mainTrace;
+    if (this.chartType === 'line') {
+      mainTrace = {
+        type: 'scatter',
+        mode: 'lines',
+        x: dates,
+        y: close,
+        name: this.ticker,
+        line: { color: '#4a9eff', width: 2 },
+        xaxis: 'x',
+        yaxis: 'y',
+        hovertemplate: '%{x}<br>Close: $%{y:.2f}<extra></extra>'
+      };
+    } else {
+      mainTrace = candlestickTrace;
+    }
+    
+    Plotly.newPlot(chartCanvas, [mainTrace, volumeTrace], layout, config);
+    
+    // Hover positioning
+    let isHovering = false;
+    let animationFrameId = null;
+    
+    function repositionHoverLabels() {
+      const hoverGroups = chartCanvas.querySelectorAll('.hoverlayer g.hovertext');
+      hoverGroups.forEach(group => {
+        group.setAttribute('transform', 'translate(80, 80)');
+        if (!group.classList.contains('positioned')) {
+          group.classList.add('positioned');
+        }
+      });
+      
+      if (isHovering) {
+        animationFrameId = requestAnimationFrame(repositionHoverLabels);
+      }
+    }
+    
+    chartCanvas.on('plotly_hover', function(data) {
+      isHovering = true;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      repositionHoverLabels();
+    });
+    
+    chartCanvas.on('plotly_unhover', function() {
+      isHovering = false;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      const hoverGroups = chartCanvas.querySelectorAll('.hoverlayer g.hovertext');
+      hoverGroups.forEach(group => {
+        group.classList.remove('positioned');
+      });
+    });
+  }
+}
+
+function createChartTab() {
+  const tab = new ChartTab(nextChartTabId++);
+  chartTabs.push(tab);
+  
+  // Add to DOM
+  document.getElementById('chartTabsContainer').appendChild(tab.tabElement);
+  document.getElementById('chartTabContents').appendChild(tab.contentElement);
+  
+  // Activate the new tab
+  activateChartTab(tab.id);
+  
+  return tab;
+}
+
+function activateChartTab(tabId) {
+  activeChartTabId = tabId;
+  
+  chartTabs.forEach(tab => {
+    const isActive = tab.id === tabId;
+    tab.tabElement.classList.toggle('active', isActive);
+    tab.contentElement.classList.toggle('active', isActive);
+  });
+}
+
+function closeChartTab(tabId) {
+  const index = chartTabs.findIndex(t => t.id === tabId);
+  if (index === -1) return;
+  
+  const tab = chartTabs[index];
+  
+  // Remove from DOM
+  tab.tabElement.remove();
+  tab.contentElement.remove();
+  
+  // Remove from array
+  chartTabs.splice(index, 1);
+  
+  // If we closed the active tab, activate another
+  if (activeChartTabId === tabId && chartTabs.length > 0) {
+    // Activate the tab to the left, or the first tab
+    const newActiveIndex = Math.max(0, index - 1);
+    activateChartTab(chartTabs[newActiveIndex].id);
+  }
+  
+  // If no tabs left, create a new one
+  if (chartTabs.length === 0) {
+    createChartTab();
+  }
+}
+
+function getActiveChartTab() {
+  return chartTabs.find(t => t.id === activeChartTabId);
+}
+
+// New tab button
+document.getElementById('chartNewTabBtn')?.addEventListener('click', () => {
+  createChartTab();
+});
+
+// Create initial tab
+setTimeout(() => {
+  if (chartTabs.length === 0) {
+    createChartTab();
+  }
+  // Show sidebar toggle button initially
+  sidebarToggleBtn?.classList.add('visible');
+}, 100);
+
+// =====================================================
+// CANDLESTICK CHART FUNCTIONALITY (Legacy - for reference)
 // =====================================================
 
 let currentChartData = null;
@@ -2878,8 +3479,19 @@ document.getElementById('chartTickerInput')?.addEventListener('keypress', (e) =>
   }
 });
 
-// Select a ticker for charting
+// Select a ticker for charting (updated for tabs)
 async function selectChartTicker(ticker) {
+  const activeTab = getActiveChartTab();
+  if (activeTab) {
+    activeTab.setTicker(ticker);
+    // Close sidebar after selection
+    chartSidebar?.classList.add('collapsed');
+    sidebarToggleBtn?.classList.add('visible');
+  }
+}
+
+// Legacy function (keeping for now)
+async function selectChartTickerLegacy(ticker) {
   currentChartTicker = ticker;
   document.getElementById('chartTickerInput').value = ticker;
   
