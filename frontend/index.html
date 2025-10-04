@@ -336,6 +336,15 @@
               <label for="rsiBollingerStdDev">Std Dev: <span id="rsiStdDevValue">2.0</span></label>
               <input type="range" id="rsiBollingerStdDev" min="1" max="3" step="0.1" value="2" class="slider" />
             </div>
+            <div class="control-group">
+              <label for="rsiChartTimeRange">Chart Range:</label>
+              <select id="rsiChartTimeRange" class="form-input">
+                <option value="1Y" selected>1 Year</option>
+                <option value="2Y">2 Years</option>
+                <option value="5Y">5 Years</option>
+                <option value="10Y">10 Years</option>
+              </select>
+            </div>
             <button id="rsiRefreshBtn" class="btn btn-primary">Refresh Data</button>
           </div>
 

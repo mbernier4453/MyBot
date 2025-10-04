@@ -3769,7 +3769,7 @@ function initializeRSIDashboard() {
   });
 
   // RSI period change - reload all data
-  document.getElementById('rsiPeriod').addEventListener('change', () => {
+  document.getElementById('rsiPeriod').addEventListener('change', async () => {
     // Update all headers first
     updateRSIHeaders();
     
@@ -3777,12 +3777,17 @@ function initializeRSIDashboard() {
     const watchlistSelect = document.getElementById('rsiWatchlistSelect');
     
     if (sourceSelect.value === 'watchlist' && watchlistSelect.value) {
-      loadRSIWatchlistData(watchlistSelect.value);
+      await loadRSIWatchlistData(watchlistSelect.value);
     } else if (sourceSelect.value === 'single') {
       const ticker = document.getElementById('rsiTickerInput').value.trim().toUpperCase();
       if (ticker) {
-        loadRSISingleTicker(ticker);
+        await loadRSISingleTicker(ticker);
       }
+    }
+    
+    // After reloading data, refresh the chart if a symbol is selected
+    if (rsiSelectedSymbol) {
+      await selectRSISymbol(rsiSelectedSymbol);
     }
   });
   
@@ -3805,6 +3810,16 @@ function initializeRSIDashboard() {
   });
   
   stdDevSlider.addEventListener('change', () => {
+    if (rsiSelectedSymbol) {
+      const tickerData = rsiBasketData.find(item => item.ticker === rsiSelectedSymbol);
+      if (tickerData) {
+        renderRSIBollingerChart(rsiSelectedSymbol, tickerData);
+      }
+    }
+  });
+  
+  // Chart time range change
+  document.getElementById('rsiChartTimeRange').addEventListener('change', () => {
     if (rsiSelectedSymbol) {
       const tickerData = rsiBasketData.find(item => item.ticker === rsiSelectedSymbol);
       if (tickerData) {
@@ -4204,8 +4219,14 @@ async function renderRSIBollingerChart(ticker, tickerData) {
     const stdDevSlider = document.getElementById('rsiBollingerStdDev');
     const stdDevMultiplier = parseFloat(stdDevSlider?.value || '2');
     
-    // Get 2 years of daily data for better Bollinger Bands
-    const data = await fetchRSIMarketData(ticker, '2Y', 'day');
+    // Get selected chart time range
+    const timeRangeSelect = document.getElementById('rsiChartTimeRange');
+    const timeRange = timeRangeSelect?.value || '1Y';
+    
+    // Fetch data based on selected time range
+    // For 1Y, fetch 2Y so user can pan back to see more history
+    const fetchRange = timeRange === '1Y' ? '2Y' : timeRange;
+    const data = await fetchRSIMarketData(ticker, fetchRange, 'day');
     
     const minBars = rsiPeriod + bollingerPeriod; // Need RSI period + Bollinger period
     if (!data || data.length < minBars) {
@@ -4304,6 +4325,15 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       showlegend: false
     };
 
+    // Calculate x-axis range for 1Y option (show last year but allow panning back)
+    let xAxisRange = undefined;
+    if (timeRange === '1Y' && chartDates.length > 0) {
+      const lastDate = new Date(chartDates[chartDates.length - 1]);
+      const oneYearAgo = new Date(lastDate);
+      oneYearAgo.setFullYear(lastDate.getFullYear() - 1);
+      xAxisRange = [oneYearAgo.toISOString(), lastDate.toISOString()];
+    }
+
     const layout = {
       autosize: true,
       paper_bgcolor: 'transparent',
@@ -4319,7 +4349,8 @@ async function renderRSIBollingerChart(ticker, tickerData) {
         spikesnap: 'cursor',
         spikecolor: '#666',
         spikethickness: 0.5,
-        spikedash: 'dot'
+        spikedash: 'dot',
+        range: xAxisRange
       },
       yaxis: {
         title: 'RSI',
@@ -4331,7 +4362,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
         showspikes: false
       },
       hovermode: 'x',
-      dragmode: false,
+      dragmode: 'pan',
       showlegend: false
     };
 
