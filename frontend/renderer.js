@@ -2971,12 +2971,12 @@ function validateIntervalForTimeframe() {
   const currentInterval = intervalSelect.value;
   
   // Define valid intervals for each timeframe
+  // Note: Polygon only keeps ~3 months of intraday data, so longer timeframes use daily+ intervals
   const validIntervals = {
     '1D': ['1', '5', '15', '30', '60'],
     '5D': ['5', '15', '30', '60', '240'],  // All intraday intervals
     '1M': ['15', '30', '60', '240', 'day'],  // 15min to daily
     '3M': ['15', '30', '60', '240', 'day'],  // 15min, 30min, 1hr, 4hr, daily
-    '6M': ['240', 'day'],  // 4hr and daily
     '1Y': ['day', 'week'],
     '2Y': ['day', 'week'],
     '5Y': ['day', 'week', 'month'],
@@ -3038,10 +3038,15 @@ document.getElementById('chartType')?.addEventListener('change', () => {
 });
 
 // Calculate date range based on timeframe
-function getDateRange(timeframe) {
+// For intraday intervals on longer timeframes, we need to limit the range
+// to avoid hitting API limits and to ensure we get recent data
+function getDateRange(timeframe, interval = 'day') {
   const now = new Date();
   const to = new Date(now.getTime());  // Create explicit copy
   const from = new Date(now.getTime());  // Create explicit copy
+  
+  // Check if this is an intraday interval (minute or hour based)
+  const isIntraday = interval !== 'day' && interval !== 'week' && interval !== 'month';
   
   switch(timeframe) {
     case '1D':
@@ -3056,9 +3061,6 @@ function getDateRange(timeframe) {
       break;
     case '3M':
       from.setMonth(from.getMonth() - 3);
-      break;
-    case '6M':
-      from.setMonth(from.getMonth() - 6);
       break;
     case '1Y':
       from.setFullYear(from.getFullYear() - 1);
@@ -3096,6 +3098,7 @@ function getDateRange(timeframe) {
   console.log(`[DATE RANGE] Timeframe: ${timeframe}, From: ${result.from}, To: ${result.to}`);
   console.log(`[DATE DEBUG] From Date Object: ${from.toString()}`);
   console.log(`[DATE DEBUG] To Date Object: ${to.toString()}`);
+  console.log(`[DATE DEBUG] Current Time: ${now.toString()}`);
   
   return result;
 }
@@ -3132,7 +3135,7 @@ async function loadCandlestickChart(ticker, timeframe, interval) {
   chartDiv.innerHTML = '';
   
   try {
-    const dateRange = getDateRange(timeframe);
+    const dateRange = getDateRange(timeframe, interval);
     const { timespan, multiplier } = getTimespanParams(interval);
     const extendedHoursCheckbox = document.getElementById('extendedHoursToggle');
     const extendedHours = extendedHoursCheckbox?.checked === true;
@@ -3160,6 +3163,13 @@ async function loadCandlestickChart(ticker, timeframe, interval) {
     if (!result.bars || result.bars.length === 0) {
       throw new Error('No data available for this ticker and timeframe');
     }
+    
+    // Debug: Log first and last bar timestamps
+    const firstBar = result.bars[0];
+    const lastBar = result.bars[result.bars.length - 1];
+    console.log(`[DATA CHECK] Received ${result.bars.length} bars`);
+    console.log(`  First bar: ${new Date(firstBar.t).toISOString()}`);
+    console.log(`  Last bar: ${new Date(lastBar.t).toISOString()}`);
     
     currentChartData = result.bars;
     drawCandlestickChart(ticker, result.bars, timespan, timeframe);
@@ -3343,7 +3353,7 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
       showgrid: false,  // Hide vertical gridlines from dates
       tickangle: tickAngle,
       tickfont: { size: tickFontSize },
-      nticks: Math.min(totalBars, 50), // Limit number of ticks shown
+      nticks: Math.min(15, Math.ceil(totalBars / 20)), // Much fewer ticks for cleaner look
       automargin: true,
       showspikes: true,  // Enable spike line
       spikemode: 'across',  // Draw line across entire plot
@@ -3605,7 +3615,7 @@ let rsiBasketData = [];
 // Helper function to fetch market data for RSI calculations
 async function fetchRSIMarketData(ticker, timeframe, interval) {
   try {
-    const dateRange = getDateRange(timeframe);
+    const dateRange = getDateRange(timeframe, interval);
     const { timespan, multiplier } = getTimespanParams(interval);
     
     const result = await window.electronAPI.polygonGetHistoricalBars({

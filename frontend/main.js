@@ -309,11 +309,11 @@ ipcMain.handle('polygon-get-historical-bars', async (event, { ticker, from, to, 
     
     if (timespan === 'day' || timespan === 'week' || timespan === 'month') {
       // For daily+ data, includeOtc affects whether extended hours are included in OHLC
-      url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&limit=50000&includeOtc=${extendedHours}&apiKey=${apiKey}`;
+      url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=desc&limit=50000&includeOtc=${extendedHours}&apiKey=${apiKey}`;
       console.log(`Fetching ${timespan} data (Extended Hours: ${extendedHours}): ${ticker}`);
     } else {
       // For intraday data (minute/hour), includeOtc controls extended hours data
-      url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&limit=50000&includeOtc=${extendedHours}&apiKey=${apiKey}`;
+      url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=desc&limit=50000&includeOtc=${extendedHours}&apiKey=${apiKey}`;
       console.log(`Fetching intraday data: ${ticker} (Extended Hours: ${extendedHours})`);
     }
     
@@ -324,7 +324,12 @@ ipcMain.handle('polygon-get-historical-bars', async (event, { ticker, from, to, 
     const data = await response.json();
     
     if (data.status === 'OK' && data.results && data.results.length > 0) {
-      let bars = data.results;
+      console.log(`API returned ${data.results.length} bars`);
+      console.log(`First bar from API: ${new Date(data.results[0].t).toISOString()}`);
+      console.log(`Last bar from API: ${new Date(data.results[data.results.length - 1].t).toISOString()}`);
+      
+      // Reverse bars since API returns descending order (newest first)
+      let bars = data.results.reverse();
       
       // For intraday data when extended hours are OFF, filter by time
       if (!includeExtendedHours && (timespan === 'minute' || timespan === 'hour')) {
