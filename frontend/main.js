@@ -304,15 +304,15 @@ ipcMain.handle('polygon-get-historical-bars', async (event, { ticker, from, to, 
     // For intraday (minute/hour), use includeOtc parameter which actually works
     let url;
     
+    // Use includeOtc parameter for all timespans to control extended hours
+    const extendedHours = includeExtendedHours ? 'true' : 'false';
+    
     if (timespan === 'day' || timespan === 'week' || timespan === 'month') {
-      // For daily+ data, always fetch without extended hours
-      // Daily bars should represent regular trading hours (9:30 AM - 4:00 PM ET)
-      url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&limit=50000&apiKey=${apiKey}`;
-      console.log(`Fetching ${timespan} data (regular hours only): ${ticker}`);
+      // For daily+ data, includeOtc affects whether extended hours are included in OHLC
+      url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&limit=50000&includeOtc=${extendedHours}&apiKey=${apiKey}`;
+      console.log(`Fetching ${timespan} data (Extended Hours: ${extendedHours}): ${ticker}`);
     } else {
-      // For intraday data (minute/hour), use includeOtc parameter
-      // When false, this filters out extended hours data
-      const extendedHours = includeExtendedHours ? 'true' : 'false';
+      // For intraday data (minute/hour), includeOtc controls extended hours data
       url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&limit=50000&includeOtc=${extendedHours}&apiKey=${apiKey}`;
       console.log(`Fetching intraday data: ${ticker} (Extended Hours: ${extendedHours})`);
     }

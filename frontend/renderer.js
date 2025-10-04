@@ -2947,6 +2947,21 @@ document.getElementById('liveUpdateToggle')?.addEventListener('change', (e) => {
   liveUpdateEnabled = e.target.checked;
 });
 
+// Show/hide extended hours toggle based on interval
+function updateExtendedHoursVisibility() {
+  const interval = document.getElementById('chartInterval')?.value;
+  const extendedHoursToggle = document.querySelector('.live-update-toggle:has(#extendedHoursToggle)');
+  
+  if (extendedHoursToggle) {
+    // Hide for daily, weekly, monthly intervals
+    if (interval === 'day' || interval === 'week' || interval === 'month') {
+      extendedHoursToggle.style.display = 'none';
+    } else {
+      extendedHoursToggle.style.display = '';
+    }
+  }
+}
+
 // Validate interval for timeframe
 function validateIntervalForTimeframe() {
   const timeframe = document.getElementById('chartTimeframe')?.value;
@@ -2980,6 +2995,9 @@ function validateIntervalForTimeframe() {
   if (!allowed.includes(currentInterval)) {
     intervalSelect.value = allowed[allowed.length - 1]; // Default to largest valid interval
   }
+  
+  // Update extended hours visibility
+  updateExtendedHoursVisibility();
 }
 
 // Timeframe/interval change handlers
@@ -2993,6 +3011,7 @@ document.getElementById('chartTimeframe')?.addEventListener('change', () => {
 });
 
 document.getElementById('chartInterval')?.addEventListener('change', () => {
+  updateExtendedHoursVisibility();
   if (currentChartTicker) {
     const timeframe = document.getElementById('chartTimeframe')?.value;
     const interval = document.getElementById('chartInterval')?.value;
@@ -3321,18 +3340,30 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
       rangeslider: { visible: false },
       gridcolor: '#1a1a1a',
       griddash: 'dot',
-      showgrid: true,
+      showgrid: false,  // Hide vertical gridlines from dates
       tickangle: tickAngle,
       tickfont: { size: tickFontSize },
       nticks: Math.min(totalBars, 50), // Limit number of ticks shown
-      automargin: true
+      automargin: true,
+      showspikes: true,  // Enable spike line
+      spikemode: 'across',  // Draw line across entire plot
+      spikesnap: 'cursor',  // Snap to cursor position
+      spikecolor: '#666',  // Color of the crosshair line
+      spikethickness: 0.5,  // Thinner line
+      spikedash: 'dot'  // Dashed line
     },
     yaxis: {
       domain: [0.23, 1],  // More room above volume
       gridcolor: '#1a1a1a',
       griddash: 'dot',
-      showgrid: true,
-      tickprefix: '$'
+      showgrid: true,  // Keep horizontal gridlines
+      tickprefix: '$',
+      showspikes: true,  // Enable horizontal spike line
+      spikemode: 'across',
+      spikesnap: 'cursor',
+      spikecolor: '#666',
+      spikethickness: 0.5,  // Thinner line
+      spikedash: 'dot'  // Dashed line
     },
     yaxis2: {
       title: '',  // No title for volume axis
@@ -3341,12 +3372,12 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
       showgrid: false,
       showticklabels: false  // Hide volume numbers
     },
-    margin: { l: 60, r: 40, t: 80, b: 140 }, // More top margin for hover info
-    hovermode: 'x unified',  // Shows vertical line across all traces
+    margin: { l: 60, r: 40, t: 20, b: 140 },
+    hovermode: 'closest',  // Changed from 'x unified' for better control
     hoverlabel: {
-      bgcolor: 'rgba(26, 26, 26, 0.8)',  // Semi-transparent background (80% opacity)
+      bgcolor: 'rgba(26, 26, 26, 0.95)',  // Semi-transparent background
       bordercolor: '#444',
-      font: { color: '#e0e0e0', size: 11 },
+      font: { color: '#e0e0e0', size: 12 },
       align: 'left',
       namelength: -1  // Show full text
     },
@@ -3396,6 +3427,46 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
   volumeTrace.hovertemplate = 'Volume: %{y:,.0f}<extra></extra>';
   
   Plotly.newPlot('candlestickChart', [mainTrace, volumeTrace], layout, config);
+  
+  // Custom hover positioning to top-left
+  // Use requestAnimationFrame to continuously reposition while hovering
+  const chartDiv = document.getElementById('candlestickChart');
+  let isHovering = false;
+  let animationFrameId = null;
+  
+  function repositionHoverLabels() {
+    const hoverGroups = document.querySelectorAll('#candlestickChart .hoverlayer g.hovertext');
+    hoverGroups.forEach(group => {
+      group.setAttribute('transform', 'translate(80, 80)');
+      if (!group.classList.contains('positioned')) {
+        group.classList.add('positioned');
+      }
+    });
+    
+    if (isHovering) {
+      animationFrameId = requestAnimationFrame(repositionHoverLabels);
+    }
+  }
+  
+  chartDiv.on('plotly_hover', function(data) {
+    isHovering = true;
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+    }
+    repositionHoverLabels();
+  });
+  
+  chartDiv.on('plotly_unhover', function() {
+    isHovering = false;
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+    const hoverGroups = document.querySelectorAll('#candlestickChart .hoverlayer g.hovertext');
+    hoverGroups.forEach(group => {
+      group.classList.remove('positioned');
+    });
+  });
 }
 
 // Update live candle with websocket data
