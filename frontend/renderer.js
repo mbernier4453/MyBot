@@ -3020,8 +3020,9 @@ document.getElementById('chartType')?.addEventListener('change', () => {
 
 // Calculate date range based on timeframe
 function getDateRange(timeframe) {
-  const to = new Date();
-  let from = new Date();
+  const now = new Date();
+  const to = new Date(now.getTime());  // Create explicit copy
+  const from = new Date(now.getTime());  // Create explicit copy
   
   switch(timeframe) {
     case '1D':
@@ -3029,43 +3030,34 @@ function getDateRange(timeframe) {
       from.setHours(0, 0, 0, 0);
       break;
     case '5D':
-      from = new Date(to.getTime() - (7 * 24 * 60 * 60 * 1000));
+      from.setTime(now.getTime() - (7 * 24 * 60 * 60 * 1000));
       break;
     case '1M':
-      from = new Date(to);
       from.setMonth(from.getMonth() - 1);
       break;
     case '3M':
-      from = new Date(to);
       from.setMonth(from.getMonth() - 3);
       break;
     case '6M':
-      from = new Date(to);
       from.setMonth(from.getMonth() - 6);
       break;
     case '1Y':
-      from = new Date(to);
       from.setFullYear(from.getFullYear() - 1);
       break;
     case '2Y':
-      from = new Date(to);
       from.setFullYear(from.getFullYear() - 2);
       break;
     case '5Y':
-      from = new Date(to);
       from.setFullYear(from.getFullYear() - 5);
       break;
     case '10Y':
-      from = new Date(to);
       from.setFullYear(from.getFullYear() - 10);
       break;
     case 'ALL':
       // Go back 20 years for "all available"
-      from = new Date(to);
       from.setFullYear(from.getFullYear() - 20);
       break;
     default:
-      from = new Date(to);
       from.setFullYear(from.getFullYear() - 1);
   }
   
@@ -3077,10 +3069,16 @@ function getDateRange(timeframe) {
     return `${year}-${month}-${day}`;
   };
   
-  return {
+  const result = {
     from: formatDate(from),
     to: formatDate(to)
   };
+  
+  console.log(`[DATE RANGE] Timeframe: ${timeframe}, From: ${result.from}, To: ${result.to}`);
+  console.log(`[DATE DEBUG] From Date Object: ${from.toString()}`);
+  console.log(`[DATE DEBUG] To Date Object: ${to.toString()}`);
+  
+  return result;
 }
 
 // Determine timespan and multiplier from interval
