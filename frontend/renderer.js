@@ -2947,17 +2947,19 @@ document.getElementById('liveUpdateToggle')?.addEventListener('change', (e) => {
   liveUpdateEnabled = e.target.checked;
 });
 
-// Show/hide extended hours toggle based on interval
+// Show/hide extended hours toggle based on whether timeframe has intraday intervals
 function updateExtendedHoursVisibility() {
-  const interval = document.getElementById('chartInterval')?.value;
+  const timeframe = document.getElementById('chartTimeframe')?.value;
   const extendedHoursToggle = document.querySelector('.live-update-toggle:has(#extendedHoursToggle)');
   
   if (extendedHoursToggle) {
-    // Hide for daily, weekly, monthly intervals
-    if (interval === 'day' || interval === 'week' || interval === 'month') {
-      extendedHoursToggle.style.display = 'none';
-    } else {
+    // Show if timeframe has ANY intraday intervals available
+    const intradayTimeframes = ['1D', '5D', '1M', '3M'];
+    
+    if (intradayTimeframes.includes(timeframe)) {
       extendedHoursToggle.style.display = '';
+    } else {
+      extendedHoursToggle.style.display = 'none';
     }
   }
 }
@@ -2996,8 +2998,8 @@ function validateIntervalForTimeframe() {
     intervalSelect.value = allowed[allowed.length - 1]; // Default to largest valid interval
   }
   
-  // Update extended hours visibility
-  updateExtendedHoursVisibility();
+  // Update extended hours visibility (use setTimeout to ensure DOM has updated)
+  setTimeout(() => updateExtendedHoursVisibility(), 0);
 }
 
 // Timeframe/interval change handlers
