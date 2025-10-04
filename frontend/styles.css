@@ -1482,26 +1482,75 @@ textarea.form-input {
   display: flex;
   height: 100%;
   overflow: hidden;
+  position: relative;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  background: #111111;
+  border: 1px solid #1a1a1a;
+  color: #e0e0e0;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.3s ease;
+  display: none;
+}
+
+.sidebar-toggle:hover {
+  background: #1a1a1a;
+  border-color: var(--accent-blue);
+}
+
+.sidebar-toggle.visible {
+  display: block;
 }
 
 .chart-sidebar {
-  width: 300px;
+  width: 220px;
   background-color: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  transition: transform 0.3s ease;
+  z-index: 1000;
+}
+
+.chart-sidebar.collapsed {
+  transform: translateX(-100%);
 }
 
 .chart-sidebar-header {
   padding: 20px;
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .chart-sidebar-header h2 {
   font-size: 18px;
   margin: 0;
   color: var(--text-primary);
+}
+
+.close-sidebar {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 5px;
+  transition: color 0.2s;
+}
+
+.close-sidebar:hover {
+  color: #e0e0e0;
 }
 
 .chart-input-section {
@@ -1796,11 +1845,13 @@ textarea.form-input {
   background-color: var(--bg-primary);
   overflow: hidden;
   position: relative;
+  min-height: calc(100vh - 180px);
 }
 
 #candlestickChart {
   width: 100%;
   height: 100%;
+  min-height: 700px;
 }
 
 /* Utility Classes */

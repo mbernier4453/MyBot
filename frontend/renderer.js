@@ -2786,6 +2786,21 @@ let liveChartData = new Map(); // Store live candle data
 let liveUpdateEnabled = true;
 let lastChartUpdate = Date.now();
 
+// Sidebar toggle functionality
+const sidebarToggleBtn = document.getElementById('sidebarToggle');
+const closeSidebarBtn = document.getElementById('closeSidebar');
+const chartSidebar = document.getElementById('chartSidebar');
+
+sidebarToggleBtn?.addEventListener('click', () => {
+  chartSidebar?.classList.remove('collapsed');
+  sidebarToggleBtn?.classList.remove('visible');
+});
+
+closeSidebarBtn?.addEventListener('click', () => {
+  chartSidebar?.classList.add('collapsed');
+  sidebarToggleBtn?.classList.add('visible');
+});
+
 // Initialize chart watchlist dropdown
 function initializeChartWatchlists() {
   const select = document.getElementById('chartWatchlistSelect');
@@ -3344,8 +3359,18 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
     responsive: true,
     displayModeBar: true,
     modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-    displaylogo: false
+    displaylogo: false,
+    modeBarButtonsToAdd: [{
+      name: 'Pan',
+      icon: Plotly.Icons.pan,
+      click: function(gd) {
+        Plotly.relayout(gd, 'dragmode', 'pan');
+      }
+    }]
   };
+  
+  // Set default drag mode to pan
+  layout.dragmode = 'pan';
   
   // Choose trace based on chart type
   let mainTrace;
