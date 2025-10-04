@@ -1947,6 +1947,29 @@ function getSectorForTicker(ticker) {
   return 'Other';
 }
 
+// Navigate to charting page with a specific ticker
+function navigateToChart(ticker) {
+  // Switch to charting page
+  document.querySelectorAll('.main-tab').forEach(tab => {
+    if (tab.dataset.mainTab === 'charting') {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
+  
+  document.querySelectorAll('.main-page').forEach(page => {
+    page.classList.remove('active');
+  });
+  
+  document.getElementById('chartingPage')?.classList.add('active');
+  
+  // Load the ticker in the chart
+  setTimeout(() => {
+    selectChartTicker(ticker);
+  }, 100);
+}
+
 function drawTreemap() {
   try {
     const container = document.getElementById('treemapContainer');
@@ -2102,6 +2125,12 @@ function drawTreemap() {
       .attr('height', d => d.y1 - d.y0)
       .attr('fill', d => getColorForPercent(d.data.percent))
       .attr('rx', 2)
+      .style('cursor', 'pointer')
+      .on('click', function(event, d) {
+        // Navigate to charting page with this ticker
+        event.stopPropagation();
+        navigateToChart(d.data.name);
+      })
       .append('title')
       .text(d => {
         const volumeStr = d.data.volume ? (d.data.volume / 1000000).toFixed(1) + 'M' : 'N/A';
@@ -2153,6 +2182,12 @@ function drawTreemap() {
       .attr('height', d => d.y1 - d.y0)
       .attr('fill', d => getColorForPercent(d.data.percent))
       .attr('rx', 2)
+      .style('cursor', 'pointer')
+      .on('click', function(event, d) {
+        // Navigate to charting page with this ticker
+        event.stopPropagation();
+        navigateToChart(d.data.name);
+      })
       .append('title')
       .text(d => {
         const volumeStr = d.data.volume ? (d.data.volume / 1000000).toFixed(1) + 'M' : 'N/A';

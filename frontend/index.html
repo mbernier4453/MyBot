@@ -30,30 +30,32 @@
       
       <!-- Home Page -->
       <div id="homePage" class="main-page active">
-        <div class="treemap-fullscreen">
-          <div class="treemap-overlay-controls">
-            <div class="control-group">
-              <label style="color: #e0e0e0; font-size: 13px; margin-right: 10px; font-weight: 600;">
-                Size:
-                <select id="treemapSizeBy" class="control-select">
-                  <option value="marketcap">Market Cap</option>
-                  <option value="volume">Volume</option>
-                  <option value="equal">Equal</option>
-                </select>
-              </label>
-              <label style="color: #e0e0e0; font-size: 13px; margin-right: 10px; font-weight: 600;">
-                Group:
-                <select id="treemapGroupBy" class="control-select">
-                  <option value="sector">By Sector</option>
-                  <option value="none">No Grouping</option>
-                </select>
-              </label>
-            </div>
-            <div class="status-group">
-              <span id="lastUpdate" class="last-update">Connecting...</span>
-              <button id="reconnectBtn" class="reconnect-btn" style="display: none;">Reconnect</button>
-            </div>
+        <!-- Treemap Controls -->
+        <div class="treemap-controls">
+          <div class="control-group">
+            <label style="color: #e0e0e0; font-size: 13px; margin-right: 10px; font-weight: 600;">
+              Size:
+              <select id="treemapSizeBy" class="control-select">
+                <option value="marketcap">Market Cap</option>
+                <option value="volume">Volume</option>
+                <option value="equal">Equal</option>
+              </select>
+            </label>
+            <label style="color: #e0e0e0; font-size: 13px; margin-right: 10px; font-weight: 600;">
+              Group:
+              <select id="treemapGroupBy" class="control-select">
+                <option value="sector">By Sector</option>
+                <option value="none">No Grouping</option>
+              </select>
+            </label>
           </div>
+          <div class="status-group">
+            <span id="lastUpdate" class="last-update">Connecting...</span>
+            <button id="reconnectBtn" class="reconnect-btn" style="display: none;">Reconnect</button>
+          </div>
+        </div>
+        
+        <div class="treemap-fullscreen">
           <div id="treemapContainer" class="treemap-container-fullscreen">
             <svg id="treemap"></svg>
           </div>
