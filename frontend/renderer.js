@@ -3358,12 +3358,12 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
       griddash: 'dot',
       showgrid: true,  // Keep horizontal gridlines
       tickprefix: '$',
-      showspikes: true,  // Enable horizontal spike line
+      showspikes: true,  // Enable horizontal spike line (will disable when locked)
       spikemode: 'across',
       spikesnap: 'cursor',
       spikecolor: '#666',
-      spikethickness: 0.5,  // Thinner line
-      spikedash: 'dot'  // Dashed line
+      spikethickness: 0.5,
+      spikedash: 'dot'
     },
     yaxis2: {
       title: '',  // No title for volume axis
@@ -3432,6 +3432,7 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
   // Use requestAnimationFrame to continuously reposition while hovering
   const chartDiv = document.getElementById('candlestickChart');
   let isHovering = false;
+  let isCrosshairLocked = false;
   let animationFrameId = null;
   
   function repositionHoverLabels() {
@@ -3443,7 +3444,7 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
       }
     });
     
-    if (isHovering) {
+    if (isHovering || isCrosshairLocked) {
       animationFrameId = requestAnimationFrame(repositionHoverLabels);
     }
   }
@@ -3457,16 +3458,71 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
   });
   
   chartDiv.on('plotly_unhover', function() {
-    isHovering = false;
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId);
-      animationFrameId = null;
+    if (!isCrosshairLocked) {
+      isHovering = false;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      const hoverGroups = document.querySelectorAll('#candlestickChart .hoverlayer g.hovertext');
+      hoverGroups.forEach(group => {
+        group.classList.remove('positioned');
+      });
     }
-    const hoverGroups = document.querySelectorAll('#candlestickChart .hoverlayer g.hovertext');
-    hoverGroups.forEach(group => {
-      group.classList.remove('positioned');
-    });
   });
+  
+  // Crosshair lock functionality
+  const crosshairLockToggle = document.getElementById('crosshairLockToggle');
+  
+  function applyCrosshairLock(isLocked) {
+    isCrosshairLocked = isLocked;
+    
+    if (isCrosshairLocked) {
+      // Enable crosshair lock - change hovermode to always show closest point
+      // Remove horizontal crosshair line (only keep vertical)
+      Plotly.relayout('candlestickChart', {
+        'hovermode': 'x',
+        'dragmode': false,  // Disable panning while locked
+        'yaxis.showspikes': false  // Hide horizontal crosshair when locked
+      });
+      
+      // Force hover on current mouse position
+      isHovering = true;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      repositionHoverLabels();
+    } else {
+      // Disable crosshair lock - return to normal behavior
+      // Restore horizontal crosshair line
+      Plotly.relayout('candlestickChart', {
+        'hovermode': 'closest',
+        'dragmode': 'pan',
+        'yaxis.showspikes': true  // Show horizontal crosshair when unlocked
+      });
+      
+      isHovering = false;
+      isCrosshairLocked = false;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      Plotly.Fx.unhover('candlestickChart');
+      const hoverGroups = document.querySelectorAll('#candlestickChart .hoverlayer g.hovertext');
+      hoverGroups.forEach(group => {
+        group.classList.remove('positioned');
+      });
+    }
+  }
+  
+  crosshairLockToggle.addEventListener('change', function() {
+    applyCrosshairLock(this.checked);
+  });
+  
+  // Apply crosshair lock state on chart load if checkbox is checked
+  if (crosshairLockToggle.checked) {
+    setTimeout(() => applyCrosshairLock(true), 100);
+  }
 }
 
 // Update live candle with websocket data
