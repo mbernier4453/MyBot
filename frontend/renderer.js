@@ -2960,7 +2960,7 @@ function validateIntervalForTimeframe() {
     '1D': ['1', '5', '15', '30', '60'],
     '5D': ['5', '15', '30', '60', '240'],  // All intraday intervals
     '1M': ['15', '30', '60', '240', 'day'],  // 15min to daily
-    '3M': ['15', '60', '240', 'day'],  // 15min, 1hr, 4hr, daily
+    '3M': ['15', '30', '60', '240', 'day'],  // 15min, 30min, 1hr, 4hr, daily
     '6M': ['240', 'day'],  // 4hr and daily
     '1Y': ['day', 'week'],
     '2Y': ['day', 'week'],
