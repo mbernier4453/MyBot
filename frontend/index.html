@@ -20,6 +20,7 @@
         <button class="main-tab" data-main-tab="screener">Screener</button>
         <button class="main-tab" data-main-tab="watchlists">Watchlists</button>
         <button class="main-tab" data-main-tab="charting">Charting</button>
+        <button class="main-tab" data-main-tab="rsi">RSI</button>
         <button class="main-tab" data-main-tab="backtesting">Backtesting</button>
         <button class="main-tab" data-main-tab="results">Results</button>
       </div>
@@ -288,6 +289,132 @@
                   <h3>Select a ticker to view chart</h3>
                   <p style="color: #666; margin-top: 10px;">Enter a ticker or choose from your watchlist</p>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RSI Dashboard Page -->
+      <div id="rsiPage" class="main-page">
+        <div class="rsi-layout">
+          <!-- Top Controls -->
+          <div class="rsi-controls">
+            <div class="control-group">
+              <label for="rsiSourceSelect">Data Source:</label>
+              <select id="rsiSourceSelect" class="form-input">
+                <option value="watchlist">Watchlist</option>
+                <option value="single">Single Ticker</option>
+              </select>
+            </div>
+            <div class="control-group" id="rsiWatchlistGroup">
+              <label for="rsiWatchlistSelect">Watchlist:</label>
+              <select id="rsiWatchlistSelect" class="form-input">
+                <option value="">Choose a watchlist...</option>
+              </select>
+            </div>
+            <div class="control-group" id="rsiTickerGroup" style="display: none;">
+              <label for="rsiTickerInput">Ticker:</label>
+              <input type="text" id="rsiTickerInput" placeholder="e.g., AAPL" class="form-input" />
+              <button id="rsiTickerBtn" class="btn btn-primary">Load</button>
+            </div>
+            <div class="control-group">
+              <label for="rsiBollingerPeriod">Bollinger Period:</label>
+              <select id="rsiBollingerPeriod" class="form-input">
+                <option value="20" selected>20 Days</option>
+                <option value="30">30 Days</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label for="rsiBollingerStdDev">Std Dev: <span id="rsiStdDevValue">2.0</span></label>
+              <input type="range" id="rsiBollingerStdDev" min="1" max="3" step="0.1" value="2" class="slider" />
+            </div>
+            <button id="rsiRefreshBtn" class="btn btn-primary">Refresh Data</button>
+          </div>
+
+          <!-- Main Dashboard Grid -->
+          <div class="rsi-dashboard-grid">
+            <!-- Left Panel: Basket Table -->
+            <div class="rsi-panel rsi-basket-panel">
+              <div class="rsi-panel-header">
+                <h3>RSI Basket</h3>
+                <span id="rsiBasketCount" class="panel-subtitle">0 symbols</span>
+              </div>
+              <div class="rsi-table-container">
+                <table id="rsiBasketTable" class="rsi-table">
+                  <thead>
+                    <tr>
+                      <th>Ticker</th>
+                      <th>RSI (14D)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="empty-state-row">
+                      <td colspan="2">Select a watchlist to load data</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Top-Middle Panel: RSI History -->
+            <div class="rsi-panel rsi-history-panel">
+              <div class="rsi-panel-header">
+                <h3><span id="rsiHistorySymbol">-</span> RSI (14D) History</h3>
+              </div>
+              <div class="rsi-table-container">
+                <table id="rsiHistoryTable" class="rsi-table">
+                  <thead>
+                    <tr>
+                      <th>Window</th>
+                      <th>Low</th>
+                      <th>Date (Low)</th>
+                      <th>High</th>
+                      <th>Date (High)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="empty-state-row">
+                      <td colspan="5">Select a symbol from the basket</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Top-Right Panel: RSI Synergy -->
+            <div class="rsi-panel rsi-synergy-panel">
+              <div class="rsi-panel-header">
+                <h3><span id="rsiSynergySymbol">-</span> RSI Synergy</h3>
+              </div>
+              <div class="rsi-table-container">
+                <table id="rsiSynergyTable" class="rsi-table">
+                  <thead>
+                    <tr>
+                      <th>Period (14)</th>
+                      <th>RSI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="empty-state-row">
+                      <td colspan="2">Select a symbol from the basket</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Bottom Panel: Bollinger Bands of RSI Chart -->
+            <div class="rsi-panel rsi-chart-panel">
+              <div class="rsi-panel-header">
+                <h3><span id="rsiChartSymbol">-</span> Bollinger Bands of RSI (14D)</h3>
+              </div>
+              <div id="rsiBollingerChart" class="rsi-chart-container"></div>
+              <div id="rsiChartLoading" class="loading-state" style="display: none;">
+                Loading chart...
+              </div>
+              <div id="rsiChartEmpty" class="empty-state" style="text-align: center; padding: 40px;">
+                Select a symbol to view RSI Bollinger Bands
               </div>
             </div>
           </div>

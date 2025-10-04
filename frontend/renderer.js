@@ -3593,3 +3593,742 @@ window.saveWatchlistsToStorage = function() {
 setTimeout(() => {
   initializeChartWatchlists();
 }, 1000);
+
+// ========================================
+// RSI Dashboard Functions
+// ========================================
+
+let rsiCurrentWatchlist = null;
+let rsiSelectedSymbol = null;
+let rsiBasketData = [];
+
+// Helper function to fetch market data for RSI calculations
+async function fetchRSIMarketData(ticker, timeframe, interval) {
+  try {
+    const dateRange = getDateRange(timeframe);
+    const { timespan, multiplier } = getTimespanParams(interval);
+    
+    const result = await window.electronAPI.polygonGetHistoricalBars({
+      ticker: ticker,
+      from: dateRange.from,
+      to: dateRange.to,
+      timespan: timespan,
+      multiplier: multiplier,
+      includeExtendedHours: false
+    });
+    
+    if (result.success && result.bars && result.bars.length > 0) {
+      return result.bars;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Error fetching data for ${ticker}:`, error);
+    return null;
+  }
+}
+
+// Calculate RSI using Wilder's smoothing method
+function calculateRSI(prices, period = 14) {
+  if (!prices || prices.length < period + 1) {
+    return null;
+  }
+
+  const changes = [];
+  for (let i = 1; i < prices.length; i++) {
+    changes.push(prices[i] - prices[i - 1]);
+  }
+
+  // Initial average gain and loss
+  let avgGain = 0;
+  let avgLoss = 0;
+  
+  for (let i = 0; i < period; i++) {
+    if (changes[i] > 0) {
+      avgGain += changes[i];
+    } else {
+      avgLoss += Math.abs(changes[i]);
+    }
+  }
+  
+  avgGain /= period;
+  avgLoss /= period;
+
+  // Calculate RSI values
+  const rsiValues = [];
+  
+  for (let i = period; i < changes.length; i++) {
+    const currentChange = changes[i];
+    const gain = currentChange > 0 ? currentChange : 0;
+    const loss = currentChange < 0 ? Math.abs(currentChange) : 0;
+    
+    // Wilder's smoothing
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+    
+    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    const rsi = 100 - (100 / (1 + rs));
+    
+    rsiValues.push({ rsi, index: i + 1 });
+  }
+
+  return rsiValues;
+}
+
+// Calculate Bollinger Bands for RSI
+function calculateRSIBollinger(rsiValues, period = 20, stdDevMultiplier = 2) {
+  if (!rsiValues || rsiValues.length < period) {
+    return null;
+  }
+
+  const result = [];
+  
+  for (let i = period - 1; i < rsiValues.length; i++) {
+    const slice = rsiValues.slice(i - period + 1, i + 1);
+    const sum = slice.reduce((acc, val) => acc + val.rsi, 0);
+    const mean = sum / period;
+    
+    const squaredDiffs = slice.map(val => Math.pow(val.rsi - mean, 2));
+    const variance = squaredDiffs.reduce((acc, val) => acc + val, 0) / period;
+    const stdDev = Math.sqrt(variance);
+    
+    result.push({
+      rsi: rsiValues[i].rsi,
+      sma: mean,
+      upper: mean + (stdDevMultiplier * stdDev),
+      lower: mean - (stdDevMultiplier * stdDev),
+      index: rsiValues[i].index
+    });
+  }
+  
+  return result;
+}
+
+// Initialize RSI Dashboard
+function initializeRSIDashboard() {
+  const sourceSelect = document.getElementById('rsiSourceSelect');
+  const watchlistGroup = document.getElementById('rsiWatchlistGroup');
+  const tickerGroup = document.getElementById('rsiTickerGroup');
+  const watchlistSelect = document.getElementById('rsiWatchlistSelect');
+  const refreshBtn = document.getElementById('rsiRefreshBtn');
+  const tickerBtn = document.getElementById('rsiTickerBtn');
+
+  // Populate watchlist dropdown
+  const watchlists = JSON.parse(localStorage.getItem('watchlists')) || [];
+  watchlistSelect.innerHTML = '<option value="">Choose a watchlist...</option>';
+  watchlists.forEach(wl => {
+    const option = document.createElement('option');
+    option.value = wl.name;
+    option.textContent = wl.name;
+    watchlistSelect.appendChild(option);
+  });
+
+  // Toggle between watchlist and single ticker mode
+  sourceSelect.addEventListener('change', () => {
+    if (sourceSelect.value === 'watchlist') {
+      watchlistGroup.style.display = 'flex';
+      tickerGroup.style.display = 'none';
+    } else {
+      watchlistGroup.style.display = 'none';
+      tickerGroup.style.display = 'flex';
+    }
+  });
+
+  // Load watchlist data
+  watchlistSelect.addEventListener('change', () => {
+    if (watchlistSelect.value) {
+      loadRSIWatchlistData(watchlistSelect.value);
+    }
+  });
+
+  // Refresh button
+  refreshBtn.addEventListener('click', () => {
+    if (sourceSelect.value === 'watchlist' && watchlistSelect.value) {
+      loadRSIWatchlistData(watchlistSelect.value);
+    } else if (sourceSelect.value === 'single') {
+      const ticker = document.getElementById('rsiTickerInput').value.trim().toUpperCase();
+      if (ticker) {
+        loadRSISingleTicker(ticker);
+      }
+    }
+  });
+
+  // Single ticker load button
+  tickerBtn.addEventListener('click', () => {
+    const ticker = document.getElementById('rsiTickerInput').value.trim().toUpperCase();
+    if (ticker) {
+      loadRSISingleTicker(ticker);
+    }
+  });
+
+  // Enter key for ticker input
+  document.getElementById('rsiTickerInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      tickerBtn.click();
+    }
+  });
+
+  // Bollinger period change - refresh chart if symbol selected
+  document.getElementById('rsiBollingerPeriod').addEventListener('change', () => {
+    if (rsiSelectedSymbol) {
+      const tickerData = rsiBasketData.find(item => item.ticker === rsiSelectedSymbol);
+      if (tickerData) {
+        renderRSIBollingerChart(rsiSelectedSymbol, tickerData);
+      }
+    }
+  });
+
+  // Standard deviation slider
+  const stdDevSlider = document.getElementById('rsiBollingerStdDev');
+  const stdDevValue = document.getElementById('rsiStdDevValue');
+  
+  stdDevSlider.addEventListener('input', () => {
+    stdDevValue.textContent = parseFloat(stdDevSlider.value).toFixed(1);
+  });
+  
+  stdDevSlider.addEventListener('change', () => {
+    if (rsiSelectedSymbol) {
+      const tickerData = rsiBasketData.find(item => item.ticker === rsiSelectedSymbol);
+      if (tickerData) {
+        renderRSIBollingerChart(rsiSelectedSymbol, tickerData);
+      }
+    }
+  });
+}
+
+// Load RSI data for a watchlist
+async function loadRSIWatchlistData(watchlistName) {
+  console.log('Loading RSI data for watchlist:', watchlistName);
+  
+  const watchlists = JSON.parse(localStorage.getItem('watchlists')) || [];
+  const watchlist = watchlists.find(wl => wl.name === watchlistName);
+  
+  if (!watchlist || !watchlist.tickers || watchlist.tickers.length === 0) {
+    console.log('No tickers in watchlist');
+    return;
+  }
+
+  rsiCurrentWatchlist = watchlistName;
+  rsiBasketData = [];
+
+  // Fetch daily RSI for each ticker
+  const promises = watchlist.tickers.map(async (ticker) => {
+    try {
+      // Get 1 year of daily data for RSI calculation
+      const data = await fetchRSIMarketData(ticker, '1Y', 'day');
+      
+      if (data && data.length > 14) {
+        const closes = data.map(bar => bar.c);
+        const rsiValues = calculateRSI(closes, 14);
+        
+        if (rsiValues && rsiValues.length > 0) {
+          const currentRSI = rsiValues[rsiValues.length - 1].rsi;
+          
+          // Calculate Bollinger Bands for coloring
+          let bollingerStatus = 'neutral';
+          if (rsiValues.length >= 20) {
+            const bollingerData = calculateRSIBollinger(rsiValues, 20);
+            if (bollingerData && bollingerData.length > 0) {
+              const lastBB = bollingerData[bollingerData.length - 1];
+              if (currentRSI > lastBB.upper) {
+                bollingerStatus = 'overbought'; // Above upper band
+              } else if (currentRSI < lastBB.lower) {
+                bollingerStatus = 'oversold'; // Below lower band
+              }
+            }
+          }
+          
+          return {
+            ticker,
+            rsi: currentRSI,
+            data: data,
+            rsiValues: rsiValues,
+            bollingerStatus: bollingerStatus
+          };
+        }
+      }
+    } catch (error) {
+      console.error(`Error fetching RSI for ${ticker}:`, error);
+    }
+    return null;
+  });
+
+  const results = await Promise.all(promises);
+  rsiBasketData = results.filter(r => r !== null);
+
+  // Sort by RSI descending
+  rsiBasketData.sort((a, b) => b.rsi - a.rsi);
+
+  renderRSIBasketTable();
+  
+  document.getElementById('rsiBasketCount').textContent = `${rsiBasketData.length} symbols`;
+}
+
+// Load RSI data for a single ticker
+async function loadRSISingleTicker(ticker) {
+  console.log('Loading RSI data for single ticker:', ticker);
+  
+  try {
+    const data = await fetchRSIMarketData(ticker, '1Y', 'day');
+    
+    if (data && data.length > 14) {
+      const closes = data.map(bar => bar.c);
+      const rsiValues = calculateRSI(closes, 14);
+      
+      if (rsiValues && rsiValues.length > 0) {
+        const currentRSI = rsiValues[rsiValues.length - 1].rsi;
+        
+        // Calculate Bollinger Bands for coloring
+        let bollingerStatus = 'neutral';
+        if (rsiValues.length >= 20) {
+          const bollingerData = calculateRSIBollinger(rsiValues, 20);
+          if (bollingerData && bollingerData.length > 0) {
+            const lastBB = bollingerData[bollingerData.length - 1];
+            if (currentRSI > lastBB.upper) {
+              bollingerStatus = 'overbought';
+            } else if (currentRSI < lastBB.lower) {
+              bollingerStatus = 'oversold';
+            }
+          }
+        }
+        
+        rsiBasketData = [{
+          ticker,
+          rsi: currentRSI,
+          data: data,
+          rsiValues: rsiValues,
+          bollingerStatus: bollingerStatus
+        }];
+        
+        renderRSIBasketTable();
+        document.getElementById('rsiBasketCount').textContent = '1 symbol';
+      }
+    }
+  } catch (error) {
+    console.error(`Error fetching RSI for ${ticker}:`, error);
+  }
+}
+
+// Render the basket table
+// RSI Color Based on Bollinger Bands (20-period for basket):
+// - Green (Oversold): RSI below lower Bollinger Band - Potential buying opportunity
+// - Red (Overbought): RSI above upper Bollinger Band - Potential selling opportunity  
+// - Gray/White (Neutral): RSI within Bollinger Bands - Normal trading range
+function renderRSIBasketTable() {
+  const tbody = document.getElementById('rsiBasketTable').querySelector('tbody');
+  tbody.innerHTML = '';
+
+  if (rsiBasketData.length === 0) {
+    tbody.innerHTML = '<tr class="empty-state-row"><td colspan="2">No data available</td></tr>';
+    return;
+  }
+
+  rsiBasketData.forEach(item => {
+    const row = document.createElement('tr');
+    if (item.ticker === rsiSelectedSymbol) {
+      row.classList.add('selected');
+    }
+
+    const tickerCell = document.createElement('td');
+    tickerCell.textContent = item.ticker;
+
+    const rsiCell = document.createElement('td');
+    const rsiValue = item.rsi.toFixed(2);
+    const status = item.bollingerStatus || 'neutral';
+    
+    rsiCell.innerHTML = `
+      <div class="rsi-value-cell">
+        <div class="rsi-value-bar" style="width: ${item.rsi}%; background: ${
+          status === 'oversold' ? 'rgba(34, 197, 94, 0.4)' :
+          status === 'overbought' ? 'rgba(239, 68, 68, 0.4)' :
+          'rgba(150, 150, 150, 0.4)'
+        }"></div>
+        <span class="${
+          status === 'oversold' ? 'rsi-oversold' :
+          status === 'overbought' ? 'rsi-overbought' :
+          'rsi-neutral'
+        }">${rsiValue}</span>
+      </div>
+    `;
+
+    row.appendChild(tickerCell);
+    row.appendChild(rsiCell);
+
+    row.addEventListener('click', () => {
+      selectRSISymbol(item.ticker);
+    });
+
+    tbody.appendChild(row);
+  });
+}
+
+// Select a symbol and load its details
+async function selectRSISymbol(ticker) {
+  console.log('Selected RSI symbol:', ticker);
+  rsiSelectedSymbol = ticker;
+
+  // Update selection in basket table
+  renderRSIBasketTable();
+
+  // Update panel headers
+  document.getElementById('rsiHistorySymbol').textContent = ticker;
+  document.getElementById('rsiSynergySymbol').textContent = ticker;
+  document.getElementById('rsiChartSymbol').textContent = ticker;
+
+  // Find the ticker data
+  const tickerData = rsiBasketData.find(item => item.ticker === ticker);
+  
+  if (tickerData) {
+    await renderRSIHistory(ticker, tickerData);
+    await renderRSISynergy(ticker);
+    await renderRSIBollingerChart(ticker, tickerData);
+  }
+}
+
+// Render RSI History table
+async function renderRSIHistory(ticker, tickerData) {
+  const tbody = document.getElementById('rsiHistoryTable').querySelector('tbody');
+  tbody.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
+
+  const windows = [
+    { name: '3M', days: 90 },
+    { name: '6M', days: 180 },
+    { name: '1Y', days: 365 },
+    { name: '2Y', days: 730 },
+    { name: '5Y', days: 1825 }
+  ];
+
+  tbody.innerHTML = '';
+
+  for (const window of windows) {
+    try {
+      // Calculate the date range
+      const toDate = new Date();
+      const fromDate = new Date();
+      fromDate.setDate(fromDate.getDate() - window.days);
+
+      // Filter data for this window
+      const windowData = tickerData.data.filter(bar => {
+        const barDate = new Date(bar.t);
+        return barDate >= fromDate && barDate <= toDate;
+      });
+
+      if (windowData.length > 14) {
+        const closes = windowData.map(bar => bar.c);
+        const rsiValues = calculateRSI(closes, 14);
+
+        if (rsiValues && rsiValues.length > 0) {
+          // Find min and max RSI
+          let minRSI = Infinity;
+          let maxRSI = -Infinity;
+          let minDate = null;
+          let maxDate = null;
+
+          rsiValues.forEach((rsiItem, idx) => {
+            const dataIdx = idx + 14; // RSI starts after 14 periods
+            if (dataIdx < windowData.length) {
+              if (rsiItem.rsi < minRSI) {
+                minRSI = rsiItem.rsi;
+                minDate = new Date(windowData[dataIdx].t);
+              }
+              if (rsiItem.rsi > maxRSI) {
+                maxRSI = rsiItem.rsi;
+                maxDate = new Date(windowData[dataIdx].t);
+              }
+            }
+          });
+
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${window.name}</td>
+            <td class="synergy-rsi-low">${minRSI.toFixed(2)}</td>
+            <td class="history-date">${minDate ? minDate.toLocaleDateString() : '-'}</td>
+            <td class="synergy-rsi-high">${maxRSI.toFixed(2)}</td>
+            <td class="history-date">${maxDate ? maxDate.toLocaleDateString() : '-'}</td>
+          `;
+          tbody.appendChild(row);
+        }
+      }
+    } catch (error) {
+      console.error(`Error calculating RSI for ${window.name}:`, error);
+    }
+  }
+
+  if (tbody.children.length === 0) {
+    tbody.innerHTML = '<tr class="empty-state-row"><td colspan="5">No data available</td></tr>';
+  }
+}
+
+// Render RSI Synergy table
+async function renderRSISynergy(ticker) {
+  const tbody = document.getElementById('rsiSynergyTable').querySelector('tbody');
+  tbody.innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
+
+  const timeframes = [
+    { name: 'Weekly', timeframe: '1Y', interval: 'week' },
+    { name: 'Daily', timeframe: '1Y', interval: 'day' },
+    { name: '60 Min', timeframe: '1M', interval: '60' },
+    { name: '15 Min', timeframe: '5D', interval: '15' },
+    { name: '5 Min', timeframe: '5D', interval: '5' }
+  ];
+
+  tbody.innerHTML = '';
+
+  for (const tf of timeframes) {
+    try {
+      const data = await fetchRSIMarketData(ticker, tf.timeframe, tf.interval);
+      
+      if (data && data.length > 14) {
+        const closes = data.map(bar => bar.c);
+        const rsiValues = calculateRSI(closes, 14);
+        
+        if (rsiValues && rsiValues.length > 0) {
+          const currentRSI = rsiValues[rsiValues.length - 1].rsi;
+          
+          // Check Bollinger status for this timeframe
+          let bollingerStatus = '';
+          if (rsiValues.length >= 20) {
+            const bollingerData = calculateRSIBollinger(rsiValues, 20);
+            if (bollingerData && bollingerData.length > 0) {
+              const lastBB = bollingerData[bollingerData.length - 1];
+              if (currentRSI > lastBB.upper) {
+                bollingerStatus = 'synergy-rsi-high';
+              } else if (currentRSI < lastBB.lower) {
+                bollingerStatus = 'synergy-rsi-low';
+              }
+            }
+          }
+          
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${tf.name}</td>
+            <td class="${bollingerStatus}">${currentRSI.toFixed(2)}</td>
+          `;
+          tbody.appendChild(row);
+        }
+      }
+    } catch (error) {
+      console.error(`Error fetching ${tf.name} RSI:`, error);
+    }
+  }
+
+  if (tbody.children.length === 0) {
+    tbody.innerHTML = '<tr class="empty-state-row"><td colspan="2">No data available</td></tr>';
+  }
+}
+
+// Render RSI Bollinger Bands chart
+async function renderRSIBollingerChart(ticker, tickerData) {
+  const chartDiv = document.getElementById('rsiBollingerChart');
+  const loadingDiv = document.getElementById('rsiChartLoading');
+  const emptyDiv = document.getElementById('rsiChartEmpty');
+
+  emptyDiv.style.display = 'none';
+  loadingDiv.style.display = 'flex';
+
+  try {
+    // Get selected Bollinger period and std dev
+    const bollingerPeriodSelect = document.getElementById('rsiBollingerPeriod');
+    const bollingerPeriod = parseInt(bollingerPeriodSelect?.value || '20');
+    const stdDevSlider = document.getElementById('rsiBollingerStdDev');
+    const stdDevMultiplier = parseFloat(stdDevSlider?.value || '2');
+    
+    // Get 2 years of daily data for better Bollinger Bands
+    const data = await fetchRSIMarketData(ticker, '2Y', 'day');
+    
+    const minBars = 14 + bollingerPeriod; // Need RSI period + Bollinger period
+    if (!data || data.length < minBars) {
+      emptyDiv.style.display = 'flex';
+      loadingDiv.style.display = 'none';
+      return;
+    }
+
+    const closes = data.map(bar => bar.c);
+    const dates = data.map(bar => new Date(bar.t));
+    const rsiValues = calculateRSI(closes, 14);
+    
+    if (!rsiValues || rsiValues.length < bollingerPeriod) {
+      emptyDiv.style.display = 'flex';
+      loadingDiv.style.display = 'none';
+      return;
+    }
+
+    const bollingerData = calculateRSIBollinger(rsiValues, bollingerPeriod, stdDevMultiplier);
+    
+    if (!bollingerData) {
+      emptyDiv.style.display = 'flex';
+      loadingDiv.style.display = 'none';
+      return;
+    }
+
+    // Prepare data for plotting
+    const chartDates = bollingerData.map(item => dates[item.index]);
+    const rsiLine = bollingerData.map(item => item.rsi);
+    const upperBand = bollingerData.map(item => item.upper);
+    const lowerBand = bollingerData.map(item => item.lower);
+
+    // Create traces
+    const smaLine = bollingerData.map(item => item.sma);
+    
+    const upperTrace = {
+      x: chartDates,
+      y: upperBand,
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Upper Band',
+      line: { color: '#d946ef', width: 1.5, dash: 'dot' },
+      hovertemplate: 'Upper: %{y:.2f}<extra></extra>'
+    };
+
+    const middleTrace = {
+      x: chartDates,
+      y: smaLine,
+      type: 'scatter',
+      mode: 'lines',
+      name: `Middle (${bollingerPeriod}-SMA)`,
+      line: { color: '#666', width: 1, dash: 'dash' },
+      hovertemplate: `${bollingerPeriod}-SMA: %{y:.2f}<extra></extra>`
+    };
+
+    const rsiTrace = {
+      x: chartDates,
+      y: rsiLine,
+      type: 'scatter',
+      mode: 'lines',
+      name: 'RSI (14D)',
+      line: { color: '#4a9eff', width: 2 },
+      hovertemplate: '%{x}<br>RSI: %{y:.2f}<extra></extra>'
+    };
+
+    const lowerTrace = {
+      x: chartDates,
+      y: lowerBand,
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Lower Band',
+      line: { color: '#d946ef', width: 1.5, dash: 'dot' },
+      hovertemplate: 'Lower: %{y:.2f}<extra></extra>'
+    };
+
+    // Reference lines at 30 and 70
+    const oversoldLine = {
+      x: chartDates,
+      y: Array(chartDates.length).fill(30),
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Oversold (30)',
+      line: { color: '#666', width: 1, dash: 'dash' },
+      hoverinfo: 'skip',
+      showlegend: false
+    };
+
+    const overboughtLine = {
+      x: chartDates,
+      y: Array(chartDates.length).fill(70),
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Overbought (70)',
+      line: { color: '#666', width: 1, dash: 'dash' },
+      hoverinfo: 'skip',
+      showlegend: false
+    };
+
+    const layout = {
+      autosize: true,
+      paper_bgcolor: 'transparent',
+      plot_bgcolor: 'transparent',
+      font: { color: '#e4e4e7' },
+      margin: { l: 60, r: 40, t: 10, b: 60 },
+      xaxis: {
+        gridcolor: '#1a1a1a',
+        showgrid: false,
+        rangeslider: { visible: false },
+        showspikes: true,
+        spikemode: 'across',
+        spikesnap: 'cursor',
+        spikecolor: '#666',
+        spikethickness: 0.5,
+        spikedash: 'dot'
+      },
+      yaxis: {
+        title: 'RSI',
+        gridcolor: '#333',
+        griddash: 'dot',
+        gridwidth: 0.5,
+        showgrid: true,
+        range: [0, 100],
+        showspikes: false
+      },
+      hovermode: 'x',
+      dragmode: false,
+      showlegend: false
+    };
+
+    const config = {
+      responsive: true,
+      displayModeBar: true,
+      displaylogo: false,
+      modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d']
+    };
+
+    Plotly.newPlot(chartDiv, [oversoldLine, overboughtLine, lowerTrace, middleTrace, rsiTrace, upperTrace], layout, config);
+    
+    // Force resize to prevent squished chart
+    setTimeout(() => {
+      Plotly.Plots.resize(chartDiv);
+    }, 100);
+    
+    // Apply crosshair lock behavior - reposition hover labels to top-left, stacked
+    let isHovering = false;
+    let animationFrameId = null;
+    
+    function repositionHoverLabels() {
+      const hoverGroups = document.querySelectorAll('#rsiBollingerChart .hoverlayer g.hovertext');
+      let yOffset = 80;
+      hoverGroups.forEach((group, index) => {
+        // Stack vertically with spacing
+        group.setAttribute('transform', `translate(80, ${yOffset})`);
+        if (!group.classList.contains('positioned')) {
+          group.classList.add('positioned');
+        }
+        // Approximate height per label + spacing (increased for better separation)
+        yOffset += 40;
+      });
+      
+      if (isHovering) {
+        animationFrameId = requestAnimationFrame(repositionHoverLabels);
+      }
+    }
+    
+    chartDiv.on('plotly_hover', function(data) {
+      isHovering = true;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      repositionHoverLabels();
+    });
+    
+    chartDiv.on('plotly_unhover', function() {
+      isHovering = false;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      const hoverGroups = document.querySelectorAll('#rsiBollingerChart .hoverlayer g.hovertext');
+      hoverGroups.forEach(group => {
+        group.classList.remove('positioned');
+      });
+    });
+    
+    loadingDiv.style.display = 'none';
+  } catch (error) {
+    console.error('Error rendering RSI Bollinger chart:', error);
+    emptyDiv.style.display = 'flex';
+    loadingDiv.style.display = 'none';
+  }
+}
+
+// Initialize RSI dashboard when the page loads
+setTimeout(() => {
+  initializeRSIDashboard();
+}, 1500);
