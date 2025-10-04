@@ -174,7 +174,7 @@
           <div class="chart-sidebar" id="chartSidebar">
             <div class="chart-sidebar-header">
               <h2>Select Ticker</h2>
-              <button id="closeSidebar" class="close-sidebar">✕</button>
+              <button id="closeSidebar" class="close-sidebar">←</button>
             </div>
             
             <!-- Ticker input section -->
@@ -207,15 +207,17 @@
             <!-- Live Info Bar at Top -->
             <div id="chartLiveInfoTop" class="chart-live-info-top" style="display: none;">
               <div class="live-info-left">
+                <div class="live-stat">
+                  <span class="live-stat-label">Volume:</span>
+                  <span id="chartLiveVolumeTop" class="live-stat-value">0</span>
+                </div>
+              </div>
+              <div class="live-info-center">
                 <span id="chartLiveTickerTop" class="live-ticker-large">-</span>
                 <span id="chartLivePriceTop" class="live-price-large">$0.00</span>
                 <span id="chartLiveChangeTop" class="live-change-large">+0.00%</span>
               </div>
               <div class="live-info-right">
-                <div class="live-stat">
-                  <span class="live-stat-label">Volume:</span>
-                  <span id="chartLiveVolumeTop" class="live-stat-value">0</span>
-                </div>
                 <div class="live-stat">
                   <span class="live-stat-label">Market Cap:</span>
                   <span id="chartLiveMarketCapTop" class="live-stat-value">-</span>
