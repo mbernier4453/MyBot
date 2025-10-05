@@ -13,6 +13,7 @@ let dbPath = null;
 let polygonWs = null;
 let stockData = new Map(); // Store latest data for each ticker
 let isConnected = false;
+let reconnectTimeout = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -47,13 +48,37 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on('window-all-closed', function () {
-  if (db) {
-    db.close();
+app.on('before-quit', function () {
+  console.log('[APP] Cleaning up before quit...');
+  
+  // Clear any pending reconnect attempts
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
   }
+  
+  // Close websocket properly
   if (polygonWs) {
-    polygonWs.close();
+    try {
+      isConnected = false;
+      polygonWs.removeAllListeners();
+      polygonWs.close(1000, 'Application closing');
+      polygonWs = null;
+    } catch (e) {
+      console.error('[APP] Error closing websocket:', e.message);
+    }
   }
+  if (db) {
+    try {
+      db.close();
+      db = null;
+    } catch (e) {
+      console.error('[APP] Error closing database:', e.message);
+    }
+  }
+});
+
+app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -257,7 +282,8 @@ function connectPolygon() {
     // User can manually reconnect via the UI button
     if (code !== 1008) {
       console.log('[POLYGON] Will attempt to reconnect in 10 seconds...');
-      setTimeout(() => {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      reconnectTimeout = setTimeout(() => {
         if (mainWindow && !isConnected) {
           console.log('[POLYGON] Attempting to reconnect...');
           connectPolygon();
@@ -278,8 +304,12 @@ ipcMain.handle('polygon-connect', () => {
 });
 
 ipcMain.handle('polygon-disconnect', () => {
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
   if (polygonWs) {
-    polygonWs.close();
+    polygonWs.close(1000, 'User disconnected');
     polygonWs = null;
     isConnected = false;
   }
@@ -393,6 +423,50 @@ ipcMain.handle('select-db', async () => {
       const buffer = fs.readFileSync(result.filePaths[0]);
       db = new SQL.Database(buffer);
       dbPath = result.filePaths[0]; // Store the path for saving
+      
+      // Create folders table for organizing saved strategies
+      db.run(`
+        CREATE TABLE IF NOT EXISTS folders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          created_at REAL DEFAULT (julianday('now')),
+          color TEXT DEFAULT '#888'
+        )
+      `);
+      
+      // Create favorites table if it doesn't exist
+      db.run(`
+        CREATE TABLE IF NOT EXISTS favorites (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          type TEXT NOT NULL,
+          name TEXT NOT NULL,
+          run_id TEXT,
+          ticker TEXT,
+          strategy_id INTEGER,
+          folder_id INTEGER,
+          data_json TEXT,
+          created_at REAL DEFAULT (julianday('now')),
+          notes TEXT,
+          FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
+        )
+      `);
+      
+      // Create saved_strategies table for portfolio nesting
+      db.run(`
+        CREATE TABLE IF NOT EXISTS saved_strategies (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          source_run_id TEXT NOT NULL,
+          source_type TEXT NOT NULL,
+          weights_json TEXT NOT NULL,
+          strategy_params_json TEXT,
+          notes TEXT,
+          created_at REAL
+        )
+      `);
+      
+      saveDatabase();
+      
       return { success: true, path: result.filePaths[0] };
     } catch (error) {
       return { success: false, error: error.message };
@@ -998,6 +1072,242 @@ ipcMain.handle('delete-run', async (event, runId) => {
     return { success: true };
   } catch (error) {
     console.error('[BACKEND] Error deleting run:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ========== Favorites Handlers ==========
+
+ipcMain.handle('get-favorites', async () => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    const stmt = db.prepare('SELECT * FROM favorites ORDER BY created_at DESC');
+    const favorites = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      if (row.data_json) {
+        row.data = JSON.parse(row.data_json);
+      }
+      favorites.push(row);
+    }
+    stmt.free();
+    return { success: true, data: favorites };
+  } catch (error) {
+    console.error('[BACKEND] Error getting favorites:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('add-favorite', async (event, item) => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    console.log('[BACKEND] Adding favorite:', item);
+    
+    // Check if folder_id column exists, if not add it
+    try {
+      const checkStmt = db.prepare('SELECT folder_id FROM favorites LIMIT 1');
+      checkStmt.free();
+    } catch (e) {
+      // Column doesn't exist, add it
+      console.log('[BACKEND] Adding folder_id column to favorites table');
+      db.run('ALTER TABLE favorites ADD COLUMN folder_id INTEGER');
+    }
+    
+    const stmt = db.prepare(`
+      INSERT INTO favorites (type, name, run_id, ticker, strategy_id, folder_id, data_json, created_at, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run([
+      item.type,
+      item.name,
+      item.run_id || null,
+      item.ticker || null,
+      item.strategy_id || null,
+      item.folder_id || null,
+      item.data_json || null,
+      Date.now() / 1000,
+      item.notes || null
+    ]);
+    stmt.free();
+    
+    saveDatabase();
+    console.log('[BACKEND] Favorite added successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('[BACKEND] Error adding favorite:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('remove-favorite', async (event, id) => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    const stmt = db.prepare('DELETE FROM favorites WHERE id = ?');
+    stmt.run([id]);
+    stmt.free();
+    
+    saveDatabase();
+    return { success: true };
+  } catch (error) {
+    console.error('[BACKEND] Error removing favorite:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-portfolio-as-strategy', async (event, runId, name) => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    // Get portfolio data
+    const portfolioStmt = db.prepare('SELECT * FROM portfolio WHERE run_id = ?');
+    portfolioStmt.bind([runId]);
+    
+    if (!portfolioStmt.step()) {
+      portfolioStmt.free();
+      return { success: false, error: 'Portfolio not found' };
+    }
+    
+    const portfolio = portfolioStmt.getAsObject();
+    portfolioStmt.free();
+    
+    // Get weights
+    const weightsStmt = db.prepare('SELECT ticker, target_weight FROM portfolio_weights WHERE run_id = ? ORDER BY target_weight DESC');
+    weightsStmt.bind([runId]);
+    
+    const weights = {};
+    while (weightsStmt.step()) {
+      const row = weightsStmt.getAsObject();
+      weights[row.ticker] = row.target_weight;
+    }
+    weightsStmt.free();
+    
+    // Get strategy parameters for each ticker (if available)
+    const strategiesStmt = db.prepare('SELECT ticker, params_json FROM strategies WHERE run_id = ?');
+    strategiesStmt.bind([runId]);
+    
+    const strategyParams = {};
+    while (strategiesStmt.step()) {
+      const row = strategiesStmt.getAsObject();
+      if (row.params_json) {
+        strategyParams[row.ticker] = JSON.parse(row.params_json);
+      }
+    }
+    strategiesStmt.free();
+    
+    // Save as reusable strategy
+    const saveStmt = db.prepare(`
+      INSERT OR REPLACE INTO saved_strategies (name, source_run_id, source_type, weights_json, strategy_params_json, created_at, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    saveStmt.run([
+      name,
+      runId,
+      'portfolio',
+      JSON.stringify(weights),
+      JSON.stringify(strategyParams),
+      Date.now() / 1000,
+      `Saved from portfolio run: ${runId}`
+    ]);
+    saveStmt.free();
+    
+    saveDatabase();
+    return { success: true, message: `Portfolio saved as strategy: ${name}` };
+  } catch (error) {
+    console.error('[BACKEND] Error saving portfolio as strategy:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Folder operations
+ipcMain.handle('get-folders', async () => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    // Ensure folders table exists
+    try {
+      db.run(`
+        CREATE TABLE IF NOT EXISTS folders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          created_at REAL DEFAULT (julianday('now')),
+          color TEXT DEFAULT '#888'
+        )
+      `);
+    } catch (createError) {
+      console.log('[BACKEND] Folders table already exists or error:', createError.message);
+    }
+    
+    const stmt = db.prepare('SELECT * FROM folders ORDER BY created_at DESC');
+    const folders = [];
+    while (stmt.step()) {
+      folders.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return { success: true, data: folders };
+  } catch (error) {
+    console.error('[BACKEND] Error getting folders:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('create-folder', async (event, name, color = '#888') => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO folders (name, color, created_at)
+      VALUES (?, ?, ?)
+    `);
+    stmt.run([name, color, Date.now() / 1000]);
+    stmt.free();
+    
+    saveDatabase();
+    return { success: true };
+  } catch (error) {
+    console.error('[BACKEND] Error creating folder:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-folder', async (event, folderId) => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    // Remove folder_id from favorites in this folder (set to NULL)
+    const updateStmt = db.prepare('UPDATE favorites SET folder_id = NULL WHERE folder_id = ?');
+    updateStmt.run([folderId]);
+    updateStmt.free();
+    
+    // Delete the folder
+    const deleteStmt = db.prepare('DELETE FROM folders WHERE id = ?');
+    deleteStmt.run([folderId]);
+    deleteStmt.free();
+    
+    saveDatabase();
+    return { success: true };
+  } catch (error) {
+    console.error('[BACKEND] Error deleting folder:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('move-to-folder', async (event, favoriteId, folderId) => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    const stmt = db.prepare('UPDATE favorites SET folder_id = ? WHERE id = ?');
+    stmt.run([folderId, favoriteId]);
+    stmt.free();
+    
+    saveDatabase();
+    return { success: true };
+  } catch (error) {
+    console.error('[BACKEND] Error moving to folder:', error);
     return { success: false, error: error.message };
   }
 });

@@ -3,32 +3,32 @@
 # Legend: # ✅ implemented · # ⚠️ limited/conditional · # ⏳ not used
 
 #=========================MAIN=========================
-RUN_ID = "RegTestFrontend1"                     # ✅ name or "auto" for timestamp
+RUN_ID = "RegTestFrontend2"                     # ✅ name or "auto" for timestamp
 NOTES = "Testing strategy + buy/hold + benchmark"  # ✅ freeform string per run
-# TICKERS = ["SPY","QQQ"]                 # ✅ list of symbols (just 2 for quick test)
-TICKERS = [
-    "XLF",  # Financial Select Sector SPDR
-    "XLK",  # Technology Select Sector SPDR
-    "XLE",  # Energy Select Sector SPDR
-    "XLY",  # Consumer Discretionary Select Sector SPDR
-    "XLI",  # Industrial Select Sector SPDR
-    "XLV",  # Health Care Select Sector SPDR
-    "XLB",  # Materials Select Sector SPDR
-    "XLU",  # Utilities Select Sector SPDR
-    "XLRE", # Real Estate Select Sector SPDR
-    "XLC",  # Communication Services Select Sector SPDR
-    "UCC",  # ProShares Ultra Consumer Services (2x leveraged)
-    "UGE",  # ProShares Ultra Consumer Goods (2x leveraged)
-    "DIG",  # ProShares Ultra Oil & Gas (2x leveraged)
-    "UYG",  # ProShares Ultra Financials (2x leveraged)
-    "RXL",  # ProShares Ultra Health Care (2x leveraged)
-    "UXI",  # ProShares Ultra Industrials (2x leveraged)
-    "UYM",  # ProShares Ultra Basic Materials (2x leveraged)
-    "URE",  # ProShares Ultra Real Estate (2x leveraged)
-    "ROM",  # ProShares Ultra Technology (2x leveraged)
-    "LTL",  # ProShares Ultra Telecommunications (2x leveraged)
-    "UPW"   # ProShares Ultra Utilities (2x leveraged)
-]
+TICKERS = ["SPY","QQQ"]                 # ✅ list of symbols (just 2 for quick test)
+# TICKERS = [
+#     "XLF",  # Financial Select Sector SPDR
+#     "XLK",  # Technology Select Sector SPDR
+#     "XLE",  # Energy Select Sector SPDR
+#     "XLY",  # Consumer Discretionary Select Sector SPDR
+#     "XLI",  # Industrial Select Sector SPDR
+#     "XLV",  # Health Care Select Sector SPDR
+#     "XLB",  # Materials Select Sector SPDR
+#     "XLU",  # Utilities Select Sector SPDR
+#     "XLRE", # Real Estate Select Sector SPDR
+#     "XLC",  # Communication Services Select Sector SPDR
+#     "UCC",  # ProShares Ultra Consumer Services (2x leveraged)
+#     "UGE",  # ProShares Ultra Consumer Goods (2x leveraged)
+#     "DIG",  # ProShares Ultra Oil & Gas (2x leveraged)
+#     "UYG",  # ProShares Ultra Financials (2x leveraged)
+#     "RXL",  # ProShares Ultra Health Care (2x leveraged)
+#     "UXI",  # ProShares Ultra Industrials (2x leveraged)
+#     "UYM",  # ProShares Ultra Basic Materials (2x leveraged)
+#     "URE",  # ProShares Ultra Real Estate (2x leveraged)
+#     "ROM",  # ProShares Ultra Technology (2x leveraged)
+#     "LTL",  # ProShares Ultra Telecommunications (2x leveraged)
+#     "UPW"   # ProShares Ultra Utilities (2x leveraged)
+# ]
 # ✅ list of symbols
 INITIAL_CAPITAL = 100_000.0             # ✅
 START = "2000-01-01"                    # ✅

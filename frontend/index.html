@@ -489,8 +489,26 @@
         <div class="main-content">
       <!-- Sidebar -->
       <aside class="sidebar">
+        <!-- Favorites Section -->
+        <div class="favorites-section">
+          <div class="favorites-header">
+            <h3>⭐ Saved Strategies</h3>
+            <div style="display: flex; gap: 5px;">
+              <button id="createFolderBtn" class="btn-icon" title="Create Folder" onclick="promptCreateFolder()">📁+</button>
+              <button id="toggleFavorites" class="toggle-favorites-btn">▼</button>
+            </div>
+          </div>
+          <div id="favoritesList" class="favorites-list">
+            <div class="empty-state-small">
+              <p style="font-size: 12px; color: #666;">No saved strategies yet</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="sidebar-divider"></div>
+        
         <div class="sidebar-header">
-          <h2>Runs</h2>
+          <h2>All Runs</h2>
           <div class="filters">
             <input type="text" id="runSearch" placeholder="Search runs..." class="search-input">
             <select id="modeFilter" class="filter-select">
@@ -510,10 +528,11 @@
       <!-- Details Panel -->
       <main class="details-panel">
         <div class="tabs">
-          <button class="tab active" data-tab="overview">Overview</button>
-          <button class="tab" data-tab="strategies">Strategies</button>
-          <button class="tab" data-tab="trades">Trades</button>
-          <button class="tab" data-tab="compare">Compare</button>
+          <button id="overviewBtn" class="tab active" data-tab="overview">Overview</button>
+          <button id="strategiesBtn" class="tab" data-tab="strategies">Strategies</button>
+          <button id="portfolioBtn" class="tab" data-tab="portfolio" style="display: none;">Portfolio</button>
+          <button id="tradesBtn" class="tab" data-tab="trades">Trades</button>
+          <button id="compareBtn" class="tab" data-tab="compare">Compare</button>
         </div>
 
         <!-- Overview Tab -->
@@ -700,6 +719,70 @@
       <div class="modal-footer">
         <button class="btn" onclick="document.getElementById('addStockModal').style.display='none'">Cancel</button>
         <button id="addStocksBtn" class="btn btn-primary">Add Stocks</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Strategy Modal -->
+  <div id="saveStrategyModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Save Strategy</h3>
+        <button class="modal-close" onclick="closeSaveStrategyModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Strategy Name</label>
+          <input type="text" id="strategyNameInput" class="form-input" placeholder="Enter a name for this strategy">
+        </div>
+        <div class="form-group">
+          <label>Select Folder (Optional)</label>
+          <select id="strategyFolderSelect" class="form-input">
+            <option value="">Uncategorized</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeSaveStrategyModal()">Cancel</button>
+        <button id="confirmSaveStrategyBtn" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Folder Modal -->
+  <div id="createFolderModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3>Create Folder</h3>
+        <button class="modal-close" onclick="closeCreateFolderModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Folder Name</label>
+          <input type="text" id="folderNameInput" class="form-input" placeholder="Enter folder name">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeCreateFolderModal()">Cancel</button>
+        <button id="confirmCreateFolderBtn" class="btn btn-primary">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Folder Confirmation Modal -->
+  <div id="deleteFolderModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3>Delete Folder?</h3>
+        <button class="modal-close" onclick="closeDeleteFolderModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="deleteFolderMessage"></p>
+        <p style="color: #999; font-size: 12px; margin-top: 10px;">Strategies in this folder will be moved to Uncategorized.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeDeleteFolderModal()">Cancel</button>
+        <button id="confirmDeleteFolderBtn" class="btn btn-danger">Delete</button>
       </div>
     </div>
   </div>

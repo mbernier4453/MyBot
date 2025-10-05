@@ -13,6 +13,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   calculateCapm: (strategyEquity, benchmarkEquity) => ipcRenderer.invoke('calculate-capm', strategyEquity, benchmarkEquity),
   deleteRun: (runId) => ipcRenderer.invoke('delete-run', runId),
   
+  // Favorites
+  getFavorites: () => ipcRenderer.invoke('get-favorites'),
+  addFavorite: (item) => ipcRenderer.invoke('add-favorite', item),
+  removeFavorite: (id) => ipcRenderer.invoke('remove-favorite', id),
+  savePortfolioAsStrategy: (runId, name) => ipcRenderer.invoke('save-portfolio-as-strategy', runId, name),
+  
+  // Folders
+  getFolders: () => ipcRenderer.invoke('get-folders'),
+  createFolder: (name, color) => ipcRenderer.invoke('create-folder', name, color),
+  deleteFolder: (id) => ipcRenderer.invoke('delete-folder', id),
+  moveToFolder: (favoriteId, folderId) => ipcRenderer.invoke('move-to-folder', favoriteId, folderId),
+  
   // Polygon API
   polygonConnect: () => ipcRenderer.invoke('polygon-connect'),
   polygonDisconnect: () => ipcRenderer.invoke('polygon-disconnect'),

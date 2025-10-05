@@ -50,6 +50,10 @@ function switchToTab(tabName) {
   }
 }
 
+// CRITICAL: Expose switchToTab to window IMMEDIATELY
+window.switchToTab = switchToTab;
+console.log('[INIT] Exposed switchToTab:', typeof window.switchToTab);
+
 // Main navigation tab switching
 const mainTabs = document.querySelectorAll('.main-tab');
 const mainPages = document.querySelectorAll('.main-page');
@@ -86,7 +90,21 @@ tabs.forEach(tab => {
       } else if (targetTab === 'portfolio') {
         loadPortfolio(currentRun.run_id);
       } else if (targetTab === 'trades') {
-        loadTrades(currentRun.run_id);
+        // For single mode: trades are loaded when strategy is clicked
+        // For portfolio mode: load all trades for the portfolio
+        if (currentRun.mode === 'portfolio') {
+          console.log('Loading all portfolio trades');
+          loadTrades(currentRun.run_id);
+        } else {
+          console.log('Trades tab clicked - trades already loaded from strategy selection');
+          // Trades are already loaded from clicking a strategy
+          // Just display current trades or show empty state
+          if (currentTrades && currentTrades.length > 0) {
+            console.log('Displaying', currentTrades.length, 'cached trades');
+          } else {
+            console.log('No trades loaded yet - select a strategy first');
+          }
+        }
       }
     } else {
       console.warn('No current run selected');
@@ -104,6 +122,7 @@ async function selectDatabase() {
     dbPathEl.textContent = result.path;
     setStatus('Database connected');
     loadRuns();
+    loadFavorites(); // Load favorites when database is connected
   } else {
     setStatus(`Error: ${result.error}`, true);
   }
@@ -188,14 +207,40 @@ function displayRuns(runs) {
         if (run) {
           currentRun = run;
           
-          // Switch to overview tab
+          console.log('Selected run:', run.run_id, 'Mode:', run.mode);
+          
+          // Reset Trades tab button
+          const tradesBtn = document.querySelector('[data-tab="trades"]');
+          if (tradesBtn) {
+            tradesBtn.innerHTML = 'Trades';
+            tradesBtn.style.color = '';
+          }
+          
+          // Switch to overview tab FIRST
           switchToTab('overview');
+          
+          // Then update tab visibility based on run mode
+          updateTabVisibility();
           
           // Load all run data
           loadRunDetails(run);
-          loadStrategies(runId);
-          loadPortfolio(runId);
-          loadTrades(runId);
+          
+          // Load data based on mode
+          if (currentRun.mode === 'portfolio') {
+            // For portfolio mode: load portfolio and trades
+            console.log('Loading portfolio data...');
+            loadPortfolio(runId);
+            loadTrades(runId);
+          } else {
+            // For single mode: load strategies, don't load trades initially
+            console.log('Loading strategies data...');
+            loadStrategies(runId);
+            document.getElementById('tradesContent').innerHTML = `
+              <div class="empty-state">
+                <p>Select a strategy to view its trades</p>
+              </div>
+            `;
+          }
         }
       }
     });
@@ -215,6 +260,550 @@ function filterRuns() {
   });
   
   displayRuns(filtered);
+}
+
+// Load and Display Favorites with Folders
+async function loadFavorites() {
+  console.log('[DEBUG] loadFavorites() START');
+  try {
+    console.log('[DEBUG] loadFavorites() inside try block');
+    console.log('[DEBUG] window.electronAPI exists?', !!window.electronAPI);
+    console.log('[DEBUG] window.electronAPI.getFavorites exists?', !!window.electronAPI?.getFavorites);
+    console.log('[DEBUG] window.electronAPI.getFolders exists?', !!window.electronAPI?.getFolders);
+    
+    const [favoritesResult, foldersResult] = await Promise.all([
+      window.electronAPI.getFavorites(),
+      window.electronAPI.getFolders()
+    ]);
+    
+    console.log('[DEBUG] loadFavorites results:', { 
+      favoritesSuccess: favoritesResult.success, 
+      favoritesCount: favoritesResult.data?.length,
+      foldersSuccess: foldersResult.success, 
+      foldersCount: foldersResult.data?.length,
+      foldersData: foldersResult.data
+    });
+    
+    if (favoritesResult.success && foldersResult.success) {
+      console.log('[DEBUG] Calling displayFavorites...');
+      displayFavorites(favoritesResult.data, foldersResult.data);
+    } else {
+      console.error('[DEBUG] Failed to load:', { favoritesResult, foldersResult });
+    }
+  } catch (error) {
+    console.error('[DEBUG] Error loading favorites:', error);
+    console.error('[DEBUG] Error stack:', error.stack);
+  }
+  console.log('[DEBUG] loadFavorites() END');
+}
+
+function displayFavorites(favorites, folders) {
+  const favoritesList = document.getElementById('favoritesList');
+  
+  console.log('displayFavorites called with:', { 
+    favoritesCount: favorites?.length || 0, 
+    foldersCount: folders?.length || 0,
+    folders: folders 
+  });
+  
+  // Group favorites by folder
+  const uncategorized = (favorites || []).filter(f => !f.folder_id);
+  const byFolder = {};
+  (favorites || []).filter(f => f.folder_id).forEach(fav => {
+    if (!byFolder[fav.folder_id]) byFolder[fav.folder_id] = [];
+    byFolder[fav.folder_id].push(fav);
+  });
+  
+  let html = '';
+  
+  // Display folders (even if empty)
+  if (folders && folders.length > 0) {
+    folders.forEach(folder => {
+      const folderFavs = byFolder[folder.id] || [];
+      html += `
+        <div class="folder-group">
+          <div class="folder-header" onclick="toggleFolder(${folder.id})">
+            <span class="folder-icon" style="color: ${folder.color || '#888'};">📁</span>
+            <span class="folder-name">${folder.name}</span>
+            <span class="folder-count">(${folderFavs.length})</span>
+            <button class="btn-delete-folder" onclick="event.stopPropagation(); deleteFolderPrompt(${folder.id}, '${folder.name}')" title="Delete folder">
+              ✕
+            </button>
+          </div>
+          <div class="folder-content" id="folder-${folder.id}" style="display: none;">
+            ${folderFavs.length > 0 
+              ? folderFavs.map(fav => renderFavoriteItem(fav)).join('') 
+              : '<div style="padding: 8px; color: #666; font-size: 11px; text-align: center;">Empty folder</div>'}
+          </div>
+        </div>
+      `;
+    });
+  }
+  
+  // Display uncategorized favorites
+  if (uncategorized.length > 0) {
+    html += `
+      <div class="folder-group">
+        <div class="folder-header" onclick="toggleFolder('uncategorized')">
+          <span class="folder-icon">📋</span>
+          <span class="folder-name">Uncategorized</span>
+          <span class="folder-count">(${uncategorized.length})</span>
+        </div>
+        <div class="folder-content" id="folder-uncategorized" style="display: none;">
+          ${uncategorized.map(fav => renderFavoriteItem(fav)).join('')}
+        </div>
+      </div>
+    `;
+  }
+  
+  // Show message if no folders and no favorites
+  if ((!folders || folders.length === 0) && (!favorites || favorites.length === 0)) {
+    html += `
+      <div class="empty-state-small" style="padding: 16px;">
+        <p style="font-size: 12px; color: #666;">No saved strategies yet</p>
+      </div>
+    `;
+  }
+  
+  favoritesList.innerHTML = html;
+}
+
+function renderFavoriteItem(fav) {
+  const typeBadge = fav.type === 'strategy' ? '📊' : '📁';
+  const typeLabel = fav.type === 'strategy' ? 'Single' : 'Portfolio';
+  const typeClass = fav.type === 'strategy' ? 'strategy' : 'portfolio';
+  
+  return `
+    <div class="favorite-item" onclick="loadFavorite('${fav.id}', '${fav.type}', '${fav.run_id}', '${fav.ticker || ''}')">
+      <div class="favorite-info">
+        <span class="favorite-type-badge ${typeClass}">${typeBadge} ${typeLabel}</span>
+        <span class="favorite-name">${fav.name}</span>
+      </div>
+      <div class="favorite-actions">
+        <button class="btn-move-folder" onclick="event.stopPropagation(); showMoveToFolderDialog(${fav.id})" title="Move to folder">
+          →
+        </button>
+        <button class="unfavorite-btn" onclick="event.stopPropagation(); removeFavorite(${fav.id})" title="Remove">
+          ★
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleFolder(folderId) {
+  const content = document.getElementById(`folder-${folderId}`);
+  if (content) {
+    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+function promptCreateFolder() {
+  const modal = document.getElementById('createFolderModal');
+  const nameInput = document.getElementById('folderNameInput');
+  const confirmBtn = document.getElementById('confirmCreateFolderBtn');
+  
+  nameInput.value = '';
+  modal.style.display = 'flex';
+  nameInput.focus();
+  
+  const handleCreate = async () => {
+    const name = nameInput.value.trim();
+    if (name) {
+      modal.style.display = 'none';
+      console.log('Creating folder:', name);
+      const result = await window.electronAPI.createFolder(name);
+      console.log('Create folder result:', result);
+      if (result.success) {
+        setStatus(`Folder "${name}" created`);
+        console.log('Reloading favorites after folder creation...');
+        await loadFavorites();
+      } else {
+        setStatus('Failed to create folder: ' + result.error, true);
+      }
+    }
+  };
+  
+  confirmBtn.onclick = handleCreate;
+  nameInput.onkeypress = (e) => {
+    if (e.key === 'Enter') {
+      handleCreate();
+    }
+  };
+}
+
+function closeCreateFolderModal() {
+  document.getElementById('createFolderModal').style.display = 'none';
+}
+
+async function createNewFolder() {
+  promptCreateFolder();
+}
+
+function deleteFolderPrompt(folderId, folderName) {
+  const modal = document.getElementById('deleteFolderModal');
+  const messageEl = document.getElementById('deleteFolderMessage');
+  const confirmBtn = document.getElementById('confirmDeleteFolderBtn');
+  
+  messageEl.textContent = `Delete folder "${folderName}"?`;
+  modal.style.display = 'flex';
+  
+  const handleDelete = async () => {
+    modal.style.display = 'none';
+    const result = await window.electronAPI.deleteFolder(folderId);
+    if (result.success) {
+      setStatus(`Folder "${folderName}" deleted`);
+      await loadFavorites();
+    } else {
+      setStatus('Failed to delete folder', true);
+    }
+  };
+  
+  confirmBtn.onclick = handleDelete;
+}
+
+function closeDeleteFolderModal() {
+  document.getElementById('deleteFolderModal').style.display = 'none';
+}
+
+async function showMoveToFolderDialog(favoriteId) {
+  const foldersResult = await window.electronAPI.getFolders();
+  if (!foldersResult.success || foldersResult.data.length === 0) {
+    alert('No folders available. Create a folder first.');
+    return;
+  }
+  
+  const folderOptions = foldersResult.data.map(f => `${f.id}: ${f.name}`).join('\n');
+  const folderId = prompt(`Move to folder:\n${folderOptions}\n\nEnter folder ID (or 0 for Uncategorized):`);
+  
+  if (folderId !== null) {
+    const id = parseInt(folderId) || null;
+    const result = await window.electronAPI.moveToFolder(favoriteId, id);
+    if (result.success) {
+      setStatus('Moved to folder');
+      await loadFavorites();
+    } else {
+      setStatus('Failed to move to folder', true);
+    }
+  }
+}
+
+// CRITICAL: Expose folder/favorite management functions to window IMMEDIATELY
+window.toggleFolder = toggleFolder;
+window.createNewFolder = createNewFolder;
+window.promptCreateFolder = promptCreateFolder;
+window.closeCreateFolderModal = closeCreateFolderModal;
+window.deleteFolderPrompt = deleteFolderPrompt;
+window.closeDeleteFolderModal = closeDeleteFolderModal;
+window.showMoveToFolderDialog = showMoveToFolderDialog;
+console.log('[INIT] Exposed folder management functions:', {
+  toggleFolder: typeof window.toggleFolder,
+  createNewFolder: typeof window.createNewFolder,
+  promptCreateFolder: typeof window.promptCreateFolder,
+  closeCreateFolderModal: typeof window.closeCreateFolderModal,
+  deleteFolderPrompt: typeof window.deleteFolderPrompt,
+  closeDeleteFolderModal: typeof window.closeDeleteFolderModal,
+  showMoveToFolderDialog: typeof window.showMoveToFolderDialog
+});
+
+async function loadFavorite(id, type, runId, ticker) {
+  // Find the run in allRuns
+  const run = allRuns.find(r => r.run_id === runId);
+  if (!run) {
+    setStatus('Run not found in database', true);
+    return;
+  }
+  
+  // Load the run
+  await selectRun(run);
+  
+  // If it's a strategy, also select the ticker in the strategies tab
+  if (type === 'strategy' && ticker) {
+    // Switch to strategies tab
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    document.getElementById('strategiesBtn').classList.add('active');
+    document.getElementById('strategiesTab').classList.add('active');
+    
+    // Wait a bit for strategies to load, then select the ticker
+    setTimeout(() => {
+      const strategyRow = document.querySelector(`.strategy-row[data-ticker="${ticker}"]`);
+      if (strategyRow) {
+        strategyRow.click();
+      }
+    }, 500);
+  }
+}
+
+async function addToFavorites(type, name, runId, ticker = null, additionalData = {}) {
+  console.log('addToFavorites called with:', { type, name, runId, ticker, additionalData });
+  
+  // Show the modal
+  const modal = document.getElementById('saveStrategyModal');
+  const nameInput = document.getElementById('strategyNameInput');
+  const folderSelect = document.getElementById('strategyFolderSelect');
+  const confirmBtn = document.getElementById('confirmSaveStrategyBtn');
+  
+  // Load folders into dropdown
+  const foldersResult = await window.electronAPI.getFolders();
+  folderSelect.innerHTML = '<option value="">Uncategorized</option>';
+  if (foldersResult.success && foldersResult.data.length > 0) {
+    foldersResult.data.forEach(folder => {
+      folderSelect.innerHTML += `<option value="${folder.id}">${folder.name}</option>`;
+    });
+  }
+  
+  // Pre-fill the name
+  nameInput.value = name;
+  modal.style.display = 'flex';
+  nameInput.focus();
+  nameInput.select();
+  
+  // Handle save button
+  const handleSave = async () => {
+    try {
+      const finalName = nameInput.value.trim();
+      if (!finalName) return;
+      
+      const folderId = folderSelect.value ? parseInt(folderSelect.value) : null;
+      modal.style.display = 'none';
+      
+      const item = {
+        type,
+        name: finalName,
+        run_id: runId,
+        ticker,
+        folder_id: folderId,
+        data_json: JSON.stringify(additionalData)
+      };
+      
+      console.log('Sending to backend:', item);
+      const result = await window.electronAPI.addFavorite(item);
+      console.log('Backend response:', result);
+      
+      if (result.success) {
+        setStatus(`Added "${finalName}" to saved strategies`);
+        await loadFavorites();
+      } else {
+        console.error('Backend error:', result.error);
+        setStatus(`Failed to add to favorites: ${result.error}`, true);
+      }
+    } catch (error) {
+      console.error('Error adding to favorites:', error);
+      setStatus('Error adding to favorites: ' + error.message, true);
+    }
+  };
+  
+  // Replace old click handler
+  confirmBtn.onclick = handleSave;
+  
+  // Allow Enter key to save
+  nameInput.onkeypress = (e) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    }
+  };
+}
+
+// CRITICAL: Expose addToFavorites to window IMMEDIATELY
+window.addToFavorites = addToFavorites;
+console.log('[INIT] Exposed addToFavorites:', typeof window.addToFavorites);
+
+async function removeFavorite(id) {
+  try {
+    console.time('removeFavorite');
+    console.log('Removing favorite:', id);
+    const result = await window.electronAPI.removeFavorite(id);
+    console.timeEnd('removeFavorite');
+    console.log('Remove result:', result);
+    
+    if (result.success) {
+      setStatus('Removed from favorites');
+      console.time('loadFavorites after remove');
+      await loadFavorites();
+      console.timeEnd('loadFavorites after remove');
+    } else {
+      setStatus('Failed to remove from favorites', true);
+    }
+  } catch (error) {
+    console.error('Error removing favorite:', error);
+    setStatus('Error removing favorite', true);
+  }
+}
+
+// CRITICAL: Expose loadFavorite and removeFavorite to window IMMEDIATELY
+window.loadFavorite = loadFavorite;
+window.removeFavorite = removeFavorite;
+console.log('[INIT] Exposed favorite functions:', {
+  loadFavorite: typeof window.loadFavorite,
+  removeFavorite: typeof window.removeFavorite
+});
+
+async function savePortfolioAsStrategy(runId, name, folderId = null) {
+  try {
+    console.log('Saving portfolio as strategy:', runId, name, 'folder:', folderId);
+    
+    // Get portfolio data
+    const portfolioResult = await window.electronAPI.getPortfolio(runId);
+    if (!portfolioResult.success) {
+      throw new Error('Failed to get portfolio data');
+    }
+    const portfolio = portfolioResult.data;
+    
+    // Build weights object first (primary source of tickers for portfolios)
+    const weights = {};
+    let tickers = [];
+    if (portfolio.weights && portfolio.weights.length > 0) {
+      portfolio.weights.forEach(w => {
+        weights[w.ticker] = w.target_weight;
+      });
+      tickers = portfolio.weights.map(w => w.ticker);
+    }
+    
+    // Get strategies (for params) - might not exist for all portfolios
+    const strategiesResult = await window.electronAPI.getStrategies(runId);
+    const strategyParams = {};
+    if (strategiesResult.success && strategiesResult.data) {
+      const strategies = strategiesResult.data;
+      strategies.forEach(s => {
+        if (!strategyParams[s.ticker]) {
+          strategyParams[s.ticker] = s.params || {};
+        }
+      });
+      
+      // Merge any additional tickers found in strategies
+      const strategyTickers = [...new Set(strategies.map(s => s.ticker))];
+      tickers = [...new Set([...tickers, ...strategyTickers])];
+    }
+    
+    console.log('Extracted data:', { tickers, weights, strategyParams });
+    
+    // Save complete portfolio configuration
+    const favoriteData = {
+      type: 'portfolio',
+      name: name,
+      run_id: runId,
+      ticker: tickers.join(','), // Store all tickers as comma-separated
+      folder_id: folderId,
+      data_json: JSON.stringify({
+        // Performance metrics
+        total_return: portfolio.total_return,
+        sharpe: portfolio.sharpe,
+        sortino: portfolio.sortino,
+        maxdd: portfolio.maxdd,
+        cagr: portfolio.cagr,
+        vol: portfolio.vol,
+        win_rate: portfolio.win_rate,
+        
+        // Configuration
+        tickers: tickers,
+        weights: weights,
+        strategy_params: strategyParams,
+        
+        // Metadata
+        saved_at: new Date().toISOString(),
+        source_run_id: runId
+      })
+    };
+    
+    const result = await window.electronAPI.addFavorite(favoriteData);
+    console.log('Save portfolio result:', result);
+    
+    if (result.success) {
+      setStatus(`Saved portfolio "${name}" with ${tickers.length} tickers`);
+      await loadFavorites();
+    } else {
+      console.error('Backend error:', result.error);
+      setStatus(`Failed: ${result.error}`, true);
+    }
+  } catch (error) {
+    console.error('Error saving portfolio as strategy:', error);
+    setStatus('Error: ' + error.message, true);
+  }
+}
+
+async function promptSavePortfolioAsStrategy(runId) {
+  console.log('=== PORTFOLIO SAVE CLICKED ===');
+  console.log('promptSavePortfolioAsStrategy called with runId:', runId);
+  
+  // Show the modal
+  const modal = document.getElementById('saveStrategyModal');
+  const nameInput = document.getElementById('strategyNameInput');
+  const folderSelect = document.getElementById('strategyFolderSelect');
+  const confirmBtn = document.getElementById('confirmSaveStrategyBtn');
+  
+  // Load folders into dropdown
+  const foldersResult = await window.electronAPI.getFolders();
+  folderSelect.innerHTML = '<option value="">Uncategorized</option>';
+  if (foldersResult.success && foldersResult.data.length > 0) {
+    foldersResult.data.forEach(folder => {
+      folderSelect.innerHTML += `<option value="${folder.id}">${folder.name}</option>`;
+    });
+  }
+  
+  // Clear previous input
+  nameInput.value = '';
+  modal.style.display = 'flex';
+  nameInput.focus();
+  
+  // Handle save button
+  const handleSave = async () => {
+    const name = nameInput.value.trim();
+    if (name) {
+      const folderId = folderSelect.value ? parseInt(folderSelect.value) : null;
+      modal.style.display = 'none';
+      await savePortfolioAsStrategy(runId, name, folderId);
+    }
+  };
+  
+  // Replace old click handler
+  confirmBtn.onclick = handleSave;
+  
+  // Allow Enter key to save
+  nameInput.onkeypress = (e) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    }
+  };
+}
+
+function closeSaveStrategyModal() {
+  document.getElementById('saveStrategyModal').style.display = 'none';
+}
+
+// CRITICAL: Expose to window IMMEDIATELY so onclick handlers can find it
+window.promptSavePortfolioAsStrategy = promptSavePortfolioAsStrategy;
+window.closeSaveStrategyModal = closeSaveStrategyModal;
+console.log('[INIT] Exposed promptSavePortfolioAsStrategy:', typeof window.promptSavePortfolioAsStrategy);
+console.log('[INIT] Exposed closeSaveStrategyModal:', typeof window.closeSaveStrategyModal);
+
+// Update tab visibility based on run mode
+function updateTabVisibility() {
+  console.log('updateTabVisibility called, currentRun:', currentRun);
+  const strategiesBtn = document.getElementById('strategiesBtn');
+  const portfolioBtn = document.getElementById('portfolioBtn');
+  const tradesBtn = document.getElementById('tradesBtn');
+  
+  console.log('Found buttons:', { strategiesBtn, portfolioBtn, tradesBtn });
+  
+  if (!currentRun) {
+    console.log('No current run, skipping visibility update');
+    return;
+  }
+  
+  if (currentRun.mode === 'portfolio') {
+    // Portfolio mode: hide Strategies tab, show Portfolio tab
+    console.log('Portfolio mode: hiding Strategies, showing Portfolio');
+    if (strategiesBtn) strategiesBtn.style.display = 'none';
+    if (portfolioBtn) portfolioBtn.style.display = '';
+    if (tradesBtn) tradesBtn.style.display = '';
+  } else {
+    // Single mode: show Strategies tab, hide Portfolio tab
+    console.log('Single mode: showing Strategies, hiding Portfolio');
+    if (strategiesBtn) strategiesBtn.style.display = '';
+    if (portfolioBtn) portfolioBtn.style.display = 'none';
+    if (tradesBtn) tradesBtn.style.display = '';
+  }
 }
 
 // Load Run Details
@@ -267,9 +856,12 @@ async function loadRunDetails(run) {
   
   // Load metrics based on mode
   if (run.mode === 'portfolio') {
+    console.log('Loading portfolio metrics for overview...');
     const result = await window.electronAPI.getPortfolio(run.run_id);
+    console.log('Portfolio result:', result);
     if (result.success) {
       const p = result.data;
+      console.log('Portfolio data:', p);
       overviewHtml += `
         <div class="metrics-grid">
           ${createMetricCard('Total Return', formatPercent(p.total_return), p.total_return >= 0)}
@@ -282,6 +874,7 @@ async function loadRunDetails(run) {
           ${createMetricCard('Total Trades', p.trades_total || 0)}
         </div>
       `;
+      console.log('Added metrics grid to overview');
       
       // Add portfolio weights if available
       if (p.weights && p.weights.length > 0) {
@@ -300,11 +893,14 @@ async function loadRunDetails(run) {
         `;
       }
       
-      // Add tearsheet button
+      // Add action buttons
       overviewHtml += `
         <div class="portfolio-actions">
           <button class="btn btn-primary" onclick="viewPortfolioTearsheet('${run.run_id}')">
             📊 View Portfolio Tearsheet
+          </button>
+          <button class="btn btn-secondary" onclick="promptSavePortfolioAsStrategy('${run.run_id}')">
+            ⭐ Save Portfolio as Strategy
           </button>
         </div>
       `;
@@ -363,7 +959,9 @@ async function loadRunDetails(run) {
   }
   
   overviewHtml += '</div>';
+  console.log('Setting overview HTML, length:', overviewHtml.length);
   overviewTab.innerHTML = overviewHtml;
+  console.log('Overview tab updated');
   
   setStatus('Ready');
 }
@@ -496,6 +1094,9 @@ function displayStrategies(strategies) {
               <button class="btn-view-tearsheet" onclick="event.stopPropagation(); viewTearsheet(${s.id})">
                 View Tearsheet
               </button>
+              <button class="btn-favorite" data-strategy-id="${s.id}" data-ticker="${s.ticker}" title="Add to favorites">
+                ⭐
+              </button>
             </td>
           </tr>
         `;
@@ -513,15 +1114,67 @@ function displayStrategies(strategies) {
       displayStrategyOverview(strategyId);
     });
   });
+  
+  // Add click handlers to favorite buttons
+  document.querySelectorAll('.btn-favorite').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const strategyId = parseInt(btn.dataset.strategyId);
+      const ticker = btn.dataset.ticker;
+      const strategy = currentStrategies.find(s => s.id === strategyId);
+      if (strategy) {
+        // Save complete strategy configuration
+        const strategyData = {
+          strategy_id: strategy.id,
+          ticker: ticker,
+          
+          // Entry/Exit Parameters
+          params: strategy.params || {},
+          
+          // Performance Metrics
+          metrics: {
+            total_return: strategy.total_return,
+            cagr: strategy.cagr,
+            sharpe: strategy.sharpe,
+            sortino: strategy.sortino,
+            vol: strategy.vol,
+            maxdd: strategy.maxdd,
+            win_rate: strategy.win_rate,
+            net_win_rate: strategy.net_win_rate,
+            trades_total: strategy.trades_total,
+            avg_trade_pnl: strategy.avg_trade_pnl
+          },
+          
+          // Metadata
+          saved_at: new Date().toISOString(),
+          source_run_id: currentRun.run_id
+        };
+        
+        // Create descriptive name
+        const paramsStr = Object.entries(strategy.params || {})
+          .map(([k, v]) => `${k}:${v}`)
+          .join(', ');
+        const name = `${ticker} (${paramsStr})`;
+        
+        addToFavorites('strategy', name, currentRun.run_id, ticker, strategyData);
+      }
+    });
+  });
 }
 
 async function displayStrategyOverview(strategyId) {
+  console.log('displayStrategyOverview called with ID:', strategyId);
+  console.log('Current strategies:', currentStrategies.length);
+  
   // Find the strategy in current strategies
   const strategy = currentStrategies.find(s => s.id === strategyId);
   if (!strategy) {
     console.error('Strategy not found:', strategyId);
+    console.error('Available strategy IDs:', currentStrategies.map(s => s.id));
     return;
   }
+  
+  console.log('Found strategy:', strategy.ticker, strategy.id);
   
   // Switch to overview tab
   switchToTab('overview');
@@ -593,13 +1246,22 @@ async function displayStrategyOverview(strategyId) {
         </div>
       </div>
       
-      <button class="btn-view-tearsheet" onclick="viewTearsheet(${strategy.id})" style="padding: 12px 24px; font-size: 14px;">
-        View Full Tearsheet
-      </button>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn-view-tearsheet" onclick="viewTearsheet(${strategy.id})" style="padding: 12px 24px; font-size: 14px;">
+          View Full Tearsheet
+        </button>
+        <button class="btn btn-primary" onclick="switchToTab('trades')" style="padding: 12px 24px; font-size: 14px;">
+          📊 View Trades for ${strategy.ticker}
+        </button>
+      </div>
     </div>
   `;
   
   document.getElementById('overviewTab').innerHTML = overviewHtml;
+  
+  // Load trades for this strategy
+  console.log('Loading trades for strategy:', strategy.ticker);
+  loadTradesForStrategy(strategy.id);
 }
 
 function sortByColumn(field) {
@@ -614,8 +1276,9 @@ function sortByColumn(field) {
   filterStrategies();
 }
 
-// Make sortByColumn globally accessible for onclick handlers
+// CRITICAL: Expose sortByColumn to window IMMEDIATELY
 window.sortByColumn = sortByColumn;
+console.log('[INIT] Exposed sortByColumn:', typeof window.sortByColumn);
 
 function filterStrategies() {
   const selectedTicker = tickerFilter.value;
@@ -693,18 +1356,53 @@ function displayPortfolio(portfolio) {
 
 // Load Trades
 async function loadTrades(runId, ticker = null) {
+  console.log('loadTrades called with runId:', runId, 'ticker:', ticker);
   setStatus('Loading trades...');
-  const result = await window.electronAPI.getTrades(runId, ticker);
   
-  if (result.success) {
-    currentTrades = result.data;
-    displayTrades(currentTrades);
-    setStatus(`Loaded ${currentTrades.length} trades`);
-  } else {
+  try {
+    const result = await window.electronAPI.getTrades(runId, ticker);
+    console.log('getTrades result:', result);
+    
+    if (result.success) {
+      currentTrades = result.data;
+      console.log('Displaying', currentTrades.length, 'trades for ticker:', ticker);
+      displayTrades(currentTrades);
+      setStatus(`Loaded ${currentTrades.length} trades`);
+    } else {
+      console.error('Failed to load trades:', result.error);
+      document.getElementById('tradesContent').innerHTML = 
+        '<div class="empty-state"><p>No trades found</p></div>';
+      setStatus(`Error: ${result.error}`, true);
+    }
+  } catch (error) {
+    console.error('Exception in loadTrades:', error);
     document.getElementById('tradesContent').innerHTML = 
-      '<div class="empty-state"><p>No trades found</p></div>';
-    setStatus(`Error: ${result.error}`, true);
+      '<div class="empty-state"><p>Error loading trades</p></div>';
+    setStatus('Error loading trades: ' + error.message, true);
   }
+}
+
+async function loadTradesForStrategy(strategyId) {
+  console.log('Loading trades for strategy ID:', strategyId);
+  // Find the strategy to get the ticker
+  const strategy = currentStrategies.find(s => s.id === strategyId);
+  if (!strategy) {
+    console.error('Strategy not found:', strategyId);
+    return;
+  }
+  
+  console.log('Loading trades for ticker:', strategy.ticker);
+  // Load trades for this ticker
+  await loadTrades(currentRun.run_id, strategy.ticker);
+  
+  // Add visual indicator to Trades tab button
+  const tradesBtn = document.querySelector('[data-tab="trades"]');
+  if (tradesBtn && currentTrades.length > 0) {
+    tradesBtn.innerHTML = `Trades (${currentTrades.length})`;
+    tradesBtn.style.color = 'var(--accent-green)';
+  }
+  
+  console.log('Trades loaded, click Trades tab to view');
 }
 
 function displayTrades(trades) {
@@ -868,6 +1566,18 @@ function setStatus(message, isError = false) {
   statusText.style.color = isError ? 'var(--negative)' : 'var(--text-secondary)';
 }
 
+// ========== Favorites Functions are defined earlier in the file (around line 266) ==========
+// The duplicate old versions here have been removed to prevent conflicts
+
+// Toggle favorites section (keep this event listener)
+document.getElementById('toggleFavorites')?.addEventListener('click', () => {
+  const btn = document.getElementById('toggleFavorites');
+  const list = document.getElementById('favoritesList');
+  
+  btn.classList.toggle('collapsed');
+  list.classList.toggle('collapsed');
+});
+
 // Tearsheet Functions
 async function viewPortfolioTearsheet(runId) {
   const modal = document.getElementById('tearsheetModal');
@@ -963,6 +1673,10 @@ async function viewPortfolioTearsheet(runId) {
     `;
   }
 }
+
+// CRITICAL: Expose to window IMMEDIATELY so onclick handlers can find it
+window.viewPortfolioTearsheet = viewPortfolioTearsheet;
+console.log('[INIT] Exposed viewPortfolioTearsheet:', typeof window.viewPortfolioTearsheet);
 
 function displayPortfolioTearsheetMetrics(portfolio, benchmarkEquity) {
   const metricsDiv = document.getElementById('tearsheetMetrics');
@@ -1211,6 +1925,14 @@ async function viewTearsheet(strategyId) {
 function closeTearsheet() {
   document.getElementById('tearsheetModal').classList.remove('show');
 }
+
+// CRITICAL: Expose to window IMMEDIATELY so onclick handlers can find it
+window.viewTearsheet = viewTearsheet;
+window.closeTearsheet = closeTearsheet;
+console.log('[INIT] Exposed tearsheet functions:', {
+  viewTearsheet: typeof window.viewTearsheet,
+  closeTearsheet: typeof window.closeTearsheet
+});
 
 function displayTearsheetMetrics(strategy) {
   const m = strategy.metrics || {};
@@ -1660,6 +2382,10 @@ async function deleteRun(runId, event) {
     alert(`Failed to delete run: ${error.message}`);
   }
 }
+
+// CRITICAL: Expose to window IMMEDIATELY so onclick handlers can find it
+window.deleteRun = deleteRun;
+console.log('[INIT] Exposed deleteRun:', typeof window.deleteRun);
 
 function displayVolMatchedChart(strategyEquity, comparisonEquity, chartElementId, comparisonName) {
   if (!comparisonEquity || !comparisonEquity.data || comparisonEquity.data.length === 0) {
@@ -5508,3 +6234,30 @@ async function renderRSIBollingerChart(ticker, tickerData) {
 setTimeout(() => {
   initializeRSIDashboard();
 }, 1500);
+
+// Check if database is already connected and load favorites
+setTimeout(async () => {
+  console.log('[INIT] Checking for existing database connection...');
+  try {
+    // Try to get favorites - if it works, database is connected
+    const result = await window.electronAPI.getFavorites();
+    if (result.success) {
+      console.log('[INIT] Database already connected, loading favorites...');
+      await loadFavorites();
+    } else {
+      console.log('[INIT] No database connected yet');
+    }
+  } catch (error) {
+    console.log('[INIT] No database connected:', error.message);
+  }
+}, 500);
+
+// Make ALL functions globally accessible for onclick handlers
+// MUST be at end of file after all functions are defined
+console.log('[INIT] Exposing functions to window scope...');
+window.sortByColumn = sortByColumn;
+window.promptSavePortfolioAsStrategy = promptSavePortfolioAsStrategy;
+window.createNewFolder = createNewFolder;
+// Note: All onclick handler functions are now exposed to window immediately after their definitions
+// This ensures they're available when HTML with onclick handlers is dynamically generated
+// No need for duplicate assignments here - all functions are already exposed above
