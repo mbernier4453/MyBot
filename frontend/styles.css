@@ -1975,6 +1975,90 @@ textarea.form-input {
   border-color: var(--accent-blue);
 }
 
+.chart-add-overlay-btn {
+  padding: 8px 16px;
+  background-color: var(--accent-blue);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.chart-add-overlay-btn:hover {
+  background-color: #3a8eef;
+  box-shadow: 0 4px 8px rgba(74, 158, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.chart-add-overlay-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.chart-overlays-list {
+  padding: 8px 20px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.overlays-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.chart-overlays-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.overlay-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.overlay-color-box {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.overlay-ticker {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.overlay-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 4px;
+  transition: color 0.2s;
+}
+
+.overlay-remove-btn:hover {
+  color: #ff4444;
+}
+
 .live-update-toggle {
   display: flex;
   align-items: center;

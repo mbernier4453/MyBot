@@ -2796,6 +2796,7 @@ class ChartTab {
     this.crosshairLocked = false;
     this.chartData = null;
     this.liveData = new Map();
+    this.overlays = []; // Array to store overlay tickers
     
     // Create tab element
     this.tabElement = this.createTabElement();
@@ -2805,6 +2806,9 @@ class ChartTab {
     
     // Initialize event listeners for this tab's controls
     this.initializeControls();
+    
+    // Validate initial interval for the default 1Y timeframe
+    this.validateIntervalForTimeframe();
   }
   
   createTabElement() {
@@ -2848,7 +2852,7 @@ class ChartTab {
       this.timeframe = timeframeSelect.value;
       this.validateIntervalForTimeframe();
       if (this.ticker) {
-        this.loadChart();
+        this.loadChartWithOverlays();
       }
     });
     
@@ -2858,7 +2862,7 @@ class ChartTab {
       this.interval = intervalSelect.value;
       this.updateExtendedHoursVisibility();
       if (this.ticker) {
-        this.loadChart();
+        this.loadChartWithOverlays();
       }
     });
     
@@ -2873,7 +2877,7 @@ class ChartTab {
     extendedHoursToggle.addEventListener('change', () => {
       this.extendedHoursEnabled = extendedHoursToggle.checked;
       if (this.ticker) {
-        this.loadChart();
+        this.loadChartWithOverlays();
       }
     });
     
@@ -2906,6 +2910,17 @@ class ChartTab {
         });
       }
     });
+    
+    // Add Overlay button
+    const addOverlayBtn = content.querySelector('.chart-add-overlay-btn');
+    if (addOverlayBtn) {
+      addOverlayBtn.addEventListener('click', () => {
+        console.log('Add Overlay button clicked');
+        this.showOverlayDialog();
+      });
+    } else {
+      console.error('Add Overlay button not found in content');
+    }
   }
   
   validateIntervalForTimeframe() {
@@ -2985,7 +3000,7 @@ class ChartTab {
     }
   }
   
-  async loadChart() {
+  async loadChart(retryCount = 0) {
     if (!this.ticker) return;
     
     const content = this.contentElement;
@@ -2997,6 +3012,13 @@ class ChartTab {
     chartCanvas.innerHTML = '';
     loadingEl.style.display = 'block';
     emptyStateEl.style.display = 'none';
+    
+    // Update loading message if retrying
+    if (retryCount > 0) {
+      loadingEl.innerHTML = `<p>Loading chart data... (Retry ${retryCount}/3)</p>`;
+    } else {
+      loadingEl.innerHTML = `<p>Loading chart data...</p>`;
+    }
     
     try {
       const dateRange = this.getDateRange();
@@ -3022,7 +3044,65 @@ class ChartTab {
       
     } catch (error) {
       loadingEl.style.display = 'none';
-      chartCanvas.innerHTML = `<div style="text-align: center; padding: 40px; color: #ff4444;">${error.message}</div>`;
+      
+      // Check if it's a timeout error and retry up to 3 times
+      const isTimeoutError = error.message && (
+        error.message.includes('timeout') || 
+        error.message.includes('Timeout') ||
+        error.message.includes('fetch failed')
+      );
+      
+      if (isTimeoutError && retryCount < 3) {
+        console.log(`Retrying chart load (attempt ${retryCount + 1}/3)...`);
+        // Wait a bit before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return this.loadChart(retryCount + 1);
+      }
+      
+      // Show error message
+      const errorMsg = isTimeoutError 
+        ? 'Connection timeout. Please check your internet connection and try again.'
+        : error.message;
+      
+      chartCanvas.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #ff4444;">
+          <h3>Failed to load chart</h3>
+          <p style="color: #999; margin-top: 10px;">${errorMsg}</p>
+          <button onclick="getActiveChartTab()?.loadChart()" style="
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: var(--accent-blue);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+          ">Retry</button>
+        </div>
+      `;
+    }
+  }
+  
+  async loadChartWithOverlays() {
+    // Load main chart first
+    await this.loadChart();
+    
+    // If we have overlays, reload them with the new settings
+    if (this.overlays && this.overlays.length > 0) {
+      const overlayTickers = this.overlays.map(o => o.ticker);
+      
+      // Clear existing overlays
+      this.overlays = [];
+      const content = this.contentElement;
+      const overlaysContainer = content.querySelector('.chart-overlays-container');
+      const overlaysList = content.querySelector('.chart-overlays-list');
+      overlaysContainer.innerHTML = '';
+      overlaysList.style.display = 'none';
+      
+      // Reload each overlay with new settings
+      for (const ticker of overlayTickers) {
+        await this.addOverlay(ticker);
+      }
     }
   }
   
@@ -3094,7 +3174,42 @@ class ChartTab {
     const content = this.contentElement;
     const chartCanvas = content.querySelector('.chart-canvas');
     
-    // Prepare formatted data
+    // If timespan not provided, derive it from interval
+    if (!timespan) {
+      const { timespan: ts } = this.getTimespanParams();
+      timespan = ts;
+    }
+    
+    // Helper function to format dates consistently
+    // Uses the main bars array to determine multi-day logic
+    const formatDate = (timestamp) => {
+      const date = new Date(timestamp);
+      
+      if (timespan === 'month') {
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      } else if (timespan === 'week') {
+        return date.toLocaleDateString('en-US', { year: '2-digit', month: 'short', day: 'numeric' });
+      } else if (timespan === 'day') {
+        return date.toLocaleDateString('en-US', { year: '2-digit', month: 'short', day: 'numeric' });
+      } else if (timespan === 'hour') {
+        return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', hour12: true });
+      } else {
+        // Minute intervals - check if main data spans multiple days
+        const firstBar = bars[0];
+        const lastBar = bars[bars.length - 1];
+        const firstDate = new Date(firstBar.t);
+        const lastDate = new Date(lastBar.t);
+        const spanMultipleDays = firstDate.toDateString() !== lastDate.toDateString();
+        
+        if (spanMultipleDays) {
+          return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+        } else {
+          return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        }
+      }
+    };
+    
+    // Prepare formatted data for main ticker
     const dates = [];
     const open = [];
     const high = [];
@@ -3112,32 +3227,7 @@ class ChartTab {
     }
     
     bars.forEach((bar) => {
-      let dateLabel;
-      const date = new Date(bar.t);
-      
-      if (timespan === 'month') {
-        dateLabel = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-      } else if (timespan === 'week') {
-        dateLabel = date.toLocaleDateString('en-US', { year: '2-digit', month: 'short', day: 'numeric' });
-      } else if (timespan === 'day') {
-        dateLabel = date.toLocaleDateString('en-US', { year: '2-digit', month: 'short', day: 'numeric' });
-      } else if (timespan === 'hour') {
-        dateLabel = date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', hour12: true });
-      } else {
-        const firstBar = bars[0];
-        const lastBar = bars[bars.length - 1];
-        const firstDate = new Date(firstBar.t);
-        const lastDate = new Date(lastBar.t);
-        const spanMultipleDays = firstDate.toDateString() !== lastDate.toDateString();
-        
-        if (spanMultipleDays) {
-          dateLabel = date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
-        } else {
-          dateLabel = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        }
-      }
-      
-      dates.push(dateLabel);
+      dates.push(formatDate(bar.t));
       open.push(bar.o);
       high.push(bar.h);
       low.push(bar.l);
@@ -3267,7 +3357,104 @@ class ChartTab {
       mainTrace = candlestickTrace;
     }
     
-    Plotly.newPlot(chartCanvas, [mainTrace, volumeTrace], layout, config);
+    // Prepare traces array
+    const traces = [mainTrace, volumeTrace];
+    
+    // Add overlay traces
+    if (this.overlays && this.overlays.length > 0) {
+      // Show legend if we have overlays
+      layout.showlegend = true;
+      layout.legend = {
+        x: 0,
+        y: 1,
+        bgcolor: 'rgba(26, 26, 26, 0.8)',
+        bordercolor: '#444',
+        borderwidth: 1,
+        font: { color: '#e0e0e0', size: 11 }
+      };
+      
+      // Add name to main trace for legend
+      if (this.chartType === 'line') {
+        mainTrace.name = this.ticker;
+        mainTrace.showlegend = true;
+      } else {
+        mainTrace.name = this.ticker;
+        mainTrace.showlegend = true;
+      }
+      
+      // Add each overlay with the same chart type as main
+      this.overlays.forEach((overlay, overlayIndex) => {
+        const overlayDates = [];
+        const overlayOpen = [];
+        const overlayHigh = [];
+        const overlayLow = [];
+        const overlayClose = [];
+        
+        // Use the same date formatting function (references main bars for consistency)
+        overlay.data.forEach((bar) => {
+          overlayDates.push(formatDate(bar.t));
+          overlayOpen.push(bar.o);
+          overlayHigh.push(bar.h);
+          overlayLow.push(bar.l);
+          overlayClose.push(bar.c);
+        });
+        
+        let overlayTrace;
+        
+        if (this.chartType === 'line') {
+          // Line chart - use the assigned color
+          overlayTrace = {
+            type: 'scatter',
+            mode: 'lines',
+            x: overlayDates,
+            y: overlayClose,
+            name: overlay.ticker,
+            line: { color: overlay.color, width: 2 },
+            xaxis: 'x',
+            yaxis: 'y',
+            hovertemplate: '%{x}<br>' + overlay.ticker + ': $%{y:.2f}<extra></extra>',
+            showlegend: true
+          };
+        } else {
+          // Candlestick chart - lighten colors progressively
+          // Each overlay gets progressively lighter green/red
+          const lightenFactor = (overlayIndex + 1) * 0.15; // 15%, 30%, 45%, etc.
+          
+          // Lighten the base green (#00aa55) and red (#e74c3c)
+          const increasingColor = this.lightenColor('#00aa55', lightenFactor);
+          const decreasingColor = this.lightenColor('#e74c3c', lightenFactor);
+          
+          overlayTrace = {
+            type: 'candlestick',
+            x: overlayDates,
+            open: overlayOpen,
+            high: overlayHigh,
+            low: overlayLow,
+            close: overlayClose,
+            name: overlay.ticker,
+            increasing: { 
+              line: { color: increasingColor, width: 1 },
+              fillcolor: increasingColor
+            },
+            decreasing: { 
+              line: { color: decreasingColor, width: 1 },
+              fillcolor: decreasingColor
+            },
+            xaxis: 'x',
+            yaxis: 'y',
+            hoverinfo: 'text',
+            text: overlayDates.map((date, i) => 
+              `${overlay.ticker}<br>${date}<br>O: $${overlayOpen[i].toFixed(2)}<br>H: $${overlayHigh[i].toFixed(2)}<br>L: $${overlayLow[i].toFixed(2)}<br>C: $${overlayClose[i].toFixed(2)}`
+            ),
+            showlegend: true
+          };
+        }
+        
+        traces.push(overlayTrace);
+      });
+    }
+    
+    Plotly.newPlot(chartCanvas, traces, layout, config);
     
     // Hover positioning
     let isHovering = false;
@@ -3306,6 +3493,269 @@ class ChartTab {
         group.classList.remove('positioned');
       });
     });
+  }
+  
+  showOverlayDialog() {
+    console.log('showOverlayDialog called');
+    
+    // Create custom dialog
+    const content = this.contentElement;
+    const dialogHTML = `
+      <div class="overlay-dialog-backdrop" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      ">
+        <div class="overlay-dialog" style="
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 24px;
+          min-width: 400px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        ">
+          <h3 style="margin: 0 0 16px 0; color: var(--text-primary);">Add Overlay</h3>
+          <p style="margin: 0 0 16px 0; color: var(--text-secondary); font-size: 14px;">
+            Enter a ticker symbol to overlay on this chart
+          </p>
+          <input type="text" id="overlayTickerInput" placeholder="e.g., MSFT, GOOGL, TSLA" style="
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+          " />
+          <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="overlayDialogCancel" style="
+              padding: 10px 20px;
+              background: transparent;
+              border: 1px solid var(--border-color);
+              border-radius: 4px;
+              color: var(--text-primary);
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: 600;
+            ">Cancel</button>
+            <button id="overlayDialogAdd" style="
+              padding: 10px 20px;
+              background: var(--accent-blue);
+              border: none;
+              border-radius: 4px;
+              color: white;
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: 600;
+            ">Add Overlay</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Add dialog to page
+    const dialogContainer = document.createElement('div');
+    dialogContainer.innerHTML = dialogHTML;
+    document.body.appendChild(dialogContainer);
+    
+    const input = document.getElementById('overlayTickerInput');
+    const addBtn = document.getElementById('overlayDialogAdd');
+    const cancelBtn = document.getElementById('overlayDialogCancel');
+    const backdrop = dialogContainer.querySelector('.overlay-dialog-backdrop');
+    
+    // Focus input
+    setTimeout(() => input.focus(), 100);
+    
+    // Handle add
+    const handleAdd = async () => {
+      const ticker = input.value.trim().toUpperCase();
+      console.log('User entered ticker:', ticker);
+      
+      if (!ticker) {
+        input.style.borderColor = '#ff4444';
+        return;
+      }
+      
+      // Don't add if it's the main ticker
+      if (ticker === this.ticker) {
+        alert('This ticker is already the main chart');
+        return;
+      }
+      
+      // Don't add if already in overlays
+      if (this.overlays.some(o => o.ticker === ticker)) {
+        alert('This ticker is already overlaid');
+        return;
+      }
+      
+      // Close dialog
+      dialogContainer.remove();
+      
+      // Add overlay
+      await this.addOverlay(ticker);
+    };
+    
+    // Handle cancel
+    const handleCancel = () => {
+      console.log('Dialog cancelled');
+      dialogContainer.remove();
+    };
+    
+    // Event listeners
+    addBtn.addEventListener('click', handleAdd);
+    cancelBtn.addEventListener('click', handleCancel);
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) handleCancel();
+    });
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleAdd();
+      if (e.key === 'Escape') handleCancel();
+    });
+  }
+  
+  async addOverlay(ticker) {
+    const content = this.contentElement;
+    const overlaysList = content.querySelector('.chart-overlays-list');
+    const overlaysContainer = content.querySelector('.chart-overlays-container');
+    
+    // Show loading indicator
+    const loadingItem = document.createElement('div');
+    loadingItem.className = 'overlay-item overlay-loading';
+    loadingItem.innerHTML = `
+      <span class="overlay-ticker">${ticker}</span>
+      <span style="color: #666; font-size: 11px; margin-left: auto;">Loading...</span>
+    `;
+    overlaysContainer.appendChild(loadingItem);
+    overlaysList.style.display = 'block';
+    
+    try {
+      // Fetch data for overlay ticker with same date range
+      const dateRange = this.getDateRange();
+      const { timespan, multiplier } = this.getTimespanParams();
+      
+      const result = await window.electronAPI.polygonGetHistoricalBars({
+        ticker: ticker,
+        from: dateRange.from,
+        to: dateRange.to,
+        timespan,
+        multiplier,
+        includeExtendedHours: this.extendedHoursEnabled
+      });
+      
+      // Remove loading indicator
+      loadingItem.remove();
+      
+      if (!result.success || !result.bars || result.bars.length === 0) {
+        throw new Error('No data available for this ticker');
+      }
+      
+      // Generate a random color for this overlay
+      const color = this.getRandomColor();
+      
+      // Add to overlays array
+      this.overlays.push({
+        ticker: ticker,
+        data: result.bars,
+        color: color
+      });
+      
+      // Add to UI
+      const overlayItem = document.createElement('div');
+      overlayItem.className = 'overlay-item';
+      overlayItem.innerHTML = `
+        <span class="overlay-color-box" style="background-color: ${color};"></span>
+        <span class="overlay-ticker">${ticker}</span>
+        <button class="overlay-remove-btn" data-ticker="${ticker}">×</button>
+      `;
+      
+      overlayItem.querySelector('.overlay-remove-btn').addEventListener('click', () => {
+        this.removeOverlay(ticker);
+      });
+      
+      overlaysContainer.appendChild(overlayItem);
+      overlaysList.style.display = 'block';
+      
+      // Redraw chart with overlays
+      if (this.chartData) {
+        this.drawChart(this.chartData);
+      }
+      
+    } catch (error) {
+      // Remove loading indicator
+      loadingItem.remove();
+      
+      // Hide overlay list if no overlays
+      if (this.overlays.length === 0) {
+        overlaysList.style.display = 'none';
+      }
+      
+      alert(`Error adding overlay: ${error.message}`);
+    }
+  }
+  
+  removeOverlay(ticker) {
+    const content = this.contentElement;
+    const overlaysContainer = content.querySelector('.chart-overlays-container');
+    const overlaysList = content.querySelector('.chart-overlays-list');
+    
+    // Remove from array
+    this.overlays = this.overlays.filter(o => o.ticker !== ticker);
+    
+    // Remove from UI
+    const overlayItem = Array.from(overlaysContainer.children).find(
+      item => item.querySelector('.overlay-remove-btn').dataset.ticker === ticker
+    );
+    if (overlayItem) {
+      overlayItem.remove();
+    }
+    
+    // Hide list if no overlays
+    if (this.overlays.length === 0) {
+      overlaysList.style.display = 'none';
+    }
+    
+    // Redraw chart
+    if (this.chartData) {
+      this.drawChart(this.chartData);
+    }
+  }
+  
+  getRandomColor() {
+    const colors = [
+      '#ff6b6b', '#4ecdc4', '#45b7d1', '#feca57', '#ff9ff3',
+      '#54a0ff', '#48dbfb', '#00d2d3', '#1dd1a1', '#10ac84',
+      '#ee5a6f', '#c44569', '#f368e0', '#ff9ff3', '#a29bfe'
+    ];
+    return colors[Math.floor(Math.random() * colors.length)];
+  }
+  
+  lightenColor(color, factor) {
+    // Convert hex to RGB
+    const hex = color.replace('#', '');
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+    
+    // Lighten by moving towards white (255, 255, 255)
+    r = Math.min(255, Math.round(r + (255 - r) * factor));
+    g = Math.min(255, Math.round(g + (255 - g) * factor));
+    b = Math.min(255, Math.round(b + (255 - b) * factor));
+    
+    // Convert back to hex
+    return '#' + [r, g, b].map(x => {
+      const hex = x.toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
   }
 }
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trading Dashboard</title>
+  <title>BoomBerg</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://d3js.org/d3.v7.min.js"></script>
@@ -13,7 +13,7 @@
     <!-- Main Dashboard Navigation -->
     <nav class="main-nav">
       <div class="nav-brand">
-        <h1>Trading Dashboard</h1>
+        <h1>BoomBerg</h1>
       </div>
       <div class="nav-tabs">
         <button class="main-tab active" data-main-tab="home">Home</button>
@@ -298,6 +298,15 @@
                   <option value="line">Line</option>
                 </select>
               </div>
+              <div class="control-group">
+                <button class="chart-add-overlay-btn">+ Add Overlay</button>
+              </div>
+            </div>
+            <div class="chart-overlays-list" style="display: none;">
+              <div class="overlays-header">
+                <span>Overlays:</span>
+              </div>
+              <div class="chart-overlays-container"></div>
             </div>
             <div class="chart-display">
               <div class="chart-canvas"></div>
