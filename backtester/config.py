@@ -3,10 +3,11 @@
 # Legend: # ✅ implemented · # ⚠️ limited/conditional · # ⏳ not used
 
 #=========================MAIN=========================
-RUN_ID = "RegTestFrontend2"                     # ✅ name or "auto" for timestamp
+RUN_ID = "ForgotStaples"                     # ✅ name or "auto" for timestamp
 NOTES = "Testing strategy + buy/hold + benchmark"  # ✅ freeform string per run
-TICKERS = ["SPY","QQQ"]                 # ✅ list of symbols (just 2 for quick test)
+TICKERS = ["XLP"]                 # ✅ list of symbols (just 2 for quick test)
 # TICKERS = [
+#     "XLP",  # Consumer Staples Select Sector SPDR
 #     "XLF",  # Financial Select Sector SPDR
 #     "XLK",  # Technology Select Sector SPDR
 #     "XLE",  # Energy Select Sector SPDR

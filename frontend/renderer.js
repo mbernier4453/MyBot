@@ -123,6 +123,7 @@ async function selectDatabase() {
     setStatus('Database connected');
     loadRuns();
     loadFavorites(); // Load favorites when database is connected
+    loadWatchlistsForBacktest(); // Load watchlists for backtest config
   } else {
     setStatus(`Error: ${result.error}`, true);
   }
@@ -741,10 +742,11 @@ async function promptSavePortfolioAsStrategy(runId) {
     });
   }
   
-  // Clear previous input
-  nameInput.value = '';
+  // Pre-fill with suggested name (user can edit)
+  nameInput.value = `Strategy ${runId}`;
   modal.style.display = 'flex';
   nameInput.focus();
+  nameInput.select(); // Select the text so user can easily replace it
   
   // Handle save button
   const handleSave = async () => {
@@ -771,9 +773,55 @@ function closeSaveStrategyModal() {
   document.getElementById('saveStrategyModal').style.display = 'none';
 }
 
+// Open create folder modal from strategy save modal
+async function openCreateFolderModalFromStrategy() {
+  const folderModal = document.getElementById('createFolderModal');
+  const nameInput = document.getElementById('folderNameInput');
+  const confirmBtn = document.getElementById('confirmCreateFolderBtn');
+  
+  nameInput.value = '';
+  folderModal.style.display = 'flex';
+  nameInput.focus();
+  
+  const handleCreate = async () => {
+    const name = nameInput.value.trim();
+    if (name) {
+      folderModal.style.display = 'none';
+      const result = await window.electronAPI.createFolder(name);
+      if (result.success) {
+        // Refresh the folder dropdown in strategy modal
+        const foldersResult = await window.electronAPI.getFolders();
+        const folderSelect = document.getElementById('strategyFolderSelect');
+        folderSelect.innerHTML = '<option value="">Uncategorized</option>';
+        if (foldersResult.success && foldersResult.data.length > 0) {
+          foldersResult.data.forEach(folder => {
+            folderSelect.innerHTML += `<option value="${folder.id}">${folder.name}</option>`;
+          });
+          // Select the newly created folder
+          const newFolder = foldersResult.data.find(f => f.name === name);
+          if (newFolder) {
+            folderSelect.value = newFolder.id;
+          }
+        }
+        alert('Folder created successfully!');
+      } else {
+        alert('Failed to create folder: ' + result.error);
+      }
+    }
+  };
+  
+  confirmBtn.onclick = handleCreate;
+  nameInput.onkeypress = (e) => {
+    if (e.key === 'Enter') {
+      handleCreate();
+    }
+  };
+}
+
 // CRITICAL: Expose to window IMMEDIATELY so onclick handlers can find it
 window.promptSavePortfolioAsStrategy = promptSavePortfolioAsStrategy;
 window.closeSaveStrategyModal = closeSaveStrategyModal;
+window.openCreateFolderModalFromStrategy = openCreateFolderModalFromStrategy;
 console.log('[INIT] Exposed promptSavePortfolioAsStrategy:', typeof window.promptSavePortfolioAsStrategy);
 console.log('[INIT] Exposed closeSaveStrategyModal:', typeof window.closeSaveStrategyModal);
 
@@ -6242,8 +6290,9 @@ setTimeout(async () => {
     // Try to get favorites - if it works, database is connected
     const result = await window.electronAPI.getFavorites();
     if (result.success) {
-      console.log('[INIT] Database already connected, loading favorites...');
+      console.log('[INIT] Database already connected, loading favorites and watchlists...');
       await loadFavorites();
+      await loadWatchlistsForBacktest();
     } else {
       console.log('[INIT] No database connected yet');
     }
@@ -6251,6 +6300,821 @@ setTimeout(async () => {
     console.log('[INIT] No database connected:', error.message);
   }
 }, 500);
+
+// ========================================
+// Backtesting Configuration Functions
+// ========================================
+
+// State for config management
+let backtestConfigs = JSON.parse(localStorage.getItem('backtestConfigs') || '[]');
+let configFolders = JSON.parse(localStorage.getItem('configFolders') || '[{"id": 0, "name": "Uncategorized"}]');
+
+// Load watchlists for ticker selection (from localStorage like charting page)
+function loadWatchlistsForBacktest() {
+  try {
+    const stored = localStorage.getItem('watchlists');
+    let watchlists = [];
+    if (stored) {
+      try {
+        watchlists = JSON.parse(stored);
+      } catch (error) {
+        console.error('[BACKTEST] Error parsing watchlists:', error);
+        watchlists = [];
+      }
+    }
+    
+    const select = document.getElementById('tickerWatchlistSelect');
+    if (select) {
+      select.innerHTML = '<option value="">Select a watchlist...</option>';
+      watchlists.forEach((wl, index) => {
+        const option = document.createElement('option');
+        option.value = index; // Use array index as ID
+        const stockCount = wl.tickers ? wl.tickers.length : 0;
+        option.textContent = `${wl.name} (${stockCount} stocks)`;
+        option.dataset.tickers = JSON.stringify(wl.tickers || []);
+        select.appendChild(option);
+      });
+      console.log(`[BACKTEST] Loaded ${watchlists.length} watchlists from localStorage`);
+    }
+  } catch (e) {
+    console.error('[BACKTEST] Failed to load watchlists:', e);
+  }
+}
+
+// Toggle ticker source (manual vs watchlist)
+const tickerSourceRadios = document.querySelectorAll('input[name="tickerSource"]');
+tickerSourceRadios.forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    const manualInput = document.getElementById('manualTickersInput');
+    const watchlistInput = document.getElementById('watchlistTickersInput');
+    
+    if (e.target.value === 'manual') {
+      manualInput.style.display = 'block';
+      watchlistInput.style.display = 'none';
+    } else {
+      manualInput.style.display = 'none';
+      watchlistInput.style.display = 'block';
+    }
+  });
+});
+
+// Toggle portfolio source (tickers vs strategies)
+const portfolioSourceRadios = document.querySelectorAll('input[name="portfolioSource"]');
+portfolioSourceRadios.forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    const tickerWeights = document.getElementById('portfolioTickerWeights');
+    const strategyWeights = document.getElementById('portfolioStrategyWeights');
+    
+    if (e.target.value === 'tickers') {
+      tickerWeights.style.display = 'block';
+      strategyWeights.style.display = 'none';
+    } else {
+      tickerWeights.style.display = 'none';
+      strategyWeights.style.display = 'block';
+    }
+  });
+});
+
+// Initialize watchlists on page load
+setTimeout(() => {
+  loadWatchlistsForBacktest();
+}, 500);
+
+// Toggle section collapse/expand
+function toggleSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (section) {
+    section.classList.toggle('collapsed');
+    
+    // Update arrow direction
+    const header = section.previousElementSibling;
+    if (header) {
+      const h3 = header.querySelector('h3');
+      if (h3) {
+        h3.textContent = section.classList.contains('collapsed') 
+          ? h3.textContent.replace('▼', '▶') 
+          : h3.textContent.replace('▶', '▼');
+      }
+    }
+  }
+}
+window.toggleSection = toggleSection;
+
+// Portfolio mode toggle
+const portfolioModeCheckbox = document.getElementById('portfolioMode');
+if (portfolioModeCheckbox) {
+  portfolioModeCheckbox.addEventListener('change', (e) => {
+    const portfolioSettings = document.getElementById('portfolioSettings');
+    if (portfolioSettings) {
+      portfolioSettings.style.display = e.target.checked ? 'block' : 'none';
+    }
+  });
+}
+
+// Use param grid toggle
+const useParamGridCheckbox = document.getElementById('useParamGrid');
+if (useParamGridCheckbox) {
+  useParamGridCheckbox.addEventListener('change', (e) => {
+    const portfolioStrategies = document.getElementById('portfolioStrategies');
+    const portfolioParamGrid = document.getElementById('portfolioParamGrid');
+    
+    if (e.target.checked) {
+      portfolioStrategies.style.display = 'none';
+      portfolioParamGrid.style.display = 'block';
+    } else {
+      portfolioStrategies.style.display = 'block';
+      portfolioParamGrid.style.display = 'none';
+    }
+  });
+}
+
+// End date "Use Today" toggle
+const endDateTodayCheckbox = document.getElementById('endDateToday');
+const endDateInput = document.getElementById('endDate');
+if (endDateTodayCheckbox && endDateInput) {
+  endDateTodayCheckbox.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      endDateInput.value = '';
+      endDateInput.disabled = true;
+    } else {
+      endDateInput.disabled = false;
+      // Set to today's date when unchecked
+      const today = new Date().toISOString().split('T')[0];
+      endDateInput.value = today;
+    }
+  });
+  
+  // Initialize state
+  if (endDateTodayCheckbox.checked) {
+    endDateInput.value = '';
+    endDateInput.disabled = true;
+  }
+}
+
+// Auto-populate ticker weights from main config
+function autoPopulateTickerWeights() {
+  const list = document.getElementById('portfolioWeightsList');
+  
+  // Get tickers from main config
+  let tickers = [];
+  const tickerSource = document.querySelector('input[name="tickerSource"]:checked')?.value;
+  
+  if (tickerSource === 'watchlist') {
+    const selectEl = document.getElementById('tickerWatchlistSelect');
+    const selectedOption = selectEl?.options[selectEl.selectedIndex];
+    if (selectedOption && selectedOption.dataset.tickers) {
+      tickers = JSON.parse(selectedOption.dataset.tickers);
+    }
+  } else {
+    const tickersInput = document.getElementById('tickers')?.value || '';
+    tickers = tickersInput.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
+  }
+  
+  if (tickers.length === 0) {
+    alert('Please enter tickers in the Main Configuration section first, or select a watchlist.');
+    return;
+  }
+  
+  // Clear existing weights
+  list.innerHTML = '';
+  
+  // Add equal weights for each ticker
+  const equalWeight = (1.0 / tickers.length).toFixed(4);
+  tickers.forEach(ticker => {
+    const item = document.createElement('div');
+    item.className = 'weight-item';
+    item.innerHTML = `
+      <input type="text" placeholder="Ticker (e.g., AAPL)" class="weight-ticker" value="${ticker}" />
+      <input type="number" placeholder="Weight (e.g., 0.5)" class="weight-value" min="0" max="1" step="0.01" value="${equalWeight}" />
+      <button type="button" class="btn-sm danger" onclick="this.parentElement.remove()">Remove</button>
+    `;
+    list.appendChild(item);
+  });
+  
+  console.log(`[BACKTEST] Auto-populated ${tickers.length} tickers with equal weights`);
+}
+window.autoPopulateTickerWeights = autoPopulateTickerWeights;
+
+// Add portfolio weight
+function addPortfolioWeight() {
+  const list = document.getElementById('portfolioWeightsList');
+  const item = document.createElement('div');
+  item.className = 'weight-item';
+  item.innerHTML = `
+    <input type="text" placeholder="Ticker (e.g., AAPL)" class="weight-ticker" />
+    <input type="number" placeholder="Weight (e.g., 0.5)" class="weight-value" min="0" max="1" step="0.05" />
+    <button type="button" class="btn-sm danger" onclick="this.parentElement.remove()">Remove</button>
+  `;
+  list.appendChild(item);
+}
+window.addPortfolioWeight = addPortfolioWeight;
+
+// Add portfolio strategy from saved strategies (grouped by folder)
+async function addPortfolioStrategy() {
+  try {
+    // Check if API is available
+    if (!window.electronAPI || !window.electronAPI.getFavorites) {
+      alert('Saved strategies are not available yet. Please wait for the database to load.');
+      console.log('[BACKTEST] Favorites API not available yet');
+      return;
+    }
+    
+    const favResult = await window.electronAPI.getFavorites();
+    const favorites = favResult.success ? favResult.data : [];
+    if (!favorites || favorites.length === 0) {
+      alert('No saved strategies found. Save some strategies first from the Results page!');
+      return;
+    }
+    
+    const folderResult = await window.electronAPI.getFolders();
+    const folders = folderResult.success ? folderResult.data : [];
+    
+    const list = document.getElementById('portfolioStrategyList');
+    const item = document.createElement('div');
+    item.className = 'strategy-item';
+    
+    // Group favorites by folder
+    const folderMap = {};
+    folders.forEach(f => folderMap[f.id] = f.name);
+    folderMap[null] = 'Uncategorized';
+    folderMap[0] = 'Uncategorized';
+    
+    // Create dropdown with optgroups by folder
+    let optionsHTML = '<option value="">Select a saved strategy...</option>';
+    const favoritesByFolder = {};
+    favorites.forEach(fav => {
+      const folderId = fav.folder_id || 0;
+      if (!favoritesByFolder[folderId]) favoritesByFolder[folderId] = [];
+      favoritesByFolder[folderId].push(fav);
+    });
+    
+    // Add each folder as optgroup
+    Object.entries(favoritesByFolder).forEach(([folderId, favs]) => {
+      const folderName = folderMap[folderId] || 'Uncategorized';
+      optionsHTML += `<optgroup label="📁 ${folderName}">`;
+      favs.forEach(fav => {
+        const displayName = fav.is_portfolio 
+          ? `📊 ${fav.name} (Portfolio)` 
+          : `⭐ ${fav.name} (${fav.ticker || 'Unknown'})`;
+        optionsHTML += `<option value="${fav.id}">${displayName}</option>`;
+      });
+      optionsHTML += '</optgroup>';
+    });
+    
+    item.innerHTML = `
+      <select class="strategy-select form-input" style="flex: 2;">${optionsHTML}</select>
+      <input type="number" placeholder="Weight (e.g., 0.5)" class="strategy-weight" min="0" max="1" step="0.05" value="0.5" style="flex: 1;" />
+      <button type="button" class="btn-sm danger" onclick="this.parentElement.remove()">Remove</button>
+    `;
+    list.appendChild(item);
+    console.log('[BACKTEST] Added strategy selector with', favorites.length, 'strategies');
+  } catch (e) {
+    console.error('[BACKTEST] Failed to load saved strategies:', e);
+    alert('Failed to load saved strategies: ' + e.message);
+  }
+}
+window.addPortfolioStrategy = addPortfolioStrategy;
+
+// Add param grid entry
+function addPortfolioParamGrid() {
+  const list = document.getElementById('portfolioParamGridList');
+  const item = document.createElement('div');
+  item.className = 'param-grid-item';
+  item.innerHTML = `
+    <input type="text" placeholder="Ticker" class="param-grid-ticker" />
+    <input type="text" placeholder='[{"rsi_period": 14}, {"rsi_period": 20}]' class="param-grid-params" style="flex: 2;" />
+    <button type="button" class="btn-sm danger" onclick="this.parentElement.remove()">Remove</button>
+  `;
+  list.appendChild(item);
+}
+window.addPortfolioParamGrid = addPortfolioParamGrid;
+
+// Collect configuration from form
+function collectBacktestConfig() {
+  const config = {};
+  
+  // MAIN section
+  config.RUN_ID = document.getElementById('runId')?.value || 'auto';
+  config.NOTES = document.getElementById('notes')?.value || '';
+  
+  // Parse tickers - from manual input or watchlist
+  const tickerSource = document.querySelector('input[name="tickerSource"]:checked')?.value;
+  if (tickerSource === 'watchlist') {
+    const selectEl = document.getElementById('tickerWatchlistSelect');
+    const selectedOption = selectEl?.options[selectEl.selectedIndex];
+    if (selectedOption && selectedOption.dataset.tickers) {
+      const tickers = JSON.parse(selectedOption.dataset.tickers);
+      config.TICKERS = tickers.map(t => t.toUpperCase());
+      config.TICKER_SOURCE = 'watchlist';
+      config.TICKER_WATCHLIST_NAME = selectedOption.textContent;
+    } else {
+      alert('Please select a watchlist');
+      config.TICKERS = [];
+    }
+  } else {
+    const tickersInput = document.getElementById('tickers')?.value || '';
+    config.TICKER_SOURCE = 'manual';
+    config.TICKERS = tickersInput.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
+  }
+  
+  config.INITIAL_CAPITAL = parseFloat(document.getElementById('initialCapital')?.value || 100000);
+  config.TIMESCALE = document.getElementById('timescale')?.value || '1Day';
+  config.START = document.getElementById('startDate')?.value || '2000-01-01';
+  
+  // END date: null if "Use Today" is checked, otherwise use the date value
+  const endDateToday = document.getElementById('endDateToday')?.checked;
+  const endDateValue = document.getElementById('endDate')?.value;
+  config.END = endDateToday ? null : (endDateValue || null);
+  
+  config.BUY_HOLD_ENABLED = document.getElementById('buyHoldEnabled')?.checked || false;
+  config.BENCHMARK_ENABLED = document.getElementById('benchmarkEnabled')?.checked || false;
+  config.BENCHMARK_SYMBOL = document.getElementById('benchmarkSymbol')?.value || 'SPY';
+  config.RF_ANNUAL = parseFloat(document.getElementById('rfAnnual')?.value || 5.0);
+  config.PERIODS_PER_YEAR = parseInt(document.getElementById('periodsPerYear')?.value || 252);
+  
+  // PORTFOLIO section
+  config.PORTFOLIO_MODE = document.getElementById('portfolioMode')?.checked || false;
+  
+  if (config.PORTFOLIO_MODE) {
+    const portfolioSource = document.querySelector('input[name="portfolioSource"]:checked')?.value;
+    config.PORTFOLIO_SOURCE = portfolioSource;
+    
+    if (portfolioSource === 'strategies') {
+      // Load saved strategies with weights
+      config.PORTFOLIO_SAVED_STRATEGIES = [];
+      const strategyItems = document.querySelectorAll('#portfolioStrategyList .strategy-item');
+      strategyItems.forEach(item => {
+        const strategyId = item.querySelector('.strategy-select')?.value;
+        const weight = parseFloat(item.querySelector('.strategy-weight')?.value);
+        if (strategyId && !isNaN(weight)) {
+          config.PORTFOLIO_SAVED_STRATEGIES.push({
+            strategy_id: parseInt(strategyId),
+            weight: weight
+          });
+        }
+      });
+    } else {
+      // Ticker-based weights
+      config.PORTFOLIO_WEIGHTS = {};
+      const weightItems = document.querySelectorAll('#portfolioWeightsList .weight-item');
+      weightItems.forEach(item => {
+        const ticker = item.querySelector('.weight-ticker')?.value?.trim().toUpperCase();
+        const weight = parseFloat(item.querySelector('.weight-value')?.value);
+        if (ticker && !isNaN(weight) && weight > 0) {
+          config.PORTFOLIO_WEIGHTS[ticker] = weight;
+        }
+      });
+      
+      // Normalize weights to sum to 1.0
+      const weightSum = Object.values(config.PORTFOLIO_WEIGHTS).reduce((sum, w) => sum + w, 0);
+      if (weightSum > 0) {
+        // Normalize existing weights
+        for (const ticker in config.PORTFOLIO_WEIGHTS) {
+          config.PORTFOLIO_WEIGHTS[ticker] = config.PORTFOLIO_WEIGHTS[ticker] / weightSum;
+        }
+        console.log(`[BACKTEST] Normalized portfolio weights (original sum: ${weightSum.toFixed(4)})`);
+      } else if (config.TICKERS && config.TICKERS.length > 0) {
+        // No weights specified - use equal weighting for all tickers
+        const equalWeight = 1.0 / config.TICKERS.length;
+        config.TICKERS.forEach(ticker => {
+          config.PORTFOLIO_WEIGHTS[ticker] = equalWeight;
+        });
+        console.log(`[BACKTEST] No weights specified - applied equal weighting to ${config.TICKERS.length} tickers`);
+      }
+      
+      config.PORTFOLIO_USE_PARAM_GRID = document.getElementById('useParamGrid')?.checked || false;
+      
+      if (config.PORTFOLIO_USE_PARAM_GRID) {
+        // Collect param grid
+        config.PORTFOLIO_PARAM_GRID = {};
+        const gridItems = document.querySelectorAll('#portfolioParamGridList .param-grid-item');
+        gridItems.forEach(item => {
+          const ticker = item.querySelector('.param-grid-ticker')?.value;
+          const paramsStr = item.querySelector('.param-grid-params')?.value;
+          if (ticker && paramsStr) {
+            try {
+              config.PORTFOLIO_PARAM_GRID[ticker] = JSON.parse(paramsStr);
+            } catch (e) {
+              console.error(`Failed to parse param grid for ${ticker}:`, e);
+            }
+          }
+        });
+      } else {
+        // Collect strategies
+        config.PORTFOLIO_STRATEGIES = {};
+        const strategyItems = document.querySelectorAll('#portfolioStrategiesList .strategy-item');
+        strategyItems.forEach(item => {
+          const ticker = item.querySelector('.strategy-ticker')?.value;
+          const paramsStr = item.querySelector('.strategy-params')?.value;
+          if (ticker && paramsStr) {
+            try {
+              config.PORTFOLIO_STRATEGIES[ticker] = JSON.parse(paramsStr);
+            } catch (e) {
+              console.error(`Failed to parse strategy params for ${ticker}:`, e);
+            }
+          }
+        });
+      }
+    }
+    
+    config.PORTFOLIO_TARGET_UTILIZATION = parseFloat(document.getElementById('portfolioUtilization')?.value || 1.0);
+  }
+  
+  // ENTRY section (only implemented features)
+  config.TARGET_WEIGHT = parseFloat(document.getElementById('targetWeight')?.value || 0.95);
+  config.ENTRY_FEES_BPS = parseInt(document.getElementById('entryFees')?.value || 10);
+  config.SLIP_OPEN_BPS = parseInt(document.getElementById('slipOpen')?.value || 2);
+  
+  // EXIT section (only implemented features)
+  config.EXIT_FEES_BPS = parseInt(document.getElementById('exitFees')?.value || 10);
+  
+  // INDICATORS section
+  config.RSI_ENABLED = document.getElementById('rsiEnabled')?.checked || false;
+  
+  if (config.RSI_ENABLED) {
+    // Parse RSI periods (can be single value or comma-separated)
+    const rsiPeriodsStr = document.getElementById('rsiPeriods')?.value || '14';
+    config.RSI_PERIOD = rsiPeriodsStr.includes(',') 
+      ? rsiPeriodsStr.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v))
+      : [parseInt(rsiPeriodsStr)];
+    
+    // Parse RSI buy below
+    const rsiBuyBelowStr = document.getElementById('rsiBuyBelow')?.value || '30';
+    config.RSI_BUY_BELOW = rsiBuyBelowStr.includes(',')
+      ? rsiBuyBelowStr.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v))
+      : [parseInt(rsiBuyBelowStr)];
+    
+    // Parse RSI sell above
+    const rsiSellAboveStr = document.getElementById('rsiSellAbove')?.value || '70';
+    config.RSI_SELL_ABOVE = rsiSellAboveStr.includes(',')
+      ? rsiSellAboveStr.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v))
+      : [parseInt(rsiSellAboveStr)];
+  }
+  
+  // OUTPUTS section (only implemented features)
+  config.SAVE_METRICS = document.getElementById('saveMetrics')?.checked || false;
+  config.SAVE_DB = document.getElementById('saveDb')?.checked || false;
+  config.SAVE_TRADES = document.getElementById('saveTrades')?.checked || false;
+  
+  config.MAKE_CHARTS = document.getElementById('makeCharts')?.checked || false;
+  config.MAKE_TEARSHEETS = document.getElementById('makeTearsheets')?.checked || false;
+  
+  return config;
+}
+
+// Populate form from config object
+function populateBacktestConfig(config) {
+  // MAIN section
+  if (config.RUN_ID !== undefined) document.getElementById('runId').value = config.RUN_ID;
+  if (config.NOTES !== undefined) document.getElementById('notes').value = config.NOTES;
+  if (config.TICKERS !== undefined) document.getElementById('tickers').value = config.TICKERS.join(', ');
+  if (config.INITIAL_CAPITAL !== undefined) document.getElementById('initialCapital').value = config.INITIAL_CAPITAL;
+  if (config.START !== undefined) document.getElementById('startDate').value = config.START;
+  
+  // Handle END date and checkbox
+  const endDateInput = document.getElementById('endDate');
+  const endDateTodayCheckbox = document.getElementById('endDateToday');
+  if (config.END !== undefined) {
+    if (config.END === null) {
+      endDateTodayCheckbox.checked = true;
+      endDateInput.value = '';
+      endDateInput.disabled = true;
+    } else {
+      endDateTodayCheckbox.checked = false;
+      endDateInput.value = config.END;
+      endDateInput.disabled = false;
+    }
+  }
+  if (config.BUY_HOLD_ENABLED !== undefined) document.getElementById('buyHoldEnabled').checked = config.BUY_HOLD_ENABLED;
+  if (config.BENCHMARK_ENABLED !== undefined) document.getElementById('benchmarkEnabled').checked = config.BENCHMARK_ENABLED;
+  if (config.BENCHMARK_SYMBOL !== undefined) document.getElementById('benchmarkSymbol').value = config.BENCHMARK_SYMBOL;
+  if (config.RF_ANNUAL !== undefined) document.getElementById('rfAnnual').value = config.RF_ANNUAL;
+  if (config.PERIODS_PER_YEAR !== undefined) document.getElementById('periodsPerYear').value = config.PERIODS_PER_YEAR;
+  
+  // PORTFOLIO section
+  if (config.PORTFOLIO_MODE !== undefined) {
+    document.getElementById('portfolioMode').checked = config.PORTFOLIO_MODE;
+    document.getElementById('portfolioSettings').style.display = config.PORTFOLIO_MODE ? 'block' : 'none';
+  }
+  
+  if (config.PORTFOLIO_WEIGHTS !== undefined) {
+    const weightsList = document.getElementById('portfolioWeightsList');
+    weightsList.innerHTML = '';
+    for (const [ticker, weight] of Object.entries(config.PORTFOLIO_WEIGHTS)) {
+      const item = document.createElement('div');
+      item.className = 'weight-item';
+      item.innerHTML = `
+        <input type="text" placeholder="Ticker" class="weight-ticker" value="${ticker}" />
+        <input type="number" placeholder="Weight" class="weight-value" min="0" max="1" step="0.05" value="${weight}" />
+        <button type="button" class="btn-sm danger" onclick="this.parentElement.remove()">Remove</button>
+      `;
+      weightsList.appendChild(item);
+    }
+  }
+  
+  if (config.PORTFOLIO_TARGET_UTILIZATION !== undefined) document.getElementById('portfolioUtilization').value = config.PORTFOLIO_TARGET_UTILIZATION;
+  if (config.PORTFOLIO_USE_PARAM_GRID !== undefined) {
+    document.getElementById('useParamGrid').checked = config.PORTFOLIO_USE_PARAM_GRID;
+    document.getElementById('portfolioStrategies').style.display = config.PORTFOLIO_USE_PARAM_GRID ? 'none' : 'block';
+    document.getElementById('portfolioParamGrid').style.display = config.PORTFOLIO_USE_PARAM_GRID ? 'block' : 'none';
+  }
+  
+  // ENTRY section
+  if (config.TARGET_WEIGHT !== undefined) document.getElementById('targetWeight').value = config.TARGET_WEIGHT;
+  if (config.ENTRY_FEES_BPS !== undefined) document.getElementById('entryFees').value = config.ENTRY_FEES_BPS;
+  if (config.SLIP_OPEN_BPS !== undefined) document.getElementById('slipOpen').value = config.SLIP_OPEN_BPS;
+  
+  // EXIT section
+  if (config.EXIT_FEES_BPS !== undefined) document.getElementById('exitFees').value = config.EXIT_FEES_BPS;
+  
+  // INDICATORS section
+  if (config.RSI_ENABLED !== undefined) document.getElementById('rsiEnabled').checked = config.RSI_ENABLED;
+  if (config.RSI_PERIOD !== undefined) document.getElementById('rsiPeriods').value = Array.isArray(config.RSI_PERIOD) ? config.RSI_PERIOD.join(',') : config.RSI_PERIOD;
+  if (config.RSI_BUY_BELOW !== undefined) document.getElementById('rsiBuyBelow').value = Array.isArray(config.RSI_BUY_BELOW) ? config.RSI_BUY_BELOW.join(',') : config.RSI_BUY_BELOW;
+  if (config.RSI_SELL_ABOVE !== undefined) document.getElementById('rsiSellAbove').value = Array.isArray(config.RSI_SELL_ABOVE) ? config.RSI_SELL_ABOVE.join(',') : config.RSI_SELL_ABOVE;
+  
+  // OUTPUTS section
+  if (config.SAVE_METRICS !== undefined) document.getElementById('saveMetrics').checked = config.SAVE_METRICS;
+  if (config.SAVE_DB !== undefined) document.getElementById('saveDb').checked = config.SAVE_DB;
+  if (config.SAVE_TRADES !== undefined) document.getElementById('saveTrades').checked = config.SAVE_TRADES;
+  if (config.MAKE_CHARTS !== undefined) document.getElementById('makeCharts').checked = config.MAKE_CHARTS;
+  if (config.MAKE_TEARSHEETS !== undefined) document.getElementById('makeTearsheets').checked = config.MAKE_TEARSHEETS;
+}
+
+// Run backtest button handler
+const runBacktestBtn = document.getElementById('runBacktestBtn');
+if (runBacktestBtn) {
+  runBacktestBtn.addEventListener('click', () => {
+    console.log('[BACKTEST] Collecting configuration...');
+    const config = collectBacktestConfig();
+    
+    console.log('[BACKTEST] Configuration collected:');
+    console.log('='.repeat(80));
+    console.log('RUN_ID:', config.RUN_ID);
+    console.log('NOTES:', config.NOTES);
+    console.log('TICKERS:', config.TICKERS);
+    console.log('INITIAL_CAPITAL:', config.INITIAL_CAPITAL);
+    console.log('TIMESCALE:', config.TIMESCALE);
+    console.log('START:', config.START);
+    console.log('END:', config.END);
+    console.log('BUY_HOLD_ENABLED:', config.BUY_HOLD_ENABLED);
+    console.log('BENCHMARK_ENABLED:', config.BENCHMARK_ENABLED);
+    console.log('BENCHMARK_SYMBOL:', config.BENCHMARK_SYMBOL);
+    console.log('RF_ANNUAL:', config.RF_ANNUAL);
+    console.log('PERIODS_PER_YEAR:', config.PERIODS_PER_YEAR);
+    console.log('PORTFOLIO_MODE:', config.PORTFOLIO_MODE);
+    
+    if (config.PORTFOLIO_MODE) {
+      console.log('PORTFOLIO_WEIGHTS:', config.PORTFOLIO_WEIGHTS);
+      console.log('PORTFOLIO_TARGET_UTILIZATION:', config.PORTFOLIO_TARGET_UTILIZATION);
+      console.log('PORTFOLIO_USE_PARAM_GRID:', config.PORTFOLIO_USE_PARAM_GRID);
+      
+      if (config.PORTFOLIO_USE_PARAM_GRID) {
+        console.log('PORTFOLIO_PARAM_GRID:', config.PORTFOLIO_PARAM_GRID);
+      } else {
+        console.log('PORTFOLIO_STRATEGIES:', config.PORTFOLIO_STRATEGIES);
+      }
+    }
+    
+    console.log('TARGET_WEIGHT:', config.TARGET_WEIGHT);
+    console.log('ENTRY_FEES_BPS:', config.ENTRY_FEES_BPS);
+    console.log('SLIP_OPEN_BPS:', config.SLIP_OPEN_BPS);
+    
+    console.log('EXIT_FEES_BPS:', config.EXIT_FEES_BPS);
+    
+    console.log('RSI_ENABLED:', config.RSI_ENABLED);
+    if (config.RSI_ENABLED) {
+      console.log('RSI_PERIOD:', config.RSI_PERIOD);
+      console.log('RSI_BUY_BELOW:', config.RSI_BUY_BELOW);
+      console.log('RSI_SELL_ABOVE:', config.RSI_SELL_ABOVE);
+    }
+    
+    console.log('SAVE_METRICS:', config.SAVE_METRICS);
+    console.log('SAVE_DB:', config.SAVE_DB);
+    console.log('SAVE_TRADES:', config.SAVE_TRADES);
+    console.log('MAKE_CHARTS:', config.MAKE_CHARTS);
+    console.log('MAKE_TEARSHEETS:', config.MAKE_TEARSHEETS);
+    console.log('='.repeat(80));
+    
+    // TODO: Send to backend when ready
+    console.log('[BACKTEST] Ready to send to backend (not implemented yet)');
+  });
+}
+
+// ========================================
+// Config Management (Folders & Save/Load)
+// ========================================
+
+// Save Config Modal
+function openSaveConfigModal() {
+  const modal = document.getElementById('saveConfigModal');
+  const folderSelect = document.getElementById('configFolderSelect');
+  
+  // Populate folder dropdown
+  folderSelect.innerHTML = '<option value="">Uncategorized</option>';
+  configFolders.forEach(folder => {
+    if (folder.id !== 0) { // Skip Uncategorized as it's already added
+      const option = document.createElement('option');
+      option.value = folder.id;
+      option.textContent = folder.name;
+      folderSelect.appendChild(option);
+    }
+  });
+  
+  modal.style.display = 'flex';
+  document.getElementById('configNameInput').focus();
+}
+
+function closeSaveConfigModal() {
+  document.getElementById('saveConfigModal').style.display = 'none';
+  document.getElementById('configNameInput').value = '';
+}
+window.closeSaveConfigModal = closeSaveConfigModal;
+
+// Save config
+const saveConfigBtn = document.getElementById('saveConfigBtn');
+if (saveConfigBtn) {
+  saveConfigBtn.addEventListener('click', openSaveConfigModal);
+}
+
+const confirmSaveConfigBtn = document.getElementById('confirmSaveConfigBtn');
+if (confirmSaveConfigBtn) {
+  confirmSaveConfigBtn.addEventListener('click', () => {
+    let name = document.getElementById('configNameInput').value.trim();
+    
+    // Auto-generate name if empty
+    if (!name) {
+      const timestamp = new Date().toLocaleString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      name = `Config ${timestamp}`;
+    }
+    
+    const folderId = parseInt(document.getElementById('configFolderSelect').value || '0');
+    const config = collectBacktestConfig();
+    
+    const newConfig = {
+      id: Date.now(),
+      name: name,
+      folder_id: folderId,
+      config: config,
+      saved_at: new Date().toISOString()
+    };
+    
+    backtestConfigs.push(newConfig);
+    localStorage.setItem('backtestConfigs', JSON.stringify(backtestConfigs));
+    
+    console.log('[CONFIG] Configuration saved:', name);
+    closeSaveConfigModal();
+    alert('Configuration saved successfully!');
+  });
+}
+
+// Load Config Modal
+function openLoadConfigModal() {
+  const modal = document.getElementById('loadConfigModal');
+  const container = document.getElementById('configListContainer');
+  
+  // Build config list with folders
+  container.innerHTML = '';
+  
+  // Group configs by folder
+  const configsByFolder = {};
+  configFolders.forEach(folder => {
+    configsByFolder[folder.id] = {
+      folder: folder,
+      configs: backtestConfigs.filter(c => c.folder_id === folder.id)
+    };
+  });
+  
+  // Render folders and configs
+  Object.values(configsByFolder).forEach(({folder, configs}) => {
+    if (configs.length > 0) {
+      const folderDiv = document.createElement('div');
+      folderDiv.className = 'config-folder-group';
+      folderDiv.innerHTML = `
+        <div class="config-folder-header">
+          <span class="folder-icon">📁</span>
+          <span class="folder-name">${folder.name}</span>
+          <span class="folder-count">${configs.length}</span>
+        </div>
+        <div class="config-folder-items"></div>
+      `;
+      
+      const itemsContainer = folderDiv.querySelector('.config-folder-items');
+      configs.forEach(cfg => {
+        const item = document.createElement('div');
+        item.className = 'config-item';
+        const savedDate = new Date(cfg.saved_at).toLocaleDateString();
+        item.innerHTML = `
+          <div class="config-item-info">
+            <div class="config-item-name">${cfg.name}</div>
+            <div class="config-item-date">Saved: ${savedDate}</div>
+          </div>
+          <div class="config-item-actions">
+            <button class="btn-sm" onclick="loadConfigById(${cfg.id})">Load</button>
+            <button class="btn-sm danger" onclick="deleteConfigById(${cfg.id})">Delete</button>
+          </div>
+        `;
+        itemsContainer.appendChild(item);
+      });
+      
+      container.appendChild(folderDiv);
+    }
+  });
+  
+  if (backtestConfigs.length === 0) {
+    container.innerHTML = '<div class="empty-state-small">No saved configurations yet</div>';
+  }
+  
+  modal.style.display = 'flex';
+}
+
+function closeLoadConfigModal() {
+  document.getElementById('loadConfigModal').style.display = 'none';
+}
+window.closeLoadConfigModal = closeLoadConfigModal;
+
+// Load config
+const loadConfigBtn = document.getElementById('loadConfigBtn');
+if (loadConfigBtn) {
+  loadConfigBtn.addEventListener('click', openLoadConfigModal);
+}
+
+window.loadConfigById = function(id) {
+  const config = backtestConfigs.find(c => c.id === id);
+  if (config) {
+    populateBacktestConfig(config.config);
+    closeLoadConfigModal();
+    console.log('[CONFIG] Configuration loaded:', config.name);
+  }
+};
+
+window.deleteConfigById = function(id) {
+  if (confirm('Delete this configuration?')) {
+    backtestConfigs = backtestConfigs.filter(c => c.id !== id);
+    localStorage.setItem('backtestConfigs', JSON.stringify(backtestConfigs));
+    openLoadConfigModal(); // Refresh list
+  }
+};
+
+// Create Config Folder Modal
+function openCreateConfigFolderModal() {
+  document.getElementById('createConfigFolderModal').style.display = 'flex';
+  document.getElementById('configFolderNameInput').focus();
+}
+window.openCreateConfigFolderModal = openCreateConfigFolderModal;
+
+function closeCreateConfigFolderModal() {
+  document.getElementById('createConfigFolderModal').style.display = 'none';
+  document.getElementById('configFolderNameInput').value = '';
+}
+window.closeCreateConfigFolderModal = closeCreateConfigFolderModal;
+
+const confirmCreateConfigFolderBtn = document.getElementById('confirmCreateConfigFolderBtn');
+if (confirmCreateConfigFolderBtn) {
+  confirmCreateConfigFolderBtn.addEventListener('click', () => {
+    const name = document.getElementById('configFolderNameInput').value.trim();
+    if (!name) {
+      alert('Please enter a folder name');
+      return;
+    }
+    
+    const newFolder = {
+      id: Date.now(),
+      name: name
+    };
+    
+    configFolders.push(newFolder);
+    localStorage.setItem('configFolders', JSON.stringify(configFolders));
+    
+    console.log('[CONFIG] Folder created:', name);
+    closeCreateConfigFolderModal();
+    
+    // Refresh the folder dropdown in save modal if it's open
+    const saveModal = document.getElementById('saveConfigModal');
+    if (saveModal && saveModal.style.display === 'flex') {
+      const folderSelect = document.getElementById('configFolderSelect');
+      folderSelect.innerHTML = '<option value="">Uncategorized</option>';
+      configFolders.forEach(folder => {
+        if (folder.id !== 0) {
+          const option = document.createElement('option');
+          option.value = folder.id;
+          option.textContent = folder.name;
+          folderSelect.appendChild(option);
+        }
+      });
+      // Select the newly created folder
+      folderSelect.value = newFolder.id;
+    }
+    
+    alert('Folder created successfully!');
+  });
+}
 
 // Make ALL functions globally accessible for onclick handlers
 // MUST be at end of file after all functions are defined

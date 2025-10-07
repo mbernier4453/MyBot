@@ -2687,3 +2687,431 @@ textarea.form-input {
     min-height: 500px;
   }
 }
+
+/* Backtesting Configuration Styles */
+.backtest-config-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.config-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.config-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.config-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 15px;
+  overflow: hidden;
+}
+
+.section-header {
+  padding: 15px 20px;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.section-header:hover {
+  background: var(--bg-hover);
+}
+
+.section-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.section-content {
+  padding: 20px;
+  display: block;
+}
+
+.section-content.collapsed {
+  display: none;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="date"],
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.form-group small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: auto;
+  cursor: pointer;
+}
+
+.not-implemented {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: normal;
+}
+
+/* Portfolio weight/strategy builder */
+#portfolioWeightsList,
+#portfolioStrategiesList,
+#portfolioParamGridList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.weight-item,
+.strategy-item,
+.param-grid-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.weight-item input,
+.strategy-item input,
+.param-grid-item input {
+  flex: 1;
+}
+
+.weight-item .btn-sm,
+.strategy-item .btn-sm,
+.param-grid-item .btn-sm {
+  flex-shrink: 0;
+}
+
+/* Button styles for form */
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-sm:hover {
+  background: var(--bg-hover);
+}
+
+.btn-sm.danger {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.btn-sm.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Multi-select styling */
+select[multiple] {
+  padding: 4px;
+}
+
+select[multiple] option {
+  padding: 4px 8px;
+  margin: 2px 0;
+  border-radius: 2px;
+}
+
+select[multiple] option:checked {
+  background: var(--accent-color);
+  color: white;
+}
+
+/* Disabled input styling */
+.form-group input:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .config-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+  }
+  
+  .config-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  
+  .config-actions button {
+    width: 100%;
+  }
+}
+
+/* Config folder management */
+.config-folder-group {
+  margin-bottom: 20px;
+}
+
+.config-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-bg-secondary);
+  border-radius: 4px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.folder-icon {
+  font-size: 16px;
+}
+
+.folder-name {
+  flex-grow: 1;
+}
+
+.folder-count {
+  background: var(--color-bg-tertiary);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.config-folder-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 24px;
+}
+
+.config-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.config-item:hover {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-primary);
+}
+
+.config-item-info {
+  flex-grow: 1;
+}
+
+.config-item-name {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.config-item-date {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.config-item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.empty-state-small {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* Modal styling */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 10000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  justify-content: center;
+  align-items: center;
+}
+
+/* Modal content for config/folder modals (NOT tearsheets) */
+#saveConfigModal .modal-content,
+#loadConfigModal .modal-content,
+#createConfigFolderModal .modal-content,
+#saveStrategyModal .modal-content,
+#createFolderModal .modal-content,
+#deleteFolderModal .modal-content,
+#moveToFolderModal .modal-content {
+  background: var(--color-bg-primary);
+  padding: 24px;
+  border-radius: 8px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Modal headers for small modals */
+#saveConfigModal .modal-header,
+#loadConfigModal .modal-header,
+#createConfigFolderModal .modal-header,
+#saveStrategyModal .modal-header,
+#createFolderModal .modal-header,
+#deleteFolderModal .modal-header,
+#moveToFolderModal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+#saveConfigModal .modal-header h3,
+#loadConfigModal .modal-header h3,
+#createConfigFolderModal .modal-header h3,
+#saveStrategyModal .modal-header h3,
+#createFolderModal .modal-header h3,
+#deleteFolderModal .modal-header h3,
+#moveToFolderModal .modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+#saveConfigModal .modal-body,
+#loadConfigModal .modal-body,
+#createConfigFolderModal .modal-body,
+#saveStrategyModal .modal-body,
+#createFolderModal .modal-body,
+#deleteFolderModal .modal-body,
+#moveToFolderModal .modal-body {
+  margin-bottom: 20px;
+}
+
+#saveConfigModal .modal-footer,
+#loadConfigModal .modal-footer,
+#createConfigFolderModal .modal-footer,
+#saveStrategyModal .modal-footer,
+#createFolderModal .modal-footer,
+#deleteFolderModal .modal-footer,
+#moveToFolderModal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Responsive modal adjustments */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+    max-height: 90vh;
+    padding: 16px;
+  }
+  
+  .config-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .config-item-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

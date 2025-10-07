@@ -465,6 +465,17 @@ ipcMain.handle('select-db', async () => {
         )
       `);
       
+      // Create watchlists table for ticker groups
+      db.run(`
+        CREATE TABLE IF NOT EXISTS watchlists (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          tickers_json TEXT NOT NULL,
+          created_at REAL DEFAULT (julianday('now')),
+          notes TEXT
+        )
+      `);
+      
       saveDatabase();
       
       return { success: true, path: result.filePaths[0] };
@@ -1308,6 +1319,61 @@ ipcMain.handle('move-to-folder', async (event, favoriteId, folderId) => {
     return { success: true };
   } catch (error) {
     console.error('[BACKEND] Error moving to folder:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Watchlist operations
+ipcMain.handle('get-watchlists', async () => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    const stmt = db.prepare('SELECT * FROM watchlists ORDER BY created_at DESC');
+    const watchlists = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      if (row.tickers_json) {
+        row.tickers = JSON.parse(row.tickers_json);
+        row.stock_count = row.tickers.length;
+      }
+      watchlists.push(row);
+    }
+    stmt.free();
+    return { success: true, watchlists };
+  } catch (error) {
+    console.error('[BACKEND] Error getting watchlists:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('create-watchlist', async (event, name, tickers, notes) => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    const stmt = db.prepare('INSERT INTO watchlists (name, tickers_json, notes) VALUES (?, ?, ?)');
+    stmt.run([name, JSON.stringify(tickers), notes || null]);
+    stmt.free();
+    
+    saveDatabase();
+    return { success: true };
+  } catch (error) {
+    console.error('[BACKEND] Error creating watchlist:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-watchlist', async (event, id) => {
+  if (!db) return { success: false, error: 'No database connected' };
+  
+  try {
+    const stmt = db.prepare('DELETE FROM watchlists WHERE id = ?');
+    stmt.run([id]);
+    stmt.free();
+    
+    saveDatabase();
+    return { success: true };
+  } catch (error) {
+    console.error('[BACKEND] Error deleting watchlist:', error);
     return { success: false, error: error.message };
   }
 });

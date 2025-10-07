@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteFolder: (id) => ipcRenderer.invoke('delete-folder', id),
   moveToFolder: (favoriteId, folderId) => ipcRenderer.invoke('move-to-folder', favoriteId, folderId),
   
+  // Watchlists
+  getWatchlists: () => ipcRenderer.invoke('get-watchlists'),
+  createWatchlist: (name, tickers, notes) => ipcRenderer.invoke('create-watchlist', name, tickers, notes),
+  deleteWatchlist: (id) => ipcRenderer.invoke('delete-watchlist', id),
+  
   // Polygon API
   polygonConnect: () => ipcRenderer.invoke('polygon-connect'),
   polygonDisconnect: () => ipcRenderer.invoke('polygon-disconnect'),
