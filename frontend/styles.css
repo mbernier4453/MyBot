@@ -43,6 +43,7 @@ body {
   align-items: center;
   padding: 0 20px;
   height: 60px;
+  position: relative;
 }
 
 .nav-brand h1 {
@@ -73,7 +74,7 @@ body {
 
 .main-tab:hover {
   color: var(--text-primary);
-  background-color: rgba(0, 170, 85, 0.1);
+  background-color: color-mix(in srgb, var(--accent-blue) 10%, transparent);
 }
 
 .main-tab.active {
@@ -161,11 +162,11 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #0a0a0a;
+  background: var(--bg-primary);
   padding: 12px 20px;
   margin: 0 15px 10px 15px;
   border-radius: 8px;
-  border: 1px solid #1a1a1a;
+  border: 1px solid var(--bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -177,8 +178,8 @@ body {
 
 .control-select {
   margin-left: 8px;
-  background: #1a1a1a;
-  color: #e0e0e0;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   border: 1px solid #444;
   padding: 6px 12px;
   border-radius: 4px;
@@ -189,7 +190,7 @@ body {
 
 .control-select:hover {
   border-color: #666;
-  background: #222;
+  background: var(--bg-secondary);
 }
 
 .control-select:focus {
@@ -989,12 +990,12 @@ textarea.form-input {
 }
 
 .run-mode.portfolio {
-  background-color: rgba(78, 201, 176, 0.2);
+  background-color: color-mix(in srgb, var(--accent-green) 20%, transparent);
   color: var(--accent-green);
 }
 
 .run-mode.single {
-  background-color: rgba(220, 220, 170, 0.2);
+  background-color: color-mix(in srgb, var(--accent-yellow) 20%, transparent);
   color: var(--accent-yellow);
 }
 
@@ -1194,7 +1195,7 @@ textarea.form-input {
 
 .sortable-header:hover {
   color: var(--accent-green);
-  background-color: rgba(78, 201, 176, 0.1);
+  background-color: color-mix(in srgb, var(--accent-green) 10%, transparent);
 }
 
 .data-table td {
@@ -2943,7 +2944,7 @@ select[multiple] option:checked {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--color-bg-secondary);
+  background: var(--bg-secondary);
   border-radius: 4px;
   font-weight: 500;
   margin-bottom: 8px;
@@ -2958,7 +2959,7 @@ select[multiple] option:checked {
 }
 
 .folder-count {
-  background: var(--color-bg-tertiary);
+  background: var(--bg-tertiary);
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 12px;
@@ -2976,15 +2977,15 @@ select[multiple] option:checked {
   justify-content: space-between;
   align-items: center;
   padding: 12px;
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   transition: all 0.2s;
 }
 
 .config-item:hover {
-  background: var(--color-bg-tertiary);
-  border-color: var(--color-primary);
+  background: var(--bg-tertiary);
+  border-color: var(--accent-blue);
 }
 
 .config-item-info {
@@ -2998,7 +2999,7 @@ select[multiple] option:checked {
 
 .config-item-date {
   font-size: 12px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 .config-item-actions {
@@ -3009,7 +3010,7 @@ select[multiple] option:checked {
 .empty-state-small {
   text-align: center;
   padding: 40px 20px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   font-style: italic;
 }
 
@@ -3058,7 +3059,7 @@ select[multiple] option:checked {
   align-items: center;
   margin-bottom: 20px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 #saveConfigModal .modal-header h3,
@@ -3093,10 +3094,163 @@ select[multiple] option:checked {
   justify-content: flex-end;
   gap: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border-color);
 }
 
 /* Responsive modal adjustments */
+/* Settings Button */
+.settings-btn {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s;
+  opacity: 0.7;
+}
+
+.settings-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-50%) rotate(90deg);
+}
+
+/* Settings Modal */
+#settingsModal .modal-content {
+  max-width: 700px;
+  background: var(--bg-primary);
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+.settings-tab {
+  background: none;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.settings-tab:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.settings-tab.active {
+  background: var(--bg-secondary);
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+.settings-tab-content {
+  display: none;
+}
+
+.settings-tab-content.active {
+  display: block;
+}
+
+/* Color Settings */
+.color-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.color-setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.color-setting-item label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.color-input-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-picker {
+  width: 50px;
+  height: 35px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.color-text {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 13px;
+}
+
+/* Shortcuts */
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.shortcut-group h5 {
+  margin: 0 0 12px 0;
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.shortcut-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.shortcut-item:last-child {
+  border-bottom: none;
+}
+
+.shortcut-desc {
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+
+kbd {
+  display: inline-block;
+  padding: 4px 8px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--color-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
 @media (max-width: 768px) {
   .modal-content {
     width: 95%;

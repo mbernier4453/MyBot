@@ -24,6 +24,7 @@
         <button class="main-tab" data-main-tab="backtesting">Backtesting</button>
         <button class="main-tab" data-main-tab="results">Results</button>
       </div>
+      <button class="settings-btn" onclick="openSettings()" title="Settings (Ctrl+,)">⚙️</button>
     </nav>
 
     <!-- Main Page Content -->
@@ -1138,6 +1139,208 @@
       <div class="modal-footer">
         <button class="btn" onclick="closeCreateConfigFolderModal()">Cancel</button>
         <button id="confirmCreateConfigFolderBtn" class="btn btn-primary">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3>⚙️ Settings</h3>
+        <button class="modal-close" onclick="closeSettings()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Settings Tabs -->
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="colors" onclick="switchSettingsTab('colors')">🎨 Colors</button>
+          <button class="settings-tab" data-tab="shortcuts" onclick="switchSettingsTab('shortcuts')">⌨️ Shortcuts</button>
+        </div>
+
+        <!-- Colors Tab -->
+        <div id="colorsTab" class="settings-tab-content active">
+          <h4 style="margin-bottom: 15px;">Theme Colors</h4>
+          <p style="color: var(--color-text-secondary); font-size: 13px; margin-bottom: 20px;">
+            Customize the application colors. Changes apply immediately.
+          </p>
+          
+          <div class="color-settings">
+            <div class="color-setting-item">
+              <label>Background 1</label>
+              <div class="color-input-group">
+                <input type="color" id="colorBgPrimary" class="color-picker" onchange="updateColor('bg-primary')" />
+                <input type="text" id="colorBgPrimaryText" class="color-text" onchange="updateColorFromHex('bg-primary')" />
+                <button class="btn-sm" onclick="resetColor('bg-primary')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Background 2</label>
+              <div class="color-input-group">
+                <input type="color" id="colorBgSecondary" class="color-picker" onchange="updateColor('bg-secondary')" />
+                <input type="text" id="colorBgSecondaryText" class="color-text" onchange="updateColorFromHex('bg-secondary')" />
+                <button class="btn-sm" onclick="resetColor('bg-secondary')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Background 3</label>
+              <div class="color-input-group">
+                <input type="color" id="colorBgTertiary" class="color-picker" onchange="updateColor('bg-tertiary')" />
+                <input type="text" id="colorBgTertiaryText" class="color-text" onchange="updateColorFromHex('bg-tertiary')" />
+                <button class="btn-sm" onclick="resetColor('bg-tertiary')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Background Hover</label>
+              <div class="color-input-group">
+                <input type="color" id="colorBgHover" class="color-picker" onchange="updateColor('bg-hover')" />
+                <input type="text" id="colorBgHoverText" class="color-text" onchange="updateColorFromHex('bg-hover')" />
+                <button class="btn-sm" onclick="resetColor('bg-hover')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Borders</label>
+              <div class="color-input-group">
+                <input type="color" id="colorBorderColor" class="color-picker" onchange="updateColor('border-color')" />
+                <input type="text" id="colorBorderColorText" class="color-text" onchange="updateColorFromHex('border-color')" />
+                <button class="btn-sm" onclick="resetColor('border-color')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Text 1</label>
+              <div class="color-input-group">
+                <input type="color" id="colorTextPrimary" class="color-picker" onchange="updateColor('text-primary')" />
+                <input type="text" id="colorTextPrimaryText" class="color-text" onchange="updateColorFromHex('text-primary')" />
+                <button class="btn-sm" onclick="resetColor('text-primary')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Text 2</label>
+              <div class="color-input-group">
+                <input type="color" id="colorTextSecondary" class="color-picker" onchange="updateColor('text-secondary')" />
+                <input type="text" id="colorTextSecondaryText" class="color-text" onchange="updateColorFromHex('text-secondary')" />
+                <button class="btn-sm" onclick="resetColor('text-secondary')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Accent 1</label>
+              <div class="color-input-group">
+                <input type="color" id="colorAccentBlue" class="color-picker" onchange="updateColor('accent-blue')" />
+                <input type="text" id="colorAccentBlueText" class="color-text" onchange="updateColorFromHex('accent-blue')" />
+                <button class="btn-sm" onclick="resetColor('accent-blue')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Accent 2</label>
+              <div class="color-input-group">
+                <input type="color" id="colorAccentGreen" class="color-picker" onchange="updateColor('accent-green')" />
+                <input type="text" id="colorAccentGreenText" class="color-text" onchange="updateColorFromHex('accent-green')" />
+                <button class="btn-sm" onclick="resetColor('accent-green')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Accent 3</label>
+              <div class="color-input-group">
+                <input type="color" id="colorAccentYellow" class="color-picker" onchange="updateColor('accent-yellow')" />
+                <input type="text" id="colorAccentYellowText" class="color-text" onchange="updateColorFromHex('accent-yellow')" />
+                <button class="btn-sm" onclick="resetColor('accent-yellow')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Positive</label>
+              <div class="color-input-group">
+                <input type="color" id="colorPositive" class="color-picker" onchange="updateColor('positive')" />
+                <input type="text" id="colorPositiveText" class="color-text" onchange="updateColorFromHex('positive')" />
+                <button class="btn-sm" onclick="resetColor('positive')">Reset</button>
+              </div>
+            </div>
+
+            <div class="color-setting-item">
+              <label>Negative</label>
+              <div class="color-input-group">
+                <input type="color" id="colorNegative" class="color-picker" onchange="updateColor('negative')" />
+                <input type="text" id="colorNegativeText" class="color-text" onchange="updateColorFromHex('negative')" />
+                <button class="btn-sm" onclick="resetColor('negative')">Reset</button>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn" onclick="resetAllColors()" style="margin-top: 20px;">Reset All Colors</button>
+        </div>
+
+        <!-- Shortcuts Tab -->
+        <div id="shortcutsTab" class="settings-tab-content">
+          <h4 style="margin-bottom: 15px;">Keyboard Shortcuts</h4>
+          <p style="color: var(--color-text-secondary); font-size: 13px; margin-bottom: 20px;">
+            Navigate the application faster with keyboard shortcuts.
+          </p>
+
+          <div class="shortcuts-list">
+            <div class="shortcut-group">
+              <h5>Navigation</h5>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Next Tab</span>
+                <kbd>Ctrl + PageDown</kbd>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Previous Tab</span>
+                <kbd>Ctrl + PageUp</kbd>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Home</span>
+                <kbd>Ctrl + 1</kbd>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Screener</span>
+                <kbd>Ctrl + 2</kbd>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Watchlists</span>
+                <kbd>Ctrl + 3</kbd>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Charting</span>
+                <kbd>Ctrl + 4</kbd>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">RSI Dashboard</span>
+                <kbd>Ctrl + 5</kbd>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Backtesting</span>
+                <kbd>Ctrl + 6</kbd>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Results</span>
+                <kbd>Ctrl + 7</kbd>
+              </div>
+            </div>
+
+            <div class="shortcut-group">
+              <h5>General</h5>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Open Settings</span>
+                <kbd>Ctrl + ,</kbd>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Close Modal</span>
+                <kbd>Esc</kbd>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="closeSettings()">Done</button>
       </div>
     </div>
   </div>

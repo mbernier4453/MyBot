@@ -2679,15 +2679,50 @@ setInterval(updateLastUpdateDisplay, 1000);
 function getColorForPercent(percent) {
   if (percent === null || percent === undefined) return '#404040';
   
-  // Green for positive, red for negative
+  // Use theme colors for positive (green) and negative (red)
   if (percent > 0) {
     const intensity = Math.min(Math.abs(percent) / 3, 1); // Cap at 3% for full intensity
-    const greenValue = Math.floor(85 + (170 * intensity)); // From 85 to 255
-    return `rgb(0, ${greenValue}, 85)`;
+    const baseColor = getPositiveColor();
+    
+    // Darken the color based on intensity
+    // Low intensity (near 0) = very dark, high intensity = full color
+    // Scale from 0.2 (20% brightness) to 1.0 (100% brightness)
+    const brightnessScale = 0.2 + (intensity * 0.8);
+    
+    // Apply darkening by reducing RGB values
+    const hex = baseColor.replace('#', '');
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+    
+    r = Math.round(r * brightnessScale);
+    g = Math.round(g * brightnessScale);
+    b = Math.round(b * brightnessScale);
+    
+    return '#' + [r, g, b].map(x => {
+      const hexVal = x.toString(16);
+      return hexVal.length === 1 ? '0' + hexVal : hexVal;
+    }).join('');
   } else if (percent < 0) {
     const intensity = Math.min(Math.abs(percent) / 3, 1);
-    const redValue = Math.floor(85 + (170 * intensity));
-    return `rgb(${redValue}, 0, 0)`;
+    const baseColor = getNegativeColor();
+    
+    // Same darkening for negative
+    const brightnessScale = 0.2 + (intensity * 0.8);
+    
+    const hex = baseColor.replace('#', '');
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+    
+    r = Math.round(r * brightnessScale);
+    g = Math.round(g * brightnessScale);
+    b = Math.round(b * brightnessScale);
+    
+    return '#' + [r, g, b].map(x => {
+      const hexVal = x.toString(16);
+      return hexVal.length === 1 ? '0' + hexVal : hexVal;
+    }).join('');
   } else {
     return '#404040'; // Neutral gray for 0%
   }
@@ -4009,6 +4044,10 @@ class ChartTab {
       volume.push(bar.v);
     });
     
+    // Get theme colors for base candlestick
+    const positiveColor = getPositiveColor();
+    const negativeColor = getNegativeColor();
+    
     const candlestickTrace = {
       type: 'candlestick',
       x: dates,
@@ -4018,12 +4057,12 @@ class ChartTab {
       close: close,
       name: this.ticker,
       increasing: { 
-        line: { color: '#00aa55', width: 1 },
-        fillcolor: '#00aa55'
+        line: { color: positiveColor, width: 1 },
+        fillcolor: positiveColor
       },
       decreasing: { 
-        line: { color: '#e74c3c', width: 1 },
-        fillcolor: '#e74c3c'
+        line: { color: negativeColor, width: 1 },
+        fillcolor: negativeColor
       },
       xaxis: 'x',
       yaxis: 'y',
@@ -4191,12 +4230,14 @@ class ChartTab {
           };
         } else {
           // Candlestick chart - lighten colors progressively
-          // Each overlay gets progressively lighter green/red
-          const lightenFactor = (overlayIndex + 1) * 0.15; // 15%, 30%, 45%, etc.
+          // Each overlay gets progressively lighter green/red based on theme colors
+          const lightenFactor = (overlayIndex + 1) * 0.25; // 25%, 50%, 75%, etc. (more visible)
           
-          // Lighten the base green (#00aa55) and red (#e74c3c)
-          const increasingColor = this.lightenColor('#00aa55', lightenFactor);
-          const decreasingColor = this.lightenColor('#e74c3c', lightenFactor);
+          // Get theme colors and lighten them
+          const basePositiveColor = getPositiveColor();
+          const baseNegativeColor = getNegativeColor();
+          const increasingColor = lightenColor(basePositiveColor, lightenFactor);
+          const decreasingColor = lightenColor(baseNegativeColor, lightenFactor);
           
           overlayTrace = {
             type: 'candlestick',
@@ -4513,24 +4554,6 @@ class ChartTab {
     return colors[Math.floor(Math.random() * colors.length)];
   }
   
-  lightenColor(color, factor) {
-    // Convert hex to RGB
-    const hex = color.replace('#', '');
-    let r = parseInt(hex.substring(0, 2), 16);
-    let g = parseInt(hex.substring(2, 4), 16);
-    let b = parseInt(hex.substring(4, 6), 16);
-    
-    // Lighten by moving towards white (255, 255, 255)
-    r = Math.min(255, Math.round(r + (255 - r) * factor));
-    g = Math.min(255, Math.round(g + (255 - g) * factor));
-    b = Math.min(255, Math.round(b + (255 - b) * factor));
-    
-    // Convert back to hex
-    return '#' + [r, g, b].map(x => {
-      const hex = x.toString(16);
-      return hex.length === 1 ? '0' + hex : hex;
-    }).join('');
-  }
 }
 
 function createChartTab() {
@@ -5131,6 +5154,10 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
   const chartType = document.getElementById('chartType')?.value || 'candlestick';
   
   // Create candlestick trace with solid filled candles
+  // Get theme colors for candles
+  const positiveColor = getPositiveColor();
+  const negativeColor = getNegativeColor();
+  
   const candlestickTrace = {
     type: 'candlestick',
     x: dates,
@@ -5140,12 +5167,12 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
     close: close,
     name: ticker,
     increasing: { 
-      line: { color: '#00aa55', width: 1 },
-      fillcolor: '#00aa55'  // Solid fill
+      line: { color: positiveColor, width: 1 },
+      fillcolor: positiveColor  // Solid fill
     },
     decreasing: { 
-      line: { color: '#e74c3c', width: 1 },
-      fillcolor: '#e74c3c'  // Solid fill
+      line: { color: negativeColor, width: 1 },
+      fillcolor: negativeColor  // Solid fill
     },
     xaxis: 'x',
     yaxis: 'y',
@@ -5155,14 +5182,14 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
     )
   };
   
-  // Create volume trace
+  // Create volume trace with theme colors (33 = 20% opacity in hex)
   const volumeTrace = {
     type: 'bar',
     x: dates,
     y: volume,
     name: 'Volume',
     marker: {
-      color: volume.map((v, i) => close[i] >= open[i] ? '#00aa5533' : '#e74c3c33')
+      color: volume.map((v, i) => close[i] >= open[i] ? positiveColor + '33' : negativeColor + '33')
     },
     xaxis: 'x',
     yaxis: 'y2'
@@ -7117,6 +7144,367 @@ if (confirmCreateConfigFolderBtn) {
 }
 
 // Make ALL functions globally accessible for onclick handlers
+// ==================== SETTINGS SYSTEM ====================
+
+// Default theme colors (matching actual CSS variables in styles.css)
+const DEFAULT_COLORS = {
+  'bg-primary': '#0a0a0a',
+  'bg-secondary': '#111111',
+  'bg-tertiary': '#1a1a1a',
+  'bg-hover': '#1f2f1f',
+  'border-color': '#1a3d1a',
+  'text-primary': '#e0e0e0',
+  'text-secondary': '#a0a0a0',
+  'accent-blue': '#00aa55',
+  'accent-green': '#006633',
+  'accent-yellow': '#228B22',
+  'positive': '#00cc55',
+  'negative': '#ff4444'
+};
+
+// Open settings modal
+function openSettings() {
+  const modal = document.getElementById('settingsModal');
+  if (!modal) return;
+  
+  // Load saved colors from localStorage
+  loadUserColors();
+  
+  // Show modal
+  modal.style.display = 'flex';
+}
+window.openSettings = openSettings;
+
+// Close settings modal
+function closeSettings() {
+  const modal = document.getElementById('settingsModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+window.closeSettings = closeSettings;
+
+// Switch settings tabs
+function switchSettingsTab(tabName) {
+  // Update tab buttons
+  const tabs = document.querySelectorAll('.settings-tab');
+  tabs.forEach(tab => {
+    if (tab.dataset.tab === tabName) {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
+  
+  // Update tab content
+  const contents = document.querySelectorAll('.settings-tab-content');
+  contents.forEach(content => {
+    if (content.id === `${tabName}Tab`) {
+      content.classList.add('active');
+    } else {
+      content.classList.remove('active');
+    }
+  });
+}
+window.switchSettingsTab = switchSettingsTab;
+
+// Update color (called when color picker changes)
+function updateColor(colorName) {
+  const picker = document.getElementById(`color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`);
+  const textInput = picker.nextElementSibling;
+  
+  // Update text input
+  textInput.value = picker.value;
+  
+  // Update CSS variable (use actual CSS variable names without 'color-' prefix)
+  const cssVarName = `--${colorName}`;
+  document.documentElement.style.setProperty(cssVarName, picker.value);
+  console.log('[COLOR] Updated', cssVarName, 'to', picker.value);
+  
+  // Save to localStorage
+  saveUserColors();
+}
+window.updateColor = updateColor;
+
+// Update color from hex text input
+function updateColorFromHex(colorName) {
+  const picker = document.getElementById(`color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`);
+  const textInput = picker.nextElementSibling;
+  
+  let hexValue = textInput.value.trim();
+  
+  // Add # if missing
+  if (!hexValue.startsWith('#')) {
+    hexValue = '#' + hexValue;
+  }
+  
+  // Validate hex color (3 or 6 digits)
+  if (/^#([0-9A-Fa-f]{3}){1,2}$/.test(hexValue)) {
+    // Normalize 3-digit hex to 6-digit
+    if (hexValue.length === 4) {
+      hexValue = '#' + hexValue[1] + hexValue[1] + hexValue[2] + hexValue[2] + hexValue[3] + hexValue[3];
+    }
+    
+    // Update picker
+    picker.value = hexValue;
+    textInput.value = hexValue;
+    
+    // Update CSS variable
+    const cssVarName = `--${colorName}`;
+    document.documentElement.style.setProperty(cssVarName, hexValue);
+    console.log('[COLOR] Updated from hex', cssVarName, 'to', hexValue);
+    
+    // Save to localStorage
+    saveUserColors();
+  } else {
+    // Invalid hex, revert to current picker value
+    textInput.value = picker.value;
+    console.warn('[COLOR] Invalid hex color:', textInput.value);
+  }
+}
+window.updateColorFromHex = updateColorFromHex;
+
+// Reset single color to default
+function resetColor(colorName) {
+  const defaultValue = DEFAULT_COLORS[colorName];
+  if (!defaultValue) return;
+  
+  // Update picker and text input
+  const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
+  const picker = document.getElementById(pickerName);
+  const textInput = picker.nextElementSibling;
+  
+  picker.value = defaultValue;
+  textInput.value = defaultValue;
+  
+  // Update CSS variable (use actual CSS variable names without 'color-' prefix)
+  const cssVarName = `--${colorName}`;
+  document.documentElement.style.setProperty(cssVarName, defaultValue);
+  console.log('[COLOR] Reset', cssVarName, 'to', defaultValue);
+  
+  // Save to localStorage
+  saveUserColors();
+}
+window.resetColor = resetColor;
+
+// Reset all colors to defaults
+function resetAllColors() {
+  Object.keys(DEFAULT_COLORS).forEach(colorName => {
+    resetColor(colorName);
+  });
+}
+window.resetAllColors = resetAllColors;
+
+// Save user colors to localStorage
+function saveUserColors() {
+  const colors = {};
+  Object.keys(DEFAULT_COLORS).forEach(colorName => {
+    const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
+    const picker = document.getElementById(pickerName);
+    if (picker) {
+      colors[colorName] = picker.value;
+    }
+  });
+  localStorage.setItem('userColors', JSON.stringify(colors));
+}
+
+// Load user colors from localStorage
+function loadUserColors() {
+  const saved = localStorage.getItem('userColors');
+  let colors = DEFAULT_COLORS;
+  
+  if (saved) {
+    try {
+      colors = { ...DEFAULT_COLORS, ...JSON.parse(saved) };
+    } catch (e) {
+      console.error('Failed to parse saved colors:', e);
+    }
+  }
+  
+  // Apply to pickers, text inputs, and CSS variables
+  Object.keys(DEFAULT_COLORS).forEach(colorName => {
+    const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
+    const picker = document.getElementById(pickerName);
+    
+    if (picker) {
+      const textInput = picker.nextElementSibling;
+      const value = colors[colorName];
+      
+      picker.value = value;
+      textInput.value = value;
+      
+      // Apply to CSS (use actual CSS variable names without 'color-' prefix)
+      const cssVarName = `--${colorName}`;
+      document.documentElement.style.setProperty(cssVarName, value);
+      console.log('[COLOR] Loaded', cssVarName, '=', value);
+    }
+  });
+}
+
+// ==================== CHART COLOR HELPERS ====================
+
+// Get theme colors from CSS variables for use in charts
+function getThemeColor(colorName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(`--${colorName}`).trim();
+}
+
+// Get positive color (for gains/green candles)
+function getPositiveColor() {
+  return getThemeColor('positive') || '#00cc55';
+}
+
+// Get negative color (for losses/red candles)
+function getNegativeColor() {
+  return getThemeColor('negative') || '#ff4444';
+}
+
+// Lighten a color by a factor (0-1) by moving towards white
+function lightenColor(color, factor) {
+  // Convert hex to RGB
+  const hex = color.replace('#', '');
+  let r = parseInt(hex.substring(0, 2), 16);
+  let g = parseInt(hex.substring(2, 4), 16);
+  let b = parseInt(hex.substring(4, 6), 16);
+  
+  // Lighten by moving towards white (255, 255, 255)
+  r = Math.min(255, Math.round(r + (255 - r) * factor));
+  g = Math.min(255, Math.round(g + (255 - g) * factor));
+  b = Math.min(255, Math.round(b + (255 - b) * factor));
+  
+  // Convert back to hex
+  return '#' + [r, g, b].map(x => {
+    const hex = x.toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  }).join('');
+}
+
+// ==================== KEYBOARD SHORTCUTS ====================
+
+// Main tabs for navigation
+const MAIN_TABS = ['home', 'screener', 'watchlists', 'charting', 'rsi', 'backtesting', 'results'];
+
+// Function to switch main navigation tabs
+function switchMainTab(tabName) {
+  const mainTabs = document.querySelectorAll('.main-tab');
+  const mainPages = document.querySelectorAll('.main-page');
+  
+  mainTabs.forEach(t => t.classList.remove('active'));
+  mainPages.forEach(p => p.classList.remove('active'));
+  
+  const targetTab = document.querySelector(`.main-tab[data-main-tab="${tabName}"]`);
+  if (targetTab) {
+    targetTab.classList.add('active');
+  }
+  
+  const targetPage = document.getElementById(`${tabName}Page`);
+  if (targetPage) {
+    targetPage.classList.add('active');
+  }
+}
+window.switchMainTab = switchMainTab;
+
+// ==================== INITIALIZATION ====================
+
+// Load colors and setup keyboard shortcuts on page load
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('[SETTINGS] Initializing...');
+  loadUserColors();
+  
+  // Global keyboard shortcut handler
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+, opens settings
+    if (e.ctrlKey && e.key === ',') {
+      e.preventDefault();
+      console.log('[SHORTCUT] Opening settings');
+      openSettings();
+      return;
+    }
+    
+    // Esc closes any open modal
+    if (e.key === 'Escape') {
+      // Close settings modal
+      const settingsModal = document.getElementById('settingsModal');
+      if (settingsModal && settingsModal.style.display === 'flex') {
+        console.log('[SHORTCUT] Closing settings');
+        closeSettings();
+        return;
+      }
+      
+      // Close tearsheet modal
+      const tearsheetModal = document.getElementById('tearsheetModal');
+      if (tearsheetModal && tearsheetModal.style.display === 'flex') {
+        console.log('[SHORTCUT] Closing tearsheet');
+        tearsheetModal.style.display = 'none';
+        return;
+      }
+      
+      // Close save config modal
+      const saveConfigModal = document.getElementById('saveConfigModal');
+      if (saveConfigModal && saveConfigModal.style.display === 'flex') {
+        console.log('[SHORTCUT] Closing save config');
+        saveConfigModal.style.display = 'none';
+        return;
+      }
+      
+      // Close load config modal
+      const loadConfigModal = document.getElementById('loadConfigModal');
+      if (loadConfigModal && loadConfigModal.style.display === 'flex') {
+        console.log('[SHORTCUT] Closing load config');
+        loadConfigModal.style.display = 'none';
+        return;
+      }
+      
+      return;
+    }
+    
+    // Don't handle shortcuts when typing in inputs (except specific modals)
+    if (document.activeElement.tagName === 'INPUT' || 
+        document.activeElement.tagName === 'TEXTAREA' ||
+        document.activeElement.tagName === 'SELECT') {
+      return;
+    }
+    
+    // Ctrl+PageUp: Previous tab
+    if (e.ctrlKey && e.key === 'PageUp') {
+      e.preventDefault();
+      const currentIndex = MAIN_TABS.findIndex(tab => 
+        document.getElementById(`${tab}Page`)?.classList.contains('active')
+      );
+      console.log('[SHORTCUT] PageUp, current index:', currentIndex);
+      if (currentIndex > 0) {
+        switchMainTab(MAIN_TABS[currentIndex - 1]);
+      }
+      return;
+    }
+    
+    // Ctrl+PageDown: Next tab
+    if (e.ctrlKey && e.key === 'PageDown') {
+      e.preventDefault();
+      const currentIndex = MAIN_TABS.findIndex(tab => 
+        document.getElementById(`${tab}Page`)?.classList.contains('active')
+      );
+      console.log('[SHORTCUT] PageDown, current index:', currentIndex);
+      if (currentIndex < MAIN_TABS.length - 1) {
+        switchMainTab(MAIN_TABS[currentIndex + 1]);
+      }
+      return;
+    }
+    
+    // Ctrl+1 through Ctrl+7: Direct tab access
+    if (e.ctrlKey && e.key >= '1' && e.key <= '7') {
+      e.preventDefault();
+      const index = parseInt(e.key) - 1;
+      console.log('[SHORTCUT] Ctrl+' + e.key + ', switching to:', MAIN_TABS[index]);
+      if (index < MAIN_TABS.length) {
+        switchMainTab(MAIN_TABS[index]);
+      }
+      return;
+    }
+  });
+  
+  console.log('[SETTINGS] Keyboard shortcuts registered');
+});
+
 // MUST be at end of file after all functions are defined
 console.log('[INIT] Exposing functions to window scope...');
 window.sortByColumn = sortByColumn;
