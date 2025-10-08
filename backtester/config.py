@@ -1,11 +1,11 @@
-#======================== Backtester config ========================
-# Edit only these variables. Defaults fill anything missing.
-# Legend: # ✅ implemented · # ⚠️ limited/conditional · # ⏳ not used
+#======================== Backtester Configuration ========================
+# Core configuration for RSI-based backtesting system
+# All values are implemented and functional
 
-#=========================MAIN=========================
-RUN_ID = "ForgotStaples"                     # ✅ name or "auto" for timestamp
-NOTES = "Testing strategy + buy/hold + benchmark"  # ✅ freeform string per run
-TICKERS = ["XLP"]                 # ✅ list of symbols (just 2 for quick test)
+#========================= Run Settings =========================
+RUN_ID = "EditingtheEngine"                     # Run identifier or "auto" for timestamp
+NOTES = "Testing strategy + buy/hold + benchmark"  # Optional description
+TICKERS = ["XLP", "XLF", "XLK"]                 # List of symbols to backtest
 # TICKERS = [
 #     "XLP",  # Consumer Staples Select Sector SPDR
 #     "XLF",  # Financial Select Sector SPDR
@@ -30,25 +30,24 @@ TICKERS = ["XLP"]                 # ✅ list of symbols (just 2 for quick test)
 #     "LTL",  # ProShares Ultra Telecommunications (2x leveraged)
 #     "UPW"   # ProShares Ultra Utilities (2x leveraged)
 # ]
-# ✅ list of symbols
-INITIAL_CAPITAL = 100_000.0             # ✅
-START = "2000-01-01"                    # ✅
-END = "2025-09-01"                              # ✅ None = today
-TIMESCALE = "1Day"                      # ⚠️ "1Day","5Min","15Min" (daily-only now)
-BUY_HOLD_ENABLED = True                 # ✅ buy-hold baseline
-BENCHMARK_ENABLED = True                # ✅ benchmark baseline
-BENCHMARK_SYMBOL = "QQQ"                # ✅ benchmark ticker
-RF_ANNUAL = 0.02                        # ✅ 2% annual
-PERIODS_PER_YEAR = 252                  # ✅ trading periods per year
+INITIAL_CAPITAL = 100_000.0
+START = "2000-01-01"
+END = "2025-09-01"                      # None = today
+TIMESCALE = "1Day"                      # Currently only daily supported
+BUY_HOLD_ENABLED = True                 # Include buy & hold comparison
+BENCHMARK_ENABLED = True                # Include benchmark comparison
+BENCHMARK_SYMBOL = "QQQ"                # Benchmark ticker
+RF_ANNUAL = 0.02                        # Risk-free rate (2% annual)
+PERIODS_PER_YEAR = 252                  # Trading days per year
 
-#===========Portfolio Mode Config Example===============
-PORTFOLIO_MODE = False  # master toggle
-PORTFOLIO_WEIGHTS = {           # Fixed target weights (sum should be 1.0; if None -> equal weights auto)
+#========================= Portfolio Mode =========================
+PORTFOLIO_MODE = False  # Enable portfolio mode (multi-symbol strategies)
+PORTFOLIO_WEIGHTS = {           # Fixed allocation weights (sum to 1.0, or None for equal weights)
     "SPY": 0.40,
     "QQQ": 0.60,
 }
-PORTFOLIO_TARGET_UTILIZATION = 0.95  # portion of capital to use (0.0–1.0)
-PORTFOLIO_USE_PARAM_GRID = False  # False => use PORTFOLIO_STRATEGIES, True => use PORTFOLIO_PARAM_GRID
+PORTFOLIO_TARGET_UTILIZATION = 0.95  # Portion of capital to deploy (0.0–1.0)
+PORTFOLIO_USE_PARAM_GRID = False  # False = use PORTFOLIO_STRATEGIES, True = use PORTFOLIO_PARAM_GRID
 PORTFOLIO_STRATEGIES = {
     "SPY": {
         "rsi_period": 14,
@@ -72,119 +71,34 @@ PORTFOLIO_PARAM_GRID = {
     ],
 }
 
+#========================= Trade Execution =========================
+TARGET_WEIGHT = 0.95           # Position size as fraction of capital (0.0–1.0)
+ORDER_TYPE = "MOO"             # Order type: "MOO" (Market-on-Open) or "MOC" (Market-on-Close)
+ENTRY_FEES_BPS = 10            # Entry transaction fees in basis points
+SLIP_OPEN_BPS = 2              # Entry slippage in basis points
+EXIT_FEES_BPS = 10             # Exit transaction fees in basis points
+SLIP_CLOSE_BPS = 2             # Exit slippage in basis points
 
+#========================= Data Source =========================
+SOURCE = "yfinance"            # Data source: "yfinance" (only option currently)
+ADJUST = "split_and_div"       # Price adjustment: "split_and_div", "split_only", or "none"
 
-SEED = 42                               # ⏳
-#=========================Entry========================
-ENTRY_MODE = "ALL"             # ⏳ "ALL","ANY","EXPRESSION"- which signals to use
-TARGET_WEIGHT = 0.95           # ✅ 0.0–1.0 per trade (for portfolio mode, this is % of ticker's % weight)
-ORDER_TYPE = "MOO"             # ⚠️ "MOO","MOC","MKT","LMT" (MOO/MOC only)
-ENTRY_FEES_BPS = 10            # ✅ in bps
-SLIP_OPEN_BPS = 2              # ✅ entry slippage in bps
-ENTRY_DELAY_BARS = 0           # ⏳ wait N bars after signal before entry
-EXPIRE_AFTER_BARS = 0          # ⏳ 0 = signal never expires
-RECHECK_ON_DELAY = False       # ⏳ if delayed, revalidate signal at execution bar
-VICE_VERSA = True              # ⏳ take opposite on exit when opposite signal fires
-ALLOW_PARTIAL_FILLS = False    # ⚠️ allow partial sizing when capital is short (currently always partial-int sizing)
+#========================= RSI Strategy Parameters =========================
+RSI_ENABLED = True
+RSI_PERIOD = [14]              # RSI lookback period(s) - list for parameter grid
+# RSI_PERIOD = [12,13,14,15,16,17,18,19]  # Full grid example
+RSI_BUY_BELOW = [5,10,15,20,25,30,35,40,45]    # Buy threshold(s)
+RSI_SELL_ABOVE = [55,60,65,70,75,80,85,90,95]  # Sell threshold(s)
 
-#========================= Exit =========================
-EXIT_MODE = "ANY"              # ⏳ "ALL","ANY","EXPRESSION","NONE"
-EXIT_FEES_BPS = 10             # ✅ in bps
-SLIP_CLOSE_BPS = 2             # ⚠️ exit slippage in bps  ---no effect when order type MOO
-EXIT_DELAY_BARS = 0            # ⏳ wait N bars after signal before exit
-# Risk management
-STOP_ENABLED = True            # ⏳
-STOP_TYPE = "percent"          # ⏳ "percent","atr","absolute"
-STOP_VALUE = 0.05              # ⏳
-TAKE_ENABLED = True            # ⏳
-TAKE_TYPE = "percent"          # ⏳
-TAKE_VALUE = 0.10              # ⏳
-MAX_BARS_IN_TRADE = None       # ⏳ None = no limit
-COOLDOWN_BARS_AFTER_RISK = 0   # ⏳
-RISK_REENTRY = "none"          # ⏳ "none","immediate_if_opposite","wait_for_fresh_cross"
-
-#========================= Data =========================
-SOURCE = "yfinance"            # ✅ "yfinance","polygon" (yfinance only)
-TZ = "America/New_York"        # ⏳
-ADJUST = "split_and_div"       # ✅ "split_and_div","split_only","none"
-
-#========================= Indicators ====================
-# RSI grid (engine should sweep cartesian product if lists provided)
-RSI_ENABLED = True                                          # ✅
-RSI_PERIOD = [14]                      # ✅ Just 1 for quick test
-# RSI_PERIOD = [12,13,14,15,16,17,18,19]                      # ✅
-# RSI_BUY_BELOW = [30, 35]              # ✅ Just 2 for quick test
-# RSI_SELL_ABOVE = [70, 75]            # ✅ Just 2 for quick test
-RSI_BUY_BELOW = [5,10,15,20,25,30,35,40,45]
-RSI_SELL_ABOVE = [55,60,65,70,75,80,85,90,95]
-
-# Bollinger Bands
-BOLLINGER_BANDS_ENABLED = False  # ⏳
-BB_PERIOD = 20                    # ⏳
-BB_STD_DEV = 2.0                  # ⏳
-BB_BUY_SIDE = "lower"          # ⏳ "lower","upper","middle"
-BB_SELL_SIDE = "upper"         # ⏳ "lower","upper","middle"
-
-# EMA block
-EMA_BLOCK_ENABLED = False       # ⏳
-EMA_PRICE_CROSS = False         # ⏳
-EMA_PRICE_CROSS_SIDE = "up"    # ⏳ "up","down"
-EMA_PRICE_LEN = 21              # ⏳
-EMA_MA_CROSS = False            # ⏳
-EMA_MA_CROSS_SIDE = "up"       # ⏳ "up" means short crosses above long
-EMA_SHORT = 20                  # ⏳
-EMA_LONG = 40                   # ⏳
-EMA_DISTANCE_PCT = 0.0         # ⏳ min gap at signal bar
-
-# HMA block
-HMA_BLOCK_ENABLED = False       # ⏳
-HMA_PRICE_CROSS = False         # ⏳
-HMA_PRICE_CROSS_SIDE = "down"   # ⏳
-HMA_PRICE_LEN = 50              # ⏳
-HMA_MA_CROSS = False            # ⏳
-HMA_MA_CROSS_SIDE = "down"      # ⏳
-HMA_SHORT = 50                  # ⏳
-HMA_LONG = 100                  # ⏳
-HMA_DISTANCE_PCT = 0.01         # ⏳
-
-# Price to Moving Average
-PRICE_TO_MA_ENABLED = False     # ⏳
-PRICE_TO_MA_PERIOD = 21         # ⏳
-PRICE_TO_MA_BUY = "above"                  # ⏳ "above","below"
-PRICE_TO_MA_BUY_THRESHOLD = 0.015          # ⏳ 1.5%
-PRICE_TO_MA_SELL = "below"                 # ⏳ "above","below"
-PRICE_TO_MA_SELL_THRESHOLD = 0.015         # ⏳
-
-#========================= Outputs =========================
-
-CSV_DIR = "./results/csv"                 # ✅ path for metrics CSV when enabled
-SAVE_METRICS = True                       # ✅ write metrics CSV rows
+#========================= Output & Storage =========================
+# CSV Export
+CSV_DIR = "./results/csv"
+SAVE_METRICS = True            # Export metrics to CSV
 
 # Database
-SAVE_DB = True                 # enable DB persistence
-import os as _os
-DB_PATH = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "results", "db")  # absolute path to project root results/db
-SAVE_TRADES = True             # store individual trades
-MIN_TRADES_FILTER = 5          # used for ranking filters (if implemented)
-SAVE_EQUITY = False                       # ⏳ persist equity curve per run
-SAVE_VIZ_DATA = False                     # ⏳ persist 3D viz table
+SAVE_DB = True                 # Save results to SQLite database
+DB_PATH = "./results/db"       # Database folder (backtests.db will be created here)
+SAVE_TRADES = True             # Store individual trade records
 
-# Charts and reports
-MAKE_CHARTS = False               # ✅ toggle charts for tearsheets + main standalone (disabled for test)
-CHART_PATH = "./results/charts"       # ✅ where to save main chart HTML
-
-
-MIN_TRADES_FILTER = 5                    # ✅ min trades to qualify for top-K printout (default 1)
-MAKE_TEARSHEETS = False                  # ✅ full report with KPIs and plots (disabled for test)
-RUN_CAPM = True                           # ✅ include CAPM analysis in tearsheet
-TEARSHEETS_DIR = "./results/tearsheets"   # ✅ where to save tearsheets
-
-# Print and selection
-# TOP_BY = ["total_return", "sharpe", "sortino", "vol", "cagr"]      # ✅ metrics to sort by for top-K printout(s) ["total_return", "sharpe", "sortino", "vol", "maxdd", "cagr", "trades_total"]
-TOP_BY = ["total_return"]      # ✅ metrics to sort by for top-K printout(s) - just 1 for test
-TOP_K = 1                           # ✅ top K to print/tearsheet per metric - just 1 for test
-PRINT_TOP_K = True                  # ✅ whether to print top-K summary
-# Metadata snapshots
-SAVE_CONFIG_SNAPSHOT = True               # ⏳ write a copy of this config under results
-SAVE_GIT_COMMIT = True                    # ⏳ record git commit hash if repo present
-SAVE_DATA_VERSION = True                  # ⏳ record data adapter + params used
+# Tearsheets (generated on-demand from frontend)
+TEARSHEETS_DIR = "./results/tearsheets"

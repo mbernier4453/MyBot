@@ -1726,6 +1726,40 @@ async function viewPortfolioTearsheet(runId) {
 window.viewPortfolioTearsheet = viewPortfolioTearsheet;
 console.log('[INIT] Exposed viewPortfolioTearsheet:', typeof window.viewPortfolioTearsheet);
 
+// Download the current tearsheet modal as a standalone HTML file
+function downloadTearsheetHtml() {
+  const modal = document.getElementById('tearsheetModal');
+  const content = document.getElementById('tearsheetContent');
+  const title = document.getElementById('tearsheetTitle').textContent || 'Tearsheet';
+  if (!content || content.style.display === 'none') {
+    alert('Tearsheet is not loaded yet.');
+    return;
+  }
+
+  // Clone the content to avoid modifying the live DOM
+  const tearsheetHtml = content.cloneNode(true);
+  // Inline styles for modal look
+  const style = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+    .map(el => el.outerHTML).join('\n');
+  // Also grab computed styles for .tearsheet-modal if needed
+
+  // Compose minimal HTML doc
+  const docHtml = `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n<title>${title}</title>\n${style}\n<style>body{background:#181a20;color:#e0e0e0;font-family:sans-serif;margin:0;padding:0;} .tearsheet-modal{max-width:1200px;margin:40px auto;background:#23262e;border-radius:12px;box-shadow:0 4px 32px #0008;padding:32px;} .tearsheet-section{margin-bottom:24px;} .metric-row{display:flex;gap:12px;padding:4px 0;} .metric-label{flex:1;} .metric-value{text-align:right;min-width:80px;display:inline-block;} .metrics-comparison,.metrics-capm{font-size:15px;} .chart-main,.chart-small{background:#181a20;border-radius:8px;min-height:220px;} .tearsheet-top-section{display:flex;gap:32px;} .tearsheet-sidebar{width:320px;} .tearsheet-main-chart-container{flex:1;} .tearsheet-charts-row{display:flex;gap:24px;} .chart-third{flex:1;} </style>\n</head>\n<body>\n<div class="tearsheet-modal">\n<h2 style="margin-top:0;">${title}</h2>\n${tearsheetHtml.innerHTML}\n</div>\n</body>\n</html>`;
+
+  // Download as file
+  const blob = new Blob([docHtml], {type: 'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${title.replace(/\s+/g, '_').replace(/[^\w\-]/g, '')}_tearsheet.html`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  }, 100);
+}
+window.downloadTearsheetHtml = downloadTearsheetHtml;
+
 function displayPortfolioTearsheetMetrics(portfolio, benchmarkEquity) {
   const metricsDiv = document.getElementById('tearsheetMetrics');
   
@@ -3653,6 +3687,7 @@ class ChartTab {
   }
   
   initializeControls() {
+    // ...existing code...
     const content = this.contentElement;
     
     // Timeframe
@@ -3980,6 +4015,7 @@ class ChartTab {
   }
   
   drawChart(bars, timespan) {
+    // ...existing code...
     const content = this.contentElement;
     const chartCanvas = content.querySelector('.chart-canvas');
     
@@ -4215,7 +4251,6 @@ class ChartTab {
         let overlayTrace;
         
         if (this.chartType === 'line') {
-          // Line chart - use the assigned color
           overlayTrace = {
             type: 'scatter',
             mode: 'lines',
@@ -4627,6 +4662,17 @@ setTimeout(() => {
 // =====================================================
 // CANDLESTICK CHART FUNCTIONALITY (Legacy - for reference)
 // =====================================================
+
+// Chart normalization state
+let chartNormalized = false;
+const normalizeCheckbox = document.querySelector('.chart-normalize-checkbox');
+if (normalizeCheckbox) {
+  normalizeCheckbox.checked = false;
+  normalizeCheckbox.addEventListener('change', () => {
+    chartNormalized = normalizeCheckbox.checked;
+    rerenderMainChart();
+  });
+}
 
 let currentChartData = null;
 let currentChartTicker = null;
@@ -6782,8 +6828,6 @@ function collectBacktestConfig() {
   config.SAVE_METRICS = document.getElementById('saveMetrics')?.checked || false;
   config.SAVE_DB = document.getElementById('saveDb')?.checked || false;
   config.SAVE_TRADES = document.getElementById('saveTrades')?.checked || false;
-  
-  config.MAKE_CHARTS = document.getElementById('makeCharts')?.checked || false;
   config.MAKE_TEARSHEETS = document.getElementById('makeTearsheets')?.checked || false;
   
   return config;
@@ -6864,7 +6908,6 @@ function populateBacktestConfig(config) {
   if (config.SAVE_METRICS !== undefined) document.getElementById('saveMetrics').checked = config.SAVE_METRICS;
   if (config.SAVE_DB !== undefined) document.getElementById('saveDb').checked = config.SAVE_DB;
   if (config.SAVE_TRADES !== undefined) document.getElementById('saveTrades').checked = config.SAVE_TRADES;
-  if (config.MAKE_CHARTS !== undefined) document.getElementById('makeCharts').checked = config.MAKE_CHARTS;
   if (config.MAKE_TEARSHEETS !== undefined) document.getElementById('makeTearsheets').checked = config.MAKE_TEARSHEETS;
 }
 
@@ -6919,7 +6962,6 @@ if (runBacktestBtn) {
     console.log('SAVE_METRICS:', config.SAVE_METRICS);
     console.log('SAVE_DB:', config.SAVE_DB);
     console.log('SAVE_TRADES:', config.SAVE_TRADES);
-    console.log('MAKE_CHARTS:', config.MAKE_CHARTS);
     console.log('MAKE_TEARSHEETS:', config.MAKE_TEARSHEETS);
     console.log('='.repeat(80));
     
