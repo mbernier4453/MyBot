@@ -6524,63 +6524,160 @@ if (endDateTodayCheckbox && endDateInput) {
   }
 }
 
-// Auto-populate ticker weights from main config
-function autoPopulateTickerWeights() {
-  const list = document.getElementById('portfolioWeightsList');
-  
-  // Get tickers from main config
+// Auto-populate portfolio: loads tickers, assigns weights, leaves strategy empty for user selection
+function autoPopulatePortfolio() {
+  // Get tickers from main configuration section
   let tickers = [];
   const tickerSource = document.querySelector('input[name="tickerSource"]:checked')?.value;
   
-  if (tickerSource === 'watchlist') {
-    const selectEl = document.getElementById('tickerWatchlistSelect');
-    const selectedOption = selectEl?.options[selectEl.selectedIndex];
+  if (tickerSource === 'manual') {
+    // Get from manual ticker input
+    const tickersInput = document.getElementById('tickers')?.value.trim();
+    if (tickersInput) {
+      tickers = tickersInput.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
+    }
+  } else if (tickerSource === 'watchlist') {
+    // Get from watchlist selection
+    const watchlistSelect = document.getElementById('tickerWatchlistSelect');
+    const selectedOption = watchlistSelect?.options[watchlistSelect.selectedIndex];
     if (selectedOption && selectedOption.dataset.tickers) {
       tickers = JSON.parse(selectedOption.dataset.tickers);
     }
-  } else {
-    const tickersInput = document.getElementById('tickers')?.value || '';
-    tickers = tickersInput.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
   }
   
   if (tickers.length === 0) {
-    alert('Please enter tickers in the Main Configuration section first, or select a watchlist.');
+    alert('Please enter tickers in Main Configuration or select a watchlist first');
+    return;
+  }
+
+  // Check for duplicates
+  const uniqueTickers = [...new Set(tickers)];
+  if (uniqueTickers.length !== tickers.length) {
+    alert('Duplicate tickers detected. Please remove duplicates.');
+    return;
+  }
+
+  const list = document.getElementById('portfolioTickersList');
+  list.innerHTML = '';
+
+  // Equal weighting
+  const equalWeight = (1.0 / tickers.length).toFixed(4);
+
+  tickers.forEach(ticker => {
+    const tickerCard = document.createElement('div');
+    tickerCard.className = 'ticker-card';
+    tickerCard.style.cssText = 'margin-bottom: 15px; padding: 15px; border: 1px solid #444; border-radius: 4px; background: #2a2a2a;';
+
+    tickerCard.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <strong style="font-size: 1.1em; color: #fff;">${ticker}</strong>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <label style="margin: 0; color: #888; font-size: 0.9em;">Weight:</label>
+          <input type="number" step="0.01" class="form-control" value="${equalWeight}" 
+                 data-ticker="${ticker}" data-field="weight" style="width: 80px; background: #1a1a1a; color: #fff; border: 1px solid #444;">
+        </div>
+      </div>
+      
+      <div style="margin-top: 10px;">
+        <label style="font-size: 0.9em; margin-bottom: 5px; display: block; color: #888;">Strategy Type:</label>
+        <select class="form-control" data-ticker="${ticker}" data-field="strategy_type" 
+                onchange="toggleStrategyParams('${ticker}', this.value)" 
+                style="margin-bottom: 10px; background: #1a1a1a; color: #fff; border: 1px solid #444;">
+          <option value="">-- Select Strategy --</option>
+          <option value="rsi">RSI</option>
+          <option value="macd">MACD (Coming Soon)</option>
+          <option value="ma">Moving Average (Coming Soon)</option>
+          <option value="bollinger">Bollinger Bands (Coming Soon)</option>
+        </select>
+        
+        <div id="strategyParams_${ticker}" style="display: none;"></div>
+      </div>
+    `;
+
+    list.appendChild(tickerCard);
+  });
+  
+  console.log(`[PORTFOLIO] Auto-populated ${tickers.length} tickers with equal weights`);
+}
+window.autoPopulatePortfolio = autoPopulatePortfolio;
+
+// Toggle strategy parameters based on selected strategy type
+function toggleStrategyParams(ticker, strategyType) {
+  const paramsDiv = document.getElementById(`strategyParams_${ticker}`);
+  
+  if (!strategyType) {
+    paramsDiv.style.display = 'none';
+    paramsDiv.innerHTML = '';
     return;
   }
   
-  // Clear existing weights
-  list.innerHTML = '';
+  paramsDiv.style.display = 'block';
   
-  // Add equal weights for each ticker
-  const equalWeight = (1.0 / tickers.length).toFixed(4);
-  tickers.forEach(ticker => {
-    const item = document.createElement('div');
-    item.className = 'weight-item';
-    item.innerHTML = `
-      <input type="text" placeholder="Ticker (e.g., AAPL)" class="weight-ticker" value="${ticker}" />
-      <input type="number" placeholder="Weight (e.g., 0.5)" class="weight-value" min="0" max="1" step="0.01" value="${equalWeight}" />
-      <button type="button" class="btn-sm danger" onclick="this.parentElement.remove()">Remove</button>
+  if (strategyType === 'rsi') {
+    // Get defaults from Indicators section
+    const rsiPeriods = document.getElementById('rsiPeriod')?.value?.split(',').map(p => p.trim())[0] || '14';
+    const rsiBuy = document.getElementById('rsiBuyBelow')?.value?.split(',').map(p => p.trim())[0] || '30';
+    const rsiSell = document.getElementById('rsiSellAbove')?.value?.split(',').map(p => p.trim())[0] || '70';
+    
+    paramsDiv.innerHTML = `
+      <div style="padding: 10px; background: #1a1a1a; border-radius: 4px; border: 1px solid #444;">
+        <strong style="font-size: 0.9em; color: #03A9F4;">RSI Parameters:</strong>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 8px;">
+          <div>
+            <label style="font-size: 0.85em; color: #888;">Period:</label>
+            <input type="number" class="form-control" value="${rsiPeriods}" 
+                   data-ticker="${ticker}" data-param="rsi_period"
+                   style="background: #0a0a0a; color: #fff; border: 1px solid #333;">
+          </div>
+          <div>
+            <label style="font-size: 0.85em; color: #888;">Buy Below:</label>
+            <input type="number" class="form-control" value="${rsiBuy}" 
+                   data-ticker="${ticker}" data-param="rsi_buy_below"
+                   style="background: #0a0a0a; color: #fff; border: 1px solid #333;">
+          </div>
+          <div>
+            <label style="font-size: 0.85em; color: #888;">Sell Above:</label>
+            <input type="number" class="form-control" value="${rsiSell}" 
+                   data-ticker="${ticker}" data-param="rsi_sell_above"
+                   style="background: #0a0a0a; color: #fff; border: 1px solid #333;">
+          </div>
+        </div>
+      </div>
     `;
-    list.appendChild(item);
-  });
-  
-  console.log(`[BACKTEST] Auto-populated ${tickers.length} tickers with equal weights`);
+  } else if (strategyType === 'ma') {
+    // Future: MA parameters
+    paramsDiv.innerHTML = `
+      <div style="padding: 10px; background: #1a1a1a; border-radius: 4px; border: 1px solid #444;">
+        <strong style="font-size: 0.9em; color: #03A9F4;">Moving Average Parameters:</strong>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 8px;">
+          <div>
+            <label style="font-size: 0.85em; color: #888;">MA Type:</label>
+            <select class="form-control" data-ticker="${ticker}" data-param="ma_type"
+                    style="background: #0a0a0a; color: #fff; border: 1px solid #333;">
+              <option value="sma">SMA</option>
+              <option value="ema">EMA</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 0.85em; color: #888;">Short Period:</label>
+            <input type="number" class="form-control" value="20" 
+                   data-ticker="${ticker}" data-param="ma_short_period"
+                   style="background: #0a0a0a; color: #fff; border: 1px solid #333;">
+          </div>
+          <div>
+            <label style="font-size: 0.85em; color: #888;">Long Period:</label>
+            <input type="number" class="form-control" value="50" 
+                   data-ticker="${ticker}" data-param="ma_long_period"
+                   style="background: #0a0a0a; color: #fff; border: 1px solid #333;">
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  // Add more strategy types here as they're implemented
 }
-window.autoPopulateTickerWeights = autoPopulateTickerWeights;
+window.toggleStrategyParams = toggleStrategyParams;
 
-// Add portfolio weight
-function addPortfolioWeight() {
-  const list = document.getElementById('portfolioWeightsList');
-  const item = document.createElement('div');
-  item.className = 'weight-item';
-  item.innerHTML = `
-    <input type="text" placeholder="Ticker (e.g., AAPL)" class="weight-ticker" />
-    <input type="number" placeholder="Weight (e.g., 0.5)" class="weight-value" min="0" max="1" step="0.05" />
-    <button type="button" class="btn-sm danger" onclick="this.parentElement.remove()">Remove</button>
-  `;
-  list.appendChild(item);
-}
-window.addPortfolioWeight = addPortfolioWeight;
 
 // Add portfolio strategy from saved strategies (grouped by folder)
 async function addPortfolioStrategy() {
@@ -6727,12 +6824,13 @@ function collectBacktestConfig() {
         }
       });
     } else {
-      // Ticker-based weights
+      // Ticker-based weights - collect from portfolio tickers list
       config.PORTFOLIO_WEIGHTS = {};
-      const weightItems = document.querySelectorAll('#portfolioWeightsList .weight-item');
-      weightItems.forEach(item => {
-        const ticker = item.querySelector('.weight-ticker')?.value?.trim().toUpperCase();
-        const weight = parseFloat(item.querySelector('.weight-value')?.value);
+      const tickerCards = document.querySelectorAll('#portfolioTickersList .ticker-card');
+      tickerCards.forEach(card => {
+        const ticker = card.querySelector('strong')?.textContent;
+        const weightInput = card.querySelector('input[data-field="weight"]');
+        const weight = parseFloat(weightInput?.value);
         if (ticker && !isNaN(weight) && weight > 0) {
           config.PORTFOLIO_WEIGHTS[ticker] = weight;
         }
@@ -6773,20 +6871,67 @@ function collectBacktestConfig() {
           }
         });
       } else {
-        // Collect strategies
+        // Collect strategies from portfolio tickers list
         config.PORTFOLIO_STRATEGIES = {};
-        const strategyItems = document.querySelectorAll('#portfolioStrategiesList .strategy-item');
-        strategyItems.forEach(item => {
-          const ticker = item.querySelector('.strategy-ticker')?.value;
-          const paramsStr = item.querySelector('.strategy-params')?.value;
-          if (ticker && paramsStr) {
-            try {
-              config.PORTFOLIO_STRATEGIES[ticker] = JSON.parse(paramsStr);
-            } catch (e) {
-              console.error(`Failed to parse strategy params for ${ticker}:`, e);
+        const tickerCards = document.querySelectorAll('#portfolioTickersList .ticker-card');
+        
+        tickerCards.forEach(card => {
+          // Get ticker from the card heading
+          const tickerText = card.querySelector('strong')?.textContent;
+          if (!tickerText) return;
+          
+          // Get strategy type
+          const strategySelect = card.querySelector('select[data-field="strategy_type"]');
+          const strategyType = strategySelect?.value;
+          
+          if (!strategyType) return; // Skip if no strategy selected
+          
+          if (strategyType === 'rsi') {
+            const paramsDiv = card.querySelector(`#strategyParams_${tickerText}`);
+            const rsiPeriod = parseInt(paramsDiv?.querySelector('[data-param="rsi_period"]')?.value);
+            const rsiBuy = parseInt(paramsDiv?.querySelector('[data-param="rsi_buy_below"]')?.value);
+            const rsiSell = parseInt(paramsDiv?.querySelector('[data-param="rsi_sell_above"]')?.value);
+            
+            if (!isNaN(rsiPeriod) && !isNaN(rsiBuy) && !isNaN(rsiSell)) {
+              config.PORTFOLIO_STRATEGIES[tickerText] = {
+                rsi_period: rsiPeriod,
+                rsi_buy_below: rsiBuy,
+                rsi_sell_above: rsiSell
+              };
+            }
+          } else if (strategyType === 'ma') {
+            // Future: MA strategy collection
+            const paramsDiv = card.querySelector(`#strategyParams_${tickerText}`);
+            const maType = paramsDiv?.querySelector('[data-param="ma_type"]')?.value;
+            const shortPeriod = parseInt(paramsDiv?.querySelector('[data-param="ma_short_period"]')?.value);
+            const longPeriod = parseInt(paramsDiv?.querySelector('[data-param="ma_long_period"]')?.value);
+            
+            if (maType && !isNaN(shortPeriod) && !isNaN(longPeriod)) {
+              config.PORTFOLIO_STRATEGIES[tickerText] = {
+                ma_type: maType,
+                ma_short_period: shortPeriod,
+                ma_long_period: longPeriod
+              };
             }
           }
+          // Add more strategy types here
         });
+        
+        // If no strategies specified, use default RSI params for all tickers
+        if (Object.keys(config.PORTFOLIO_STRATEGIES).length === 0 && config.TICKERS) {
+          const defaultRsiPeriod = config.RSI_PERIOD && config.RSI_PERIOD.length > 0 ? config.RSI_PERIOD[0] : 14;
+          const defaultRsiBuy = config.RSI_BUY_BELOW && config.RSI_BUY_BELOW.length > 0 ? config.RSI_BUY_BELOW[0] : 30;
+          const defaultRsiSell = config.RSI_SELL_ABOVE && config.RSI_SELL_ABOVE.length > 0 ? config.RSI_SELL_ABOVE[0] : 70;
+          
+          config.TICKERS.forEach(ticker => {
+            config.PORTFOLIO_STRATEGIES[ticker] = {
+              rsi_period: defaultRsiPeriod,
+              rsi_buy_below: defaultRsiBuy,
+              rsi_sell_above: defaultRsiSell
+            };
+          });
+          console.log(`[BACKTEST] Auto-populated portfolio strategies for ${config.TICKERS.length} tickers with default RSI params`);
+        }
       }
     }
     
@@ -6868,26 +7013,112 @@ function populateBacktestConfig(config) {
     document.getElementById('portfolioSettings').style.display = config.PORTFOLIO_MODE ? 'block' : 'none';
   }
   
-  if (config.PORTFOLIO_WEIGHTS !== undefined) {
-    const weightsList = document.getElementById('portfolioWeightsList');
-    weightsList.innerHTML = '';
-    for (const [ticker, weight] of Object.entries(config.PORTFOLIO_WEIGHTS)) {
-      const item = document.createElement('div');
-      item.className = 'weight-item';
-      item.innerHTML = `
-        <input type="text" placeholder="Ticker" class="weight-ticker" value="${ticker}" />
-        <input type="number" placeholder="Weight" class="weight-value" min="0" max="1" step="0.05" value="${weight}" />
-        <button type="button" class="btn-sm danger" onclick="this.parentElement.remove()">Remove</button>
-      `;
-      weightsList.appendChild(item);
+  // Load portfolio tickers with weights and strategies
+  if (config.PORTFOLIO_WEIGHTS !== undefined || config.PORTFOLIO_STRATEGIES !== undefined) {
+    const tickersList = document.getElementById('portfolioTickersList');
+    tickersList.innerHTML = '';
+    
+    // Get all tickers from either weights or strategies
+    const allTickers = new Set();
+    if (config.PORTFOLIO_WEIGHTS) {
+      Object.keys(config.PORTFOLIO_WEIGHTS).forEach(t => allTickers.add(t));
     }
+    if (config.PORTFOLIO_STRATEGIES) {
+      Object.keys(config.PORTFOLIO_STRATEGIES).forEach(t => allTickers.add(t));
+    }
+    
+    // Create a card for each ticker
+    allTickers.forEach(ticker => {
+      const weight = config.PORTFOLIO_WEIGHTS ? config.PORTFOLIO_WEIGHTS[ticker] || 0 : 0;
+      const strategy = config.PORTFOLIO_STRATEGIES ? config.PORTFOLIO_STRATEGIES[ticker] : null;
+      
+      const tickerCard = document.createElement('div');
+      tickerCard.className = 'ticker-card';
+      tickerCard.style.cssText = 'margin-bottom: 15px; padding: 15px; border: 1px solid #444; border-radius: 4px; background: #2a2a2a;';
+      
+      // Determine strategy type and create params HTML
+      let strategyType = '';
+      let paramsHtml = '';
+      let paramsDisplay = 'none';
+      
+      if (strategy) {
+        if (strategy.rsi_period !== undefined) {
+          strategyType = 'rsi';
+          paramsDisplay = 'block';
+          paramsHtml = `
+            <div style="padding: 10px; background: #1a1a1a; border-radius: 4px; border: 1px solid #444;">
+              <strong style="font-size: 0.9em; color: #03A9F4;">RSI Parameters:</strong>
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 8px;">
+                <div>
+                  <label style="font-size: 0.85em; color: #888;">Period:</label>
+                  <input type="number" class="form-control" value="${strategy.rsi_period}" 
+                         data-ticker="${ticker}" data-param="rsi_period"
+                         style="background: #0a0a0a; color: #fff; border: 1px solid #333;">
+                </div>
+                <div>
+                  <label style="font-size: 0.85em; color: #888;">Buy Below:</label>
+                  <input type="number" class="form-control" value="${strategy.rsi_buy_below}" 
+                         data-ticker="${ticker}" data-param="rsi_buy_below"
+                         style="background: #0a0a0a; color: #fff; border: 1px solid #333;">
+                </div>
+                <div>
+                  <label style="font-size: 0.85em; color: #888;">Sell Above:</label>
+                  <input type="number" class="form-control" value="${strategy.rsi_sell_above}" 
+                         data-ticker="${ticker}" data-param="rsi_sell_above"
+                         style="background: #0a0a0a; color: #fff; border: 1px solid #333;">
+                </div>
+              </div>
+            </div>
+          `;
+        } else if (strategy.ma_type !== undefined) {
+          strategyType = 'ma';
+          paramsDisplay = 'block';
+          // Add MA params loading here when MA is implemented
+        }
+      }
+      
+      tickerCard.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <strong style="font-size: 1.1em; color: #fff;">${ticker}</strong>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label style="margin: 0; color: #888; font-size: 0.9em;">Weight:</label>
+            <input type="number" step="0.01" class="form-control" value="${weight.toFixed(4)}" 
+                   data-ticker="${ticker}" data-field="weight" style="width: 80px; background: #1a1a1a; color: #fff; border: 1px solid #444;">
+          </div>
+        </div>
+        
+        <div style="margin-top: 10px;">
+          <label style="font-size: 0.9em; margin-bottom: 5px; display: block; color: #888;">Strategy Type:</label>
+          <select class="form-control" data-ticker="${ticker}" data-field="strategy_type" 
+                  onchange="toggleStrategyParams('${ticker}', this.value)" 
+                  style="margin-bottom: 10px; background: #1a1a1a; color: #fff; border: 1px solid #444;">
+            <option value="">-- Select Strategy --</option>
+            <option value="rsi" ${strategyType === 'rsi' ? 'selected' : ''}>RSI</option>
+            <option value="macd">MACD (Coming Soon)</option>
+            <option value="ma" ${strategyType === 'ma' ? 'selected' : ''}>Moving Average (Coming Soon)</option>
+            <option value="bollinger">Bollinger Bands (Coming Soon)</option>
+          </select>
+          
+          <div id="strategyParams_${ticker}" style="display: ${paramsDisplay};">
+            ${paramsHtml}
+          </div>
+        </div>
+      `;
+      
+      tickersList.appendChild(tickerCard);
+    });
   }
   
   if (config.PORTFOLIO_TARGET_UTILIZATION !== undefined) document.getElementById('portfolioUtilization').value = config.PORTFOLIO_TARGET_UTILIZATION;
   if (config.PORTFOLIO_USE_PARAM_GRID !== undefined) {
-    document.getElementById('useParamGrid').checked = config.PORTFOLIO_USE_PARAM_GRID;
-    document.getElementById('portfolioStrategies').style.display = config.PORTFOLIO_USE_PARAM_GRID ? 'none' : 'block';
-    document.getElementById('portfolioParamGrid').style.display = config.PORTFOLIO_USE_PARAM_GRID ? 'block' : 'none';
+    const useParamGridEl = document.getElementById('useParamGrid');
+    if (useParamGridEl) {
+      useParamGridEl.checked = config.PORTFOLIO_USE_PARAM_GRID;
+      const portfolioStrategiesEl = document.getElementById('portfolioStrategies');
+      const portfolioParamGridEl = document.getElementById('portfolioParamGrid');
+      if (portfolioStrategiesEl) portfolioStrategiesEl.style.display = config.PORTFOLIO_USE_PARAM_GRID ? 'none' : 'block';
+      if (portfolioParamGridEl) portfolioParamGridEl.style.display = config.PORTFOLIO_USE_PARAM_GRID ? 'block' : 'none';
+    }
   }
   
   // ENTRY section
@@ -6914,59 +7145,100 @@ function populateBacktestConfig(config) {
 // Run backtest button handler
 const runBacktestBtn = document.getElementById('runBacktestBtn');
 if (runBacktestBtn) {
-  runBacktestBtn.addEventListener('click', () => {
+  // Listen for progress updates
+  window.electronAPI.onBacktestProgress((progress) => {
+    console.log('[BACKTEST] Progress:', progress);
+    if (progress.progress !== undefined) {
+      runBacktestBtn.textContent = `Running... ${progress.progress}%`;
+    }
+    if (progress.message) {
+      console.log('[BACKTEST]', progress.message);
+    }
+  });
+
+  // Listen for completion
+  window.electronAPI.onBacktestComplete((result) => {
+    console.log('[BACKTEST] Complete:', result);
+    runBacktestBtn.disabled = false;
+    runBacktestBtn.textContent = 'Run Backtest';
+    runBacktestBtn.classList.remove('loading');
+    
+    if (result.success) {
+      alert(`Backtest completed successfully!\n\nRun ID: ${result.run_id}\n\nYou can view the results in the Results page.`);
+      
+      // Switch to results page
+      const resultsTab = document.querySelector('[data-main-tab="results"]');
+      if (resultsTab) {
+        resultsTab.click();
+      }
+    } else {
+      alert(`Backtest failed!\n\nError: ${result.error}`);
+    }
+  });
+
+  // Click handler
+  runBacktestBtn.addEventListener('click', async () => {
     console.log('[BACKTEST] Collecting configuration...');
     const config = collectBacktestConfig();
     
-    console.log('[BACKTEST] Configuration collected:');
-    console.log('='.repeat(80));
-    console.log('RUN_ID:', config.RUN_ID);
-    console.log('NOTES:', config.NOTES);
-    console.log('TICKERS:', config.TICKERS);
-    console.log('INITIAL_CAPITAL:', config.INITIAL_CAPITAL);
-    console.log('TIMESCALE:', config.TIMESCALE);
-    console.log('START:', config.START);
-    console.log('END:', config.END);
-    console.log('BUY_HOLD_ENABLED:', config.BUY_HOLD_ENABLED);
-    console.log('BENCHMARK_ENABLED:', config.BENCHMARK_ENABLED);
-    console.log('BENCHMARK_SYMBOL:', config.BENCHMARK_SYMBOL);
-    console.log('RF_ANNUAL:', config.RF_ANNUAL);
-    console.log('PERIODS_PER_YEAR:', config.PERIODS_PER_YEAR);
-    console.log('PORTFOLIO_MODE:', config.PORTFOLIO_MODE);
+    console.log('[BACKTEST] Configuration collected:', config);
     
+    // Validate configuration
+    if (!config.TICKERS || config.TICKERS.length === 0) {
+      alert('Please enter at least one ticker symbol.');
+      return;
+    }
+    
+    // Additional validation for portfolio mode
     if (config.PORTFOLIO_MODE) {
-      console.log('PORTFOLIO_WEIGHTS:', config.PORTFOLIO_WEIGHTS);
-      console.log('PORTFOLIO_TARGET_UTILIZATION:', config.PORTFOLIO_TARGET_UTILIZATION);
-      console.log('PORTFOLIO_USE_PARAM_GRID:', config.PORTFOLIO_USE_PARAM_GRID);
+      // Check for duplicate tickers
+      const uniqueTickers = [...new Set(config.TICKERS)];
+      if (uniqueTickers.length !== config.TICKERS.length) {
+        alert('Error: Duplicate tickers detected. Each ticker should only appear once.');
+        return;
+      }
       
-      if (config.PORTFOLIO_USE_PARAM_GRID) {
-        console.log('PORTFOLIO_PARAM_GRID:', config.PORTFOLIO_PARAM_GRID);
-      } else {
-        console.log('PORTFOLIO_STRATEGIES:', config.PORTFOLIO_STRATEGIES);
+      // Check if strategies are defined
+      if (!config.PORTFOLIO_STRATEGIES || Object.keys(config.PORTFOLIO_STRATEGIES).length === 0) {
+        alert('Error: Portfolio mode requires strategy parameters for each ticker.\n\nNote: The system will auto-populate default RSI parameters if none are specified.');
+        // Don't return - let the auto-population handle it
+      }
+      
+      // Check if weights sum correctly (should be 1.0 after normalization)
+      if (config.PORTFOLIO_WEIGHTS) {
+        const weightSum = Object.values(config.PORTFOLIO_WEIGHTS).reduce((sum, w) => sum + w, 0);
+        if (Math.abs(weightSum - 1.0) > 0.01) {
+          console.warn(`[BACKTEST] Portfolio weights sum to ${weightSum.toFixed(4)}, expected ~1.0`);
+        }
       }
     }
     
-    console.log('TARGET_WEIGHT:', config.TARGET_WEIGHT);
-    console.log('ENTRY_FEES_BPS:', config.ENTRY_FEES_BPS);
-    console.log('SLIP_OPEN_BPS:', config.SLIP_OPEN_BPS);
+    // Disable button and show loading state
+    runBacktestBtn.disabled = true;
+    runBacktestBtn.textContent = 'Starting Backtest...';
+    runBacktestBtn.classList.add('loading');
     
-    console.log('EXIT_FEES_BPS:', config.EXIT_FEES_BPS);
-    
-    console.log('RSI_ENABLED:', config.RSI_ENABLED);
-    if (config.RSI_ENABLED) {
-      console.log('RSI_PERIOD:', config.RSI_PERIOD);
-      console.log('RSI_BUY_BELOW:', config.RSI_BUY_BELOW);
-      console.log('RSI_SELL_ABOVE:', config.RSI_SELL_ABOVE);
+    try {
+      // Run backtest (this will trigger progress events)
+      console.log('[BACKTEST] Starting backtest...');
+      const response = await window.electronAPI.backtestRun(config);
+      
+      if (!response.success) {
+        // Immediate failure (before process could start)
+        runBacktestBtn.disabled = false;
+        runBacktestBtn.textContent = 'Run Backtest';
+        runBacktestBtn.classList.remove('loading');
+        alert(`Error starting backtest:\n\n${response.error}`);
+      }
+      // Otherwise, wait for progress/complete events
+      
+    } catch (error) {
+      console.error('[BACKTEST] Error running backtest:', error);
+      runBacktestBtn.disabled = false;
+      runBacktestBtn.textContent = 'Run Backtest';
+      runBacktestBtn.classList.remove('loading');
+      alert(`Error starting backtest:\n\n${error.message}`);
     }
-    
-    console.log('SAVE_METRICS:', config.SAVE_METRICS);
-    console.log('SAVE_DB:', config.SAVE_DB);
-    console.log('SAVE_TRADES:', config.SAVE_TRADES);
-    console.log('MAKE_TEARSHEETS:', config.MAKE_TEARSHEETS);
-    console.log('='.repeat(80));
-    
-    // TODO: Send to backend when ready
-    console.log('[BACKTEST] Ready to send to backend (not implemented yet)');
   });
 }
 

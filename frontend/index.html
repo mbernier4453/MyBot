@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BoomBerg</title>
+  <title>Alpharhythm</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://d3js.org/d3.v7.min.js"></script>
@@ -13,7 +13,7 @@
     <!-- Main Dashboard Navigation -->
     <nav class="main-nav">
       <div class="nav-brand">
-        <h1>BoomBerg</h1>
+        <h1>Alpharhythm</h1>
       </div>
       <div class="nav-tabs">
         <button class="main-tab active" data-main-tab="home">Home</button>
@@ -98,7 +98,6 @@
           <div class="watchlist-main">
             <div id="watchlistEmpty" class="watchlist-empty-state">
               <div class="empty-state">
-                <h2>Select a watchlist</h2>
                 <p>Choose a watchlist from the sidebar or create a new one</p>
               </div>
             </div>
@@ -609,12 +608,13 @@
                     
                     <!-- Ticker-based weights -->
                     <div id="portfolioTickerWeights">
-                      <label>Ticker Weights:</label>
-                      <button type="button" class="btn btn-sm" onclick="autoPopulateTickerWeights()" style="float: right;">📋 Auto-populate from Tickers</button>
-                      <div id="portfolioWeightsList"></div>
-                      <button type="button" class="btn btn-sm" onclick="addPortfolioWeight()">+ Add Ticker Weight</button>
+                      <label>Portfolio Tickers & Strategies:</label>
+                      <button type="button" class="btn btn-sm" onclick="autoPopulatePortfolio()" style="float: right;">
+                        📋 Auto-populate from Tickers/Watchlist
+                      </button>
+                      <div id="portfolioTickersList" style="margin-top: 10px;"></div>
                       <small style="display: block; margin-top: 8px;">
-                        ⚖️ <strong>Note:</strong> Weights will be automatically normalized to sum to 1.0. If no weights are set, equal weighting will be applied.
+                        ⚖️ Weights are auto-assigned equally. Adjust weights and select strategy type (RSI, MACD, etc.) for each ticker.
                       </small>
                     </div>
                     
@@ -929,11 +929,6 @@
                 <div class="tearsheet-section">
                   <h3>Trade Summary</h3>
                   <div id="tradeSummary" class="metrics-simple"></div>
-                </div>
-                
-                <div class="tearsheet-section">
-                  <h3>Trade Events</h3>
-                  <div id="tradeEvents" class="events-list"></div>
                 </div>
               </div>
               

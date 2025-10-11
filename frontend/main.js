@@ -1377,3 +1377,121 @@ ipcMain.handle('delete-watchlist', async (event, id) => {
     return { success: false, error: error.message };
   }
 });
+
+// ============================================
+// Backtester - Direct Python Subprocess
+// ============================================
+
+const { spawn } = require('child_process');
+
+// Helper function to find the correct Python executable
+function getPythonExecutable() {
+  const projectRoot = path.join(__dirname, '..');
+  
+  // Check for virtual environment
+  if (process.platform === 'win32') {
+    // Windows: check for .venv\Scripts\python.exe
+    const venvPython = path.join(projectRoot, '.venv', 'Scripts', 'python.exe');
+    if (fs.existsSync(venvPython)) {
+      console.log('[BACKTESTER] Using virtual environment Python:', venvPython);
+      return venvPython;
+    }
+  } else {
+    // Unix: check for .venv/bin/python
+    const venvPython = path.join(projectRoot, '.venv', 'bin', 'python');
+    if (fs.existsSync(venvPython)) {
+      console.log('[BACKTESTER] Using virtual environment Python:', venvPython);
+      return venvPython;
+    }
+  }
+  
+  // Fallback to system Python
+  const systemPython = process.platform === 'win32' ? 'python' : 'python3';
+  console.log('[BACKTESTER] Using system Python:', systemPython);
+  return systemPython;
+}
+
+// Run backtest directly as Python subprocess
+ipcMain.handle('backtest-run', async (event, config) => {
+  return new Promise((resolve, reject) => {
+    console.log('[BACKTESTER] Starting backtest subprocess...');
+    
+    const pythonCommand = getPythonExecutable();
+    const scriptPath = path.join(__dirname, '..', 'run_backtest.py');
+    const configJson = JSON.stringify(config);
+    
+    // Spawn Python process
+    const pythonProcess = spawn(pythonCommand, [scriptPath, configJson], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let output = [];
+    let lastProgress = null;
+
+    // Parse stdout for JSON progress messages
+    pythonProcess.stdout.on('data', (data) => {
+      const lines = data.toString().split('\n').filter(line => line.trim());
+      
+      for (const line of lines) {
+        try {
+          const msg = JSON.parse(line);
+          output.push(msg);
+          
+          if (msg.type === 'progress') {
+            lastProgress = msg;
+            // Send progress updates to renderer
+            if (mainWindow) {
+              mainWindow.webContents.send('backtest-progress', msg);
+            }
+          } else if (msg.type === 'result') {
+            // Final result
+            if (mainWindow) {
+              mainWindow.webContents.send('backtest-complete', msg);
+            }
+          }
+        } catch (e) {
+          // Not JSON, just log it
+          console.log('[BACKTESTER]', line);
+        }
+      }
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      console.error('[BACKTESTER ERROR]', data.toString());
+    });
+
+    pythonProcess.on('error', (error) => {
+      console.error('[BACKTESTER] Process error:', error);
+      reject({ success: false, error: error.message });
+    });
+
+    pythonProcess.on('exit', (code) => {
+      console.log(`[BACKTESTER] Process exited with code ${code}`);
+      
+      // Find result message in output
+      const result = output.find(msg => msg.type === 'result');
+      
+      if (code === 0 && result) {
+        resolve({
+          success: result.success,
+          run_id: result.run_id,
+          output: output
+        });
+      } else if (result) {
+        resolve({
+          success: false,
+          error: result.error,
+          traceback: result.traceback,
+          output: output
+        });
+      } else {
+        resolve({
+          success: false,
+          error: `Process exited with code ${code}`,
+          output: output
+        });
+      }
+    });
+  });
+});

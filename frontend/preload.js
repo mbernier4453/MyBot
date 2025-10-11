@@ -38,5 +38,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPolygonUpdate: (callback) => ipcRenderer.on('polygon-update', (event, data) => callback(data)),
   onPolygonStatus: (callback) => ipcRenderer.on('polygon-status', (event, status) => callback(status)),
   onPolygonError: (callback) => ipcRenderer.on('polygon-error', (event, error) => callback(error)),
-  onPolygonInitialLoad: (callback) => ipcRenderer.on('polygon-initial-load-complete', (event, data) => callback(data))
+  onPolygonInitialLoad: (callback) => ipcRenderer.on('polygon-initial-load-complete', (event, data) => callback(data)),
+  
+  // Backtester
+  backtestRun: (config) => ipcRenderer.invoke('backtest-run', config),
+  onBacktestProgress: (callback) => ipcRenderer.on('backtest-progress', (event, data) => callback(data)),
+  onBacktestComplete: (callback) => ipcRenderer.on('backtest-complete', (event, data) => callback(data))
 });

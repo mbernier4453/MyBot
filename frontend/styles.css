@@ -2713,6 +2713,15 @@ textarea.form-input {
 .config-actions {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.config-actions button {
+  width: 145px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .config-section {

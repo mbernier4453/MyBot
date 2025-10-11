@@ -698,23 +698,28 @@ def portfolio_tearsheet(run_id: str,
 
     # ---- Trades table ----
     trade_rows = []
-    for tr in trades:
-        dt = tr.get("date")
-        if hasattr(dt, "isoformat"): dt = dt.isoformat()
-        pnl = tr.get('pnl')
-        pnl_str = f"${pnl:.2f}" if pnl is not None else "N/A"
-        trade_rows.append(
-            f"<tr><td>{dt}</td><td>{tr.get('ticker')}</td><td>{tr.get('side')}</td>"
-            f"<td>{tr.get('shares')}</td><td>${tr.get('price'):.2f}</td>"
-            f"<td>${tr.get('fees',0):.2f}</td><td>{pnl_str}</td></tr>"
-        )
+    if trades and len(trades) > 0:
+        for tr in trades:
+            dt = tr.get("date")
+            if hasattr(dt, "isoformat"): dt = dt.isoformat()
+            elif hasattr(dt, "strftime"): dt = dt.strftime("%Y-%m-%d")
+            pnl = tr.get('pnl')
+            pnl_str = f"${pnl:.2f}" if pnl is not None else "N/A"
+            trade_rows.append(
+                f"<tr><td>{dt}</td><td>{tr.get('ticker')}</td><td>{tr.get('side')}</td>"
+                f"<td>{tr.get('shares')}</td><td>${tr.get('price', 0):.2f}</td>"
+                f"<td>${tr.get('fees',0):.2f}</td><td>{pnl_str}</td></tr>"
+            )
+    
+    trades_content = ''.join(trade_rows) if trade_rows else '<tr><td colspan="7" style="text-align:center;color:#888;">No trades executed</td></tr>'
+    
     trades_table = f"""
     <div class="box">
-      <h2>Trades ({len(trades)})</h2>
+      <h2>Trades ({len(trades) if trades else 0})</h2>
       <div class="trades-wrap">
         <table class="trades">
           <thead><tr><th>Date</th><th>Sym</th><th>Side</th><th>Qty</th><th>Price</th><th>Fees</th><th>PnL</th></tr></thead>
-          <tbody>{''.join(trade_rows)}</tbody>
+          <tbody>{trades_content}</tbody>
         </table>
       </div>
     </div>"""
