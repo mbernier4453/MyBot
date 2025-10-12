@@ -8022,21 +8022,16 @@ function buildPriceFields(id) {
       <div class="condition-field">
         <label>Interaction</label>
         <select id="${id}_interaction" onchange="toggleInteractionFields('${id}')">
-          <option value="touch">Touch</option>
-          <option value="cross">Cross</option>
+          <option value="cross" selected>Cross</option>
           <option value="recross">Recross</option>
         </select>
       </div>
       <div class="condition-field" id="${id}_direction_field">
-        <label>Direction</label>
+        <label>Cross Direction</label>
         <select id="${id}_direction">
-          <option value="above">Above</option>
-          <option value="below">Below</option>
+          <option value="above" selected>Price crosses UP through target</option>
+          <option value="below">Price crosses DOWN through target</option>
         </select>
-      </div>
-      <div class="condition-field" id="${id}_touches_field">
-        <label>Required Touches</label>
-        <input type="number" id="${id}_touches" min="1" value="1" />
       </div>
     </div>
     <div class="condition-field-row">
@@ -8105,22 +8100,16 @@ function buildRSIFields(id) {
       <div class="condition-field">
         <label>Interaction</label>
         <select id="${id}_interaction" onchange="toggleInteractionFields('${id}')">
-          <option value="touch">Touch</option>
-          <option value="cross">Cross</option>
+          <option value="cross" selected>Cross</option>
           <option value="recross">Recross</option>
         </select>
       </div>
       <div class="condition-field" id="${id}_direction_field">
-        <label>Direction</label>
+        <label>Cross Direction</label>
         <select id="${id}_direction">
-          <option value="above">Above</option>
-          <option value="below">Below</option>
+          <option value="above" selected>RSI crosses UP through target</option>
+          <option value="below">RSI crosses DOWN through target</option>
         </select>
-      </div>
-      <div class="condition-field" id="${id}_touches_field">
-        <label>Required Touch(es)</label>
-        <input type="text" id="${id}_touches" value="1" placeholder="1 or 1,2,3" />
-        <small>Single value or comma-separated list for grid</small>
       </div>
     </div>
     <div class="condition-field-row">
@@ -8559,6 +8548,10 @@ function refreshStrategyPreview() {
     return;
   }
   
+  // Get signal mode from radio buttons
+  const signalMode = document.querySelector('input[name="previewSignalMode"]:checked')?.value || 'first';
+  console.log('[PREVIEW] Signal mode:', signalMode);
+  
   const entryConditions = collectConditions('entry');
   const exitConditions = document.getElementById('mirrorEntry').checked 
     ? [] 
@@ -8577,18 +8570,18 @@ function refreshStrategyPreview() {
   
   // Create a chart for each entry condition
   entryConditions.forEach((condition, idx) => {
-    createConditionChart('entry', condition, idx + 1);
+    createConditionChart('entry', condition, idx + 1, signalMode);
   });
   
   // Create a chart for each exit condition
   exitConditions.forEach((condition, idx) => {
-    createConditionChart('exit', condition, idx + 1);
+    createConditionChart('exit', condition, idx + 1, signalMode);
   });
 }
 
 // Create a Plotly chart for a single condition
-function createConditionChart(group, condition, number) {
-  console.log('[PREVIEW] Creating chart for:', group, condition, number);
+function createConditionChart(group, condition, number, signalMode = 'first') {
+  console.log('[PREVIEW] Creating chart for:', group, condition, number, 'signalMode:', signalMode);
   
   const chartsContainer = document.getElementById('previewCharts');
   const chartId = `preview_${group}_${number}`;
@@ -8606,24 +8599,24 @@ function createConditionChart(group, condition, number) {
   
   // For RSI, create a separate chart without price
   if (condition.type === 'rsi') {
-    createRSIChart(chartId, condition, group);
+    createRSIChart(chartId, condition, group, signalMode);
     return;
   }
   
   // For MA Crossover, create a separate chart
   if (condition.type === 'ma_crossover') {
-    createMACrossoverChart(chartId, condition, group);
+    createMACrossoverChart(chartId, condition, group, signalMode);
     return;
   }
   
   // For Price conditions, show price line with indicators
-  createPriceChart(chartId, condition, group);
+  createPriceChart(chartId, condition, group, signalMode);
 }
 
 // Create price condition chart
-function createPriceChart(chartId, condition, group) {
+function createPriceChart(chartId, condition, group, signalMode = 'first') {
   // Calculate signals based on condition type
-  const signals = calculateConditionSignals(condition);
+  const signals = calculateConditionSignals(condition, signalMode);
   
   // Create base price trace
   const priceTrace = {
@@ -8663,7 +8656,7 @@ function createPriceChart(chartId, condition, group) {
 }
 
 // Create RSI chart
-function createRSIChart(chartId, condition, group) {
+function createRSIChart(chartId, condition, group, signalMode = 'first') {
   // Parse comma-separated RSI periods
   const periodString = condition.rsi_period || '14';
   const periods = periodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
@@ -8699,7 +8692,7 @@ function createRSIChart(chartId, condition, group) {
   const targetTraces = createRSITargetTraces(condition);
   traces.push(...targetTraces);
   
-  const signals = calculateConditionSignals(condition);
+  const signals = calculateConditionSignals(condition, signalMode);
   const annotations = createSignalAnnotations(signals, group, firstRsiValues);
   
   const layout = {
@@ -8721,8 +8714,8 @@ function createRSIChart(chartId, condition, group) {
 }
 
 // Create MA Crossover chart
-function createMACrossoverChart(chartId, condition, group) {
-  const signals = calculateConditionSignals(condition);
+function createMACrossoverChart(chartId, condition, group, signalMode = 'first') {
+  const signals = calculateConditionSignals(condition, signalMode);
   
   // Show price line
   const priceTrace = {
@@ -8855,7 +8848,7 @@ function calculateRSI(prices, period = 14) {
 }
 
 // Calculate when a condition would trigger (returns array of {indices: [], lineNumber: X})
-function calculateConditionSignals(condition) {
+function calculateConditionSignals(condition, signalMode = 'first') {
   const signalsByLine = [];
   const prices = cachedSP500Data.close;
   
@@ -8912,22 +8905,41 @@ function calculateConditionSignals(condition) {
         const lineSignals = [];
         const ma = calculateSimpleMA(prices, period);
         
+        const direction = condition.direction || 'above';
+        console.log(`[PREVIEW] Checking Price vs ${condition.target_type}(${period}), interaction: ${interaction}, direction: ${direction}`);
+        
+        let crossUpCount = 0;
+        let crossDownCount = 0;
+        
         for (let i = period; i < prices.length; i++) {
           if (!ma[i] || !ma[i-1]) continue;
           
           if (interaction === 'cross') {
             // Price crosses MA
-            if ((prices[i-1] < ma[i-1] && prices[i] > ma[i]) ||
-                (prices[i-1] > ma[i-1] && prices[i] < ma[i])) {
+            const crossedUp = prices[i-1] < ma[i-1] && prices[i] > ma[i];
+            const crossedDown = prices[i-1] > ma[i-1] && prices[i] < ma[i];
+            
+            if (direction === 'above' && crossedUp) {
               lineSignals.push(i);
+              crossUpCount++;
+              if (crossUpCount <= 3) {
+                console.log(`[PREVIEW] Price cross UP at bar ${i}: Price ${prices[i-1].toFixed(2)} -> ${prices[i].toFixed(2)}, MA ${ma[i-1].toFixed(2)} -> ${ma[i].toFixed(2)}`);
+              }
             }
-          } else if (interaction === 'touch') {
-            // Price touches MA (within 0.5%)
-            const threshold = ma[i] * 0.005;
-            if (Math.abs(prices[i] - ma[i]) < threshold) {
+            if (direction === 'below' && crossedDown) {
               lineSignals.push(i);
+              crossDownCount++;
+              if (crossDownCount <= 3) {
+                console.log(`[PREVIEW] Price cross DOWN at bar ${i}: Price ${prices[i-1].toFixed(2)} -> ${prices[i].toFixed(2)}, MA ${ma[i-1].toFixed(2)} -> ${ma[i].toFixed(2)}`);
+              }
             }
           }
+        }
+        
+        if (interaction === 'cross') {
+          console.log(`[PREVIEW] Price vs ${condition.target_type}(${period}): ${crossUpCount} up, ${crossDownCount} down, ${crossUpCount + crossDownCount} total crosses`);
+        } else if (interaction === 'touch') {
+          console.log(`[PREVIEW] Price vs ${condition.target_type}(${period}): ${touchCount} touches`);
         }
         
         if (lineSignals.length > 0) {
@@ -8958,24 +8970,71 @@ function calculateConditionSignals(condition) {
           const lineSignals = [];
           const rsiValues = calculateRSI(prices, rsiPeriod);
           
+          console.log(`[PREVIEW] Checking RSI(${rsiPeriod}) vs Value(${targetValue}), interaction: ${interaction}`);
+          
+          let crossCount = 0;
+          let touchCount = 0;
+          let crossUpCount = 0;
+          let crossDownCount = 0;
+          
+          // Check all RSI values around the target to understand the pattern
+          let valuesNearTarget = 0;
+          let valuesBelowTarget = 0;
+          let valuesAboveTarget = 0;
+          
+          for (let i = rsiPeriod + 1; i < rsiValues.length; i++) {
+            if (rsiValues[i]) {
+              if (Math.abs(rsiValues[i] - targetValue) <= 5) valuesNearTarget++;
+              if (rsiValues[i] < targetValue) valuesBelowTarget++;
+              if (rsiValues[i] > targetValue) valuesAboveTarget++;
+            }
+          }
+          
+          console.log(`[PREVIEW] RSI distribution: ${valuesBelowTarget} below ${targetValue}, ${valuesAboveTarget} above, ${valuesNearTarget} within ±5`);
+          
+          // Show a larger sample of RSI values
+          const sampleIndices = [15, 30, 50, 75, 100, 125, 150, 175, 200, 225];
+          const rsiSample = sampleIndices
+            .filter(i => i < rsiValues.length && rsiValues[i])
+            .map(i => `Bar ${i}: ${rsiValues[i].toFixed(2)}`);
+          console.log(`[PREVIEW] RSI sample values:`, rsiSample);
+          
+          const direction = condition.direction || 'above';
+          
           for (let i = rsiPeriod + 1; i < rsiValues.length; i++) {
             if (!rsiValues[i] || !rsiValues[i-1]) continue;
             
             if (interaction === 'cross') {
-              // RSI crosses value
-              if ((rsiValues[i-1] < targetValue && rsiValues[i] > targetValue) ||
-                  (rsiValues[i-1] > targetValue && rsiValues[i] < targetValue)) {
+              // RSI crosses value - strict definition: on opposite sides
+              const prev = rsiValues[i-1];
+              const curr = rsiValues[i];
+              const crossedUp = prev < targetValue && curr > targetValue;
+              const crossedDown = prev > targetValue && curr < targetValue;
+              
+              if (direction === 'above' && crossedUp) {
                 lineSignals.push(i);
+                crossUpCount++;
+                if (crossUpCount <= 5) {
+                  console.log(`[PREVIEW] Cross UP at bar ${i}: RSI ${prev.toFixed(2)} -> ${curr.toFixed(2)} (target: ${targetValue})`);
+                }
               }
-            } else if (interaction === 'touch') {
-              // RSI touches value (check if it wasn't touching before)
-              const wasFarAway = Math.abs(rsiValues[i-1] - targetValue) > 2;
-              const isCloseNow = Math.abs(rsiValues[i] - targetValue) < 1;
-              if (wasFarAway && isCloseNow) {
+              if (direction === 'below' && crossedDown) {
                 lineSignals.push(i);
+                crossDownCount++;
+                if (crossDownCount <= 5) {
+                  console.log(`[PREVIEW] Cross DOWN at bar ${i}: RSI ${prev.toFixed(2)} -> ${curr.toFixed(2)} (target: ${targetValue})`);
+                }
               }
             }
           }
+          
+          if (interaction === 'cross') {
+            console.log(`[PREVIEW] RSI(${rsiPeriod}) crossed ${targetValue}: ${crossUpCount} up, ${crossDownCount} down, ${crossUpCount + crossDownCount} total`);
+          } else if (interaction === 'touch') {
+            console.log(`[PREVIEW] RSI(${rsiPeriod}) touched ${targetValue} ${touchCount} times`);
+          }
+          
+          console.log(`[PREVIEW] Found ${lineSignals.length} signals for RSI(${rsiPeriod}) vs ${targetValue}`);
           
           if (lineSignals.length > 0) {
             signalsByLine.push({
@@ -8999,23 +9058,43 @@ function calculateConditionSignals(condition) {
           const maOfRSI = calculateSimpleMA(rsiValues, targetPeriod);
           const maxPeriod = Math.max(rsiPeriod, targetPeriod);
           
+          console.log(`[PREVIEW] Checking RSI(${rsiPeriod}) vs ${condition.target_type}(${targetPeriod}) of RSI, interaction: ${interaction}`);
+          
+          let crossUpCount = 0;
+          let crossDownCount = 0;
+          let touchCount = 0;
+          
           for (let i = maxPeriod + 1; i < rsiValues.length; i++) {
             if (!rsiValues[i] || !rsiValues[i-1] || !maOfRSI[i] || !maOfRSI[i-1]) continue;
             
             if (interaction === 'cross') {
               // RSI crosses its moving average
-              if ((rsiValues[i-1] < maOfRSI[i-1] && rsiValues[i] > maOfRSI[i]) ||
-                  (rsiValues[i-1] > maOfRSI[i-1] && rsiValues[i] < maOfRSI[i])) {
+              const crossedUp = rsiValues[i-1] < maOfRSI[i-1] && rsiValues[i] > maOfRSI[i];
+              const crossedDown = rsiValues[i-1] > maOfRSI[i-1] && rsiValues[i] < maOfRSI[i];
+              
+              const direction = condition.direction || 'above';
+              
+              if (direction === 'above' && crossedUp) {
                 lineSignals.push(i);
+                crossUpCount++;
+                if (crossUpCount <= 3) {
+                  console.log(`[PREVIEW] RSI cross UP at bar ${i}: RSI ${rsiValues[i-1].toFixed(2)} -> ${rsiValues[i].toFixed(2)}, MA ${maOfRSI[i-1].toFixed(2)} -> ${maOfRSI[i].toFixed(2)}`);
+                }
               }
-            } else if (interaction === 'touch') {
-              // RSI touches its MA
-              const wasFarAway = Math.abs(rsiValues[i-1] - maOfRSI[i-1]) > 2;
-              const isCloseNow = Math.abs(rsiValues[i] - maOfRSI[i]) < 1;
-              if (wasFarAway && isCloseNow) {
+              if (direction === 'below' && crossedDown) {
                 lineSignals.push(i);
+                crossDownCount++;
+                if (crossDownCount <= 3) {
+                  console.log(`[PREVIEW] RSI cross DOWN at bar ${i}: RSI ${rsiValues[i-1].toFixed(2)} -> ${rsiValues[i].toFixed(2)}, MA ${maOfRSI[i-1].toFixed(2)} -> ${maOfRSI[i].toFixed(2)}`);
+                }
               }
             }
+          }
+          
+          if (interaction === 'cross') {
+            console.log(`[PREVIEW] RSI(${rsiPeriod}) vs MA(${targetPeriod}): ${crossUpCount} up, ${crossDownCount} down, ${crossUpCount + crossDownCount} total crosses`);
+          } else if (interaction === 'touch') {
+            console.log(`[PREVIEW] RSI(${rsiPeriod}) vs MA(${targetPeriod}): ${touchCount} touches`);
           }
           
           if (lineSignals.length > 0) {
@@ -9070,6 +9149,15 @@ function calculateConditionSignals(condition) {
         }
       });
     });
+  }
+  
+  // Apply signal mode filter
+  if (signalMode === 'first') {
+    // Keep only the first signal for each line
+    return signalsByLine.map(line => ({
+      indices: line.indices.length > 0 ? [line.indices[0]] : [],
+      lineNumber: line.lineNumber
+    })).filter(line => line.indices.length > 0);
   }
   
   return signalsByLine;

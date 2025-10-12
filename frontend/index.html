@@ -682,9 +682,19 @@
                 <div id="strategyPreviewContainer" style="display: none; margin-bottom: 20px; padding: 15px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h4 style="margin: 0;">Strategy Visualization (S&P 500 - 1 Year)</h4>
-                    <button type="button" class="btn btn-primary" onclick="refreshStrategyPreview()" style="padding: 8px 20px; font-size: 0.95em;">
-                      Update Preview
-                    </button>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                      <label style="display: flex; align-items: center; gap: 5px; margin: 0; font-size: 0.9em;">
+                        <input type="radio" name="previewSignalMode" value="first" checked onchange="refreshStrategyPreview()" />
+                        First Entry Only
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 5px; margin: 0; font-size: 0.9em;">
+                        <input type="radio" name="previewSignalMode" value="all" onchange="refreshStrategyPreview()" />
+                        All Entries
+                      </label>
+                      <button type="button" class="btn btn-primary" onclick="refreshStrategyPreview()" style="padding: 8px 20px; font-size: 0.95em;">
+                        Update Preview
+                      </button>
+                    </div>
                   </div>
                   <div id="previewStatus" style="color: var(--text-secondary); margin-bottom: 10px; font-size: 0.9em;"></div>
                   <div id="previewCharts"></div>
