@@ -6946,27 +6946,40 @@ function collectBacktestConfig() {
   // EXIT section (only implemented features)
   config.EXIT_FEES_BPS = parseInt(document.getElementById('exitFees')?.value || 10);
   
-  // INDICATORS section
-  config.RSI_ENABLED = document.getElementById('rsiEnabled')?.checked || false;
+  // STRATEGY CONDITIONS section
+  config.POSITION_TYPE = document.querySelector('input[name="positionType"]:checked')?.value || 'long';
+  config.ENTRY_CONDITIONS = collectConditions('entry');
+  config.ENTRY_MODE = document.querySelector('input[name="entryMode"]:checked')?.value || 'all';
   
-  if (config.RSI_ENABLED) {
-    // Parse RSI periods (can be single value or comma-separated)
-    const rsiPeriodsStr = document.getElementById('rsiPeriods')?.value || '14';
-    config.RSI_PERIOD = rsiPeriodsStr.includes(',') 
-      ? rsiPeriodsStr.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v))
-      : [parseInt(rsiPeriodsStr)];
+  const mirrorEntry = document.getElementById('mirrorEntry')?.checked || false;
+  config.EXIT_MIRROR_ENTRY = mirrorEntry;
+  config.VICE_VERSA = document.getElementById('viceVersa')?.checked || false;
+  
+  if (!mirrorEntry) {
+    config.EXIT_CONDITIONS = collectConditions('exit');
+    config.EXIT_MODE = document.querySelector('input[name="exitMode"]:checked')?.value || 'all';
     
-    // Parse RSI buy below
-    const rsiBuyBelowStr = document.getElementById('rsiBuyBelow')?.value || '30';
-    config.RSI_BUY_BELOW = rsiBuyBelowStr.includes(',')
-      ? rsiBuyBelowStr.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v))
-      : [parseInt(rsiBuyBelowStr)];
+    // Take Profit
+    config.TAKE_PROFIT_ENABLED = document.getElementById('takeProfitEnabled')?.checked || false;
+    if (config.TAKE_PROFIT_ENABLED) {
+      config.TAKE_PROFIT_TYPE = document.getElementById('takeProfitType')?.value;
+      if (config.TAKE_PROFIT_TYPE === 'percent') {
+        config.TAKE_PROFIT_PERCENT = parseFloat(document.getElementById('takeProfitPercentValue')?.value || 10.0);
+      } else if (config.TAKE_PROFIT_TYPE === 'dollar') {
+        config.TAKE_PROFIT_DOLLAR = parseFloat(document.getElementById('takeProfitDollarValue')?.value || 100.0);
+      }
+    }
     
-    // Parse RSI sell above
-    const rsiSellAboveStr = document.getElementById('rsiSellAbove')?.value || '70';
-    config.RSI_SELL_ABOVE = rsiSellAboveStr.includes(',')
-      ? rsiSellAboveStr.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v))
-      : [parseInt(rsiSellAboveStr)];
+    // Stop Loss
+    config.STOP_LOSS_ENABLED = document.getElementById('stopLossEnabled')?.checked || false;
+    if (config.STOP_LOSS_ENABLED) {
+      config.STOP_LOSS_TYPE = document.getElementById('stopLossType')?.value;
+      if (config.STOP_LOSS_TYPE === 'percent') {
+        config.STOP_LOSS_PERCENT = parseFloat(document.getElementById('stopLossPercentValue')?.value || 5.0);
+      } else if (config.STOP_LOSS_TYPE === 'dollar') {
+        config.STOP_LOSS_DOLLAR = parseFloat(document.getElementById('stopLossDollarValue')?.value || 100.0);
+      }
+    }
   }
   
   // OUTPUTS section (only implemented features)
@@ -7818,6 +7831,1417 @@ document.addEventListener('DOMContentLoaded', () => {
   
   console.log('[SETTINGS] Keyboard shortcuts registered');
 });
+
+// ===================================
+// STRATEGY CONDITIONS UI
+// ===================================
+
+let conditionCounter = 0;
+
+// Condition type definitions
+const CONDITION_TYPES = {
+  timing: { label: 'Timing Window', description: 'Entry/Exit at specific times' },
+  price: { label: 'Price', description: 'Price interaction with MA/indicator or value' },
+  rsi: { label: 'RSI', description: 'RSI interaction with MA/indicator or value' },
+  ma_crossover: { label: 'MA Crossover', description: 'Fast MA crosses slow MA' }
+};
+
+// MA type options (including band indicators and value)
+const MA_TYPES = ['Value', 'SMA', 'EMA', 'HMA', 'KAMA', 'BB_TOP', 'BB_MID', 'BB_BOTTOM', 'KC_TOP', 'KC_MID', 'KC_BOTTOM'];
+
+// Add condition (unified for entry/exit)
+function addCondition(conditionGroup) {
+  showConditionTypeModal(conditionGroup);
+}
+
+// Show modal to select condition type
+function showConditionTypeModal(conditionGroup) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+  
+  const modalContent = document.createElement('div');
+  modalContent.style.cssText = 'background: var(--bg-secondary); padding: 30px; border-radius: 8px; max-width: 500px; width: 90%;';
+  
+  modalContent.innerHTML = `
+    <h3 style="margin-top: 0;">Select Condition Type</h3>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      ${Object.entries(CONDITION_TYPES).map(([key, info]) => `
+        <button class="condition-type-btn" data-type="${key}" style="
+          padding: 12px; 
+          text-align: left; 
+          background: var(--bg-tertiary); 
+          border: 1px solid var(--border-color); 
+          border-radius: 4px;
+          cursor: pointer;
+          color: var(--text-primary);
+          transition: background 0.2s;
+        ">
+          <div style="font-weight: 600;">${info.label}</div>
+          <div style="font-size: 0.85em; color: var(--text-secondary); margin-top: 4px;">${info.description}</div>
+        </button>
+      `).join('')}
+    </div>
+    <button id="cancelConditionType" style="
+      margin-top: 20px; 
+      padding: 8px 20px; 
+      background: #666; 
+      color: white; 
+      border: none; 
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+    ">Cancel</button>
+  `;
+  
+  modal.appendChild(modalContent);
+  document.body.appendChild(modal);
+  
+  // Add hover effect
+  modalContent.querySelectorAll('.condition-type-btn').forEach(btn => {
+    btn.addEventListener('mouseenter', () => btn.style.background = 'var(--bg-hover)');
+    btn.addEventListener('mouseleave', () => btn.style.background = 'var(--bg-tertiary)');
+    btn.addEventListener('click', () => {
+      const conditionType = btn.dataset.type;
+      createConditionCard(conditionGroup, conditionType);
+      modal.remove();
+    });
+  });
+  
+  modalContent.querySelector('#cancelConditionType').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+
+// Create condition card based on type
+function createConditionCard(conditionGroup, conditionType) {
+  conditionCounter++;
+  const conditionId = `condition_${conditionCounter}`;
+  
+  const listId = conditionGroup === 'entry' ? 'entryConditionsList' : 'exitConditionsList';
+  const list = document.getElementById(listId);
+  
+  const card = document.createElement('div');
+  card.className = 'condition-card';
+  card.dataset.conditionId = conditionId;
+  card.dataset.conditionType = conditionType;
+  
+  // Header
+  const header = document.createElement('div');
+  header.className = 'condition-header';
+  header.innerHTML = `
+    <span class="condition-type-label">${CONDITION_TYPES[conditionType].label}</span>
+    <button class="condition-remove-btn" onclick="removeCondition('${conditionId}')">Remove</button>
+  `;
+  card.appendChild(header);
+  
+  // Fields container
+  const fieldsDiv = document.createElement('div');
+  fieldsDiv.className = 'condition-fields';
+  
+  // Build fields based on condition type
+  switch (conditionType) {
+    case 'timing':
+      fieldsDiv.innerHTML = buildTimingFields(conditionId);
+      break;
+    case 'price':
+      fieldsDiv.innerHTML = buildPriceFields(conditionId);
+      break;
+    case 'rsi':
+      fieldsDiv.innerHTML = buildRSIFields(conditionId);
+      break;
+    case 'ma_crossover':
+      fieldsDiv.innerHTML = buildMACrossoverFields(conditionId);
+      break;
+  }
+  
+  card.appendChild(fieldsDiv);
+  list.appendChild(card);
+}
+
+// Build timing fields
+function buildTimingFields(id) {
+  return `
+    <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Start Time (HH:MM)</label>
+        <input type="time" id="${id}_time1" value="09:30" />
+      </div>
+      <div class="condition-field">
+        <label>End Time (HH:MM)</label>
+        <input type="time" id="${id}_time2" value="16:00" />
+      </div>
+    </div>
+  `;
+}
+
+// Build price fields
+function buildPriceFields(id) {
+  return `
+    <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Target Type</label>
+        <select id="${id}_target_type" onchange="toggleTargetParams('${id}')">
+          ${MA_TYPES.map((ma, idx) => {
+            const selected = ma === 'SMA' ? ' selected' : '';
+            return `<option value="${ma}"${selected}>${ma}</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <div class="condition-field" id="${id}_value_field" style="display: none;">
+        <label>Value(s)</label>
+        <input type="text" id="${id}_target_value" value="100.00" placeholder="100 or 100,110,120" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+      <div class="condition-field" id="${id}_period_field">
+        <label>Period(s)</label>
+        <input type="text" id="${id}_target_period" value="20" placeholder="20 or 20,50,200" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+    </div>
+    <div id="${id}_bb_params" style="display: none;">
+      <div class="condition-field-row">
+        <div class="condition-field">
+          <label>BB Std Dev(s)</label>
+          <input type="text" id="${id}_bb_std" value="2.0" placeholder="2.0 or 1.5,2.0,2.5" />
+          <small>Single value or comma-separated list for grid</small>
+        </div>
+      </div>
+    </div>
+    <div id="${id}_kc_params" style="display: none;">
+      <div class="condition-field-row">
+        <div class="condition-field">
+          <label>KC ATR Mult(s)</label>
+          <input type="text" id="${id}_kc_mult" value="2.0" placeholder="2.0 or 1.5,2.0,2.5" />
+          <small>Single value or comma-separated list for grid</small>
+        </div>
+      </div>
+    </div>
+    <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Interaction</label>
+        <select id="${id}_interaction" onchange="toggleInteractionFields('${id}')">
+          <option value="touch">Touch</option>
+          <option value="cross">Cross</option>
+          <option value="recross">Recross</option>
+        </select>
+      </div>
+      <div class="condition-field" id="${id}_direction_field">
+        <label>Direction</label>
+        <select id="${id}_direction">
+          <option value="above">Above</option>
+          <option value="below">Below</option>
+        </select>
+      </div>
+      <div class="condition-field" id="${id}_touches_field">
+        <label>Required Touches</label>
+        <input type="number" id="${id}_touches" min="1" value="1" />
+      </div>
+    </div>
+    <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Threshold %(s)</label>
+        <input type="text" id="${id}_threshold_pct" value="0.5" placeholder="0.5 or 0.5,1.0,2.0" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+      <div class="condition-field">
+        <label>Delay Bar(s)</label>
+        <input type="text" id="${id}_delay" value="0" placeholder="0 or 0,1,2" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+    </div>
+  `;
+}
+
+// Build RSI fields
+function buildRSIFields(id) {
+  return `
+    <div class="condition-field-row">
+      <div class="condition-field">
+        <label>RSI Period(s)</label>
+        <input type="text" id="${id}_rsi_period" value="14" placeholder="14 or 7,14,21" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+      <div class="condition-field">
+        <label>Target Type</label>
+        <select id="${id}_target_type" onchange="toggleTargetParams('${id}')">
+          ${MA_TYPES.map((ma, idx) => {
+            const selected = ma === 'SMA' ? ' selected' : '';
+            return `<option value="${ma}"${selected}>${ma}</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <div class="condition-field" id="${id}_value_field" style="display: none;">
+        <label>Value(s)</label>
+        <input type="text" id="${id}_target_value" value="30" placeholder="30 or 20,30,40" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+      <div class="condition-field" id="${id}_period_field">
+        <label>Period(s)</label>
+        <input type="text" id="${id}_target_period" value="14" placeholder="14 or 10,14,20" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+    </div>
+    <div id="${id}_bb_params" style="display: none;">
+      <div class="condition-field-row">
+        <div class="condition-field">
+          <label>BB Std Dev(s)</label>
+          <input type="text" id="${id}_bb_std" value="2.0" placeholder="2.0 or 1.5,2.0,2.5" />
+          <small>Single value or comma-separated list for grid</small>
+        </div>
+      </div>
+    </div>
+    <div id="${id}_kc_params" style="display: none;">
+      <div class="condition-field-row">
+        <div class="condition-field">
+          <label>KC ATR Mult(s)</label>
+          <input type="text" id="${id}_kc_mult" value="2.0" placeholder="2.0 or 1.5,2.0,2.5" />
+          <small>Single value or comma-separated list for grid</small>
+        </div>
+      </div>
+    </div>
+    <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Interaction</label>
+        <select id="${id}_interaction" onchange="toggleInteractionFields('${id}')">
+          <option value="touch">Touch</option>
+          <option value="cross">Cross</option>
+          <option value="recross">Recross</option>
+        </select>
+      </div>
+      <div class="condition-field" id="${id}_direction_field">
+        <label>Direction</label>
+        <select id="${id}_direction">
+          <option value="above">Above</option>
+          <option value="below">Below</option>
+        </select>
+      </div>
+      <div class="condition-field" id="${id}_touches_field">
+        <label>Required Touch(es)</label>
+        <input type="text" id="${id}_touches" value="1" placeholder="1 or 1,2,3" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+    </div>
+    <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Threshold(s)</label>
+        <input type="text" id="${id}_threshold_pct" value="2.0" placeholder="2.0 or 1.0,2.0,3.0" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+      <div class="condition-field">
+        <label>Delay Bar(s)</label>
+        <input type="text" id="${id}_delay" value="0" placeholder="0 or 0,1,2" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+    </div>
+  `;
+}
+
+// Build MA crossover fields
+function buildMACrossoverFields(id) {
+  const MA_TYPES_NO_VALUE = MA_TYPES.filter(ma => ma !== 'Value');
+  return `
+    <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Fast MA Type</label>
+        <select id="${id}_fast_ma_type" onchange="toggleMAParams('${id}', 'fast')">
+          ${MA_TYPES_NO_VALUE.map(ma => `<option value="${ma}">${ma}</option>`).join('')}
+        </select>
+      </div>
+      <div class="condition-field">
+        <label>Fast Period(s)</label>
+        <input type="text" id="${id}_fast_period" value="10" placeholder="10 or 10,20,30" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+    </div>
+    <div id="${id}_fast_bb_params" style="display: none;">
+      <div class="condition-field-row">
+        <div class="condition-field">
+          <label>Fast BB Std Dev(s)</label>
+          <input type="text" id="${id}_fast_bb_std" value="2.0" placeholder="2.0 or 1.5,2.0,2.5" />
+          <small>Single value or comma-separated list for grid</small>
+        </div>
+      </div>
+    </div>
+    <div id="${id}_fast_kc_params" style="display: none;">
+      <div class="condition-field-row">
+        <div class="condition-field">
+          <label>Fast KC ATR Mult(s)</label>
+          <input type="text" id="${id}_fast_kc_mult" value="2.0" placeholder="2.0 or 1.5,2.0,2.5" />
+          <small>Single value or comma-separated list for grid</small>
+        </div>
+      </div>
+    </div>
+    <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Slow MA Type</label>
+        <select id="${id}_slow_ma_type" onchange="toggleMAParams('${id}', 'slow')">
+          ${MA_TYPES_NO_VALUE.map(ma => `<option value="${ma}">${ma}</option>`).join('')}
+        </select>
+      </div>
+      <div class="condition-field">
+        <label>Slow Period(s)</label>
+        <input type="text" id="${id}_slow_period" value="30" placeholder="30 or 30,50,100" />
+        <small>Single value or comma-separated list for grid</small>
+      </div>
+    </div>
+    <div id="${id}_slow_bb_params" style="display: none;">
+      <div class="condition-field-row">
+        <div class="condition-field">
+          <label>Slow BB Std Dev(s)</label>
+          <input type="text" id="${id}_slow_bb_std" value="2.0" placeholder="2.0 or 1.5,2.0,2.5" />
+          <small>Single value or comma-separated list for grid</small>
+        </div>
+      </div>
+    </div>
+    <div id="${id}_slow_kc_params" style="display: none;">
+      <div class="condition-field-row">
+        <div class="condition-field">
+          <label>Slow KC ATR Mult(s)</label>
+          <input type="text" id="${id}_slow_kc_mult" value="2.0" placeholder="2.0 or 1.5,2.0,2.5" />
+          <small>Single value or comma-separated list for grid</small>
+        </div>
+      </div>
+    </div>
+    <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Direction</label>
+        <select id="${id}_direction">
+          <option value="bullish">Bullish (Fast crosses above Slow)</option>
+          <option value="bearish">Bearish (Fast crosses below Slow)</option>
+        </select>
+      </div>
+    </div>
+  `;
+}
+
+// Toggle interaction-specific fields
+function toggleInteractionFields(conditionId) {
+  const interaction = document.getElementById(`${conditionId}_interaction`)?.value;
+  const touchesField = document.getElementById(`${conditionId}_touches_field`);
+  const directionField = document.getElementById(`${conditionId}_direction_field`);
+  
+  if (touchesField) {
+    // Only show touches field for "touch" and "recross" interactions
+    touchesField.style.display = (interaction === 'touch' || interaction === 'recross') ? 'flex' : 'none';
+  }
+  
+  if (directionField) {
+    // Only show direction field for "cross" and "recross" interactions
+    directionField.style.display = (interaction === 'cross' || interaction === 'recross') ? 'flex' : 'none';
+  }
+}
+
+// Toggle target-specific parameters (for Price/RSI conditions)
+function toggleTargetParams(conditionId) {
+  const targetType = document.getElementById(`${conditionId}_target_type`)?.value;
+  
+  const valueField = document.getElementById(`${conditionId}_value_field`);
+  const periodField = document.getElementById(`${conditionId}_period_field`);
+  const bbParams = document.getElementById(`${conditionId}_bb_params`);
+  const kcParams = document.getElementById(`${conditionId}_kc_params`);
+  
+  if (targetType === 'Value') {
+    // Show value input, hide period and band params
+    if (valueField) valueField.style.display = 'flex';
+    if (periodField) periodField.style.display = 'none';
+    if (bbParams) bbParams.style.display = 'none';
+    if (kcParams) kcParams.style.display = 'none';
+  } else {
+    // Show period, hide value
+    if (valueField) valueField.style.display = 'none';
+    if (periodField) periodField.style.display = 'flex';
+    
+    // Show BB/KC params if applicable
+    if (bbParams) bbParams.style.display = (targetType && targetType.startsWith('BB_')) ? 'block' : 'none';
+    if (kcParams) kcParams.style.display = (targetType && targetType.startsWith('KC_')) ? 'block' : 'none';
+  }
+}
+
+// Toggle MA-specific parameters (BB/KC) for MA Crossover
+function toggleMAParams(conditionId, prefix = '') {
+  const maTypeId = prefix ? `${conditionId}_${prefix}_ma_type` : `${conditionId}_ma_type`;
+  const maType = document.getElementById(maTypeId)?.value;
+  
+  const bbParamsId = prefix ? `${conditionId}_${prefix}_bb_params` : `${conditionId}_bb_params`;
+  const kcParamsId = prefix ? `${conditionId}_${prefix}_kc_params` : `${conditionId}_kc_params`;
+  
+  const bbParams = document.getElementById(bbParamsId);
+  const kcParams = document.getElementById(kcParamsId);
+  
+  if (bbParams && kcParams) {
+    // Show BB params if BB type selected
+    bbParams.style.display = (maType && maType.startsWith('BB_')) ? 'block' : 'none';
+    // Show KC params if KC type selected
+    kcParams.style.display = (maType && maType.startsWith('KC_')) ? 'block' : 'none';
+  }
+}
+
+// Remove condition
+function removeCondition(conditionId) {
+  const card = document.querySelector(`[data-condition-id="${conditionId}"]`);
+  if (card) {
+    card.remove();
+  }
+}
+
+// Toggle mirror entry checkbox
+function toggleMirrorEntry() {
+  const mirrorChecked = document.getElementById('mirrorEntry')?.checked;
+  const exitModeSection = document.getElementById('exitModeSection');
+  const exitConditionsList = document.getElementById('exitConditionsList');
+  const addExitBtn = document.querySelector('[onclick="addExitCondition()"]');
+  
+  if (mirrorChecked) {
+    exitModeSection.style.display = 'none';
+    exitConditionsList.style.display = 'none';
+    addExitBtn.style.display = 'none';
+  } else {
+    exitModeSection.style.display = 'block';
+    exitConditionsList.style.display = 'flex';
+    addExitBtn.style.display = 'inline-block';
+  }
+}
+
+// Toggle take profit settings
+function toggleTakeProfit() {
+  const enabled = document.getElementById('takeProfitEnabled')?.checked;
+  const settings = document.getElementById('takeProfitSettings');
+  if (settings) {
+    settings.style.display = enabled ? 'block' : 'none';
+  }
+}
+
+// Toggle stop loss settings
+function toggleStopLoss() {
+  const enabled = document.getElementById('stopLossEnabled')?.checked;
+  const settings = document.getElementById('stopLossSettings');
+  if (settings) {
+    settings.style.display = enabled ? 'block' : 'none';
+  }
+}
+
+// Toggle take profit type
+function toggleTakeProfitType() {
+  const type = document.getElementById('takeProfitType')?.value;
+  document.getElementById('takeProfitPercent').style.display = type === 'percent' ? 'block' : 'none';
+  document.getElementById('takeProfitDollar').style.display = type === 'dollar' ? 'block' : 'none';
+  document.getElementById('takeProfitCondition').style.display = type === 'condition' ? 'block' : 'none';
+}
+
+// Toggle stop loss type
+function toggleStopLossType() {
+  const type = document.getElementById('stopLossType')?.value;
+  document.getElementById('stopLossPercent').style.display = type === 'percent' ? 'block' : 'none';
+  document.getElementById('stopLossDollar').style.display = type === 'dollar' ? 'block' : 'none';
+  document.getElementById('stopLossCondition').style.display = type === 'condition' ? 'block' : 'none';
+}
+
+// Validate timeframe selection
+function validateTimeframe() {
+  const timeframe = document.getElementById('timeframe')?.value;
+  const startDate = document.getElementById('startDate')?.value;
+  const endDate = document.getElementById('endDate')?.value;
+  const endToday = document.getElementById('endDateToday')?.checked;
+  const warning = document.getElementById('timeframeWarning');
+  
+  if (!warning) return;
+  
+  // Only validate for intraday timeframes
+  const intradayFrames = ['1min', '5min', '15min', '1hour', '4hour'];
+  if (!intradayFrames.includes(timeframe)) {
+    warning.style.display = 'none';
+    return;
+  }
+  
+  // Calculate date range
+  const start = new Date(startDate);
+  const end = endToday ? new Date() : new Date(endDate);
+  const diffDays = (end - start) / (1000 * 60 * 60 * 24);
+  
+  if (diffDays > 90) {
+    warning.style.display = 'block';
+    warning.style.color = '#ff6b6b';
+    warning.textContent = `⚠️ Warning: ${timeframe} timeframe is limited to 3 months. Current range: ${Math.round(diffDays)} days.`;
+  } else {
+    warning.style.display = 'block';
+    warning.style.color = 'var(--accent-blue)';
+    warning.textContent = `✓ Date range OK for ${timeframe} (${Math.round(diffDays)} days)`;
+  }
+}
+
+// Collect conditions from UI
+function collectConditions(conditionGroup) {
+  const listId = conditionGroup === 'entry' ? 'entryConditionsList' : 'exitConditionsList';
+  const cards = document.querySelectorAll(`#${listId} .condition-card`);
+  
+  const conditions = [];
+  cards.forEach(card => {
+    const conditionId = card.dataset.conditionId;
+    const conditionType = card.dataset.conditionType;
+    
+    const condition = {
+      type: conditionType
+    };
+    
+    // Collect fields based on type
+    switch (conditionType) {
+      case 'timing':
+        condition.time1 = document.getElementById(`${conditionId}_time1`)?.value;
+        condition.time2 = document.getElementById(`${conditionId}_time2`)?.value;
+        break;
+        
+      case 'price':
+        condition.target_type = document.getElementById(`${conditionId}_target_type`)?.value;
+        if (condition.target_type === 'Value') {
+          condition.target_value = document.getElementById(`${conditionId}_target_value`)?.value;
+        } else {
+          condition.target_period = document.getElementById(`${conditionId}_target_period`)?.value;
+          // Add BB/KC parameters if applicable
+          if (condition.target_type && condition.target_type.startsWith('BB_')) {
+            condition.bb_std = document.getElementById(`${conditionId}_bb_std`)?.value || '2.0';
+          }
+          if (condition.target_type && condition.target_type.startsWith('KC_')) {
+            condition.kc_mult = document.getElementById(`${conditionId}_kc_mult`)?.value || '2.0';
+          }
+        }
+        condition.interaction = document.getElementById(`${conditionId}_interaction`)?.value;
+        // Add direction for cross/recross
+        if (condition.interaction === 'cross' || condition.interaction === 'recross') {
+          condition.direction = document.getElementById(`${conditionId}_direction`)?.value;
+        }
+        condition.threshold_pct = parseFloat(document.getElementById(`${conditionId}_threshold_pct`)?.value);
+        condition.delay = parseInt(document.getElementById(`${conditionId}_delay`)?.value);
+        if (condition.interaction === 'touch' || condition.interaction === 'recross') {
+          condition.touches = parseInt(document.getElementById(`${conditionId}_touches`)?.value);
+        }
+        break;
+        
+      case 'rsi':
+        condition.rsi_period = document.getElementById(`${conditionId}_rsi_period`)?.value;
+        condition.target_type = document.getElementById(`${conditionId}_target_type`)?.value;
+        if (condition.target_type === 'Value') {
+          condition.target_value = document.getElementById(`${conditionId}_target_value`)?.value;
+        } else {
+          condition.target_period = document.getElementById(`${conditionId}_target_period`)?.value;
+          // Add BB/KC parameters if applicable
+          if (condition.target_type && condition.target_type.startsWith('BB_')) {
+            condition.bb_std = document.getElementById(`${conditionId}_bb_std`)?.value || '2.0';
+          }
+          if (condition.target_type && condition.target_type.startsWith('KC_')) {
+            condition.kc_mult = document.getElementById(`${conditionId}_kc_mult`)?.value || '2.0';
+          }
+        }
+        condition.interaction = document.getElementById(`${conditionId}_interaction`)?.value;
+        // Add direction for cross/recross
+        if (condition.interaction === 'cross' || condition.interaction === 'recross') {
+          condition.direction = document.getElementById(`${conditionId}_direction`)?.value;
+        }
+        condition.threshold_pct = parseFloat(document.getElementById(`${conditionId}_threshold_pct`)?.value);
+        condition.delay = parseInt(document.getElementById(`${conditionId}_delay`)?.value);
+        if (condition.interaction === 'touch' || condition.interaction === 'recross') {
+          condition.touches = parseInt(document.getElementById(`${conditionId}_touches`)?.value);
+        }
+        break;
+        
+      case 'ma_crossover':
+        condition.fast_ma_type = document.getElementById(`${conditionId}_fast_ma_type`)?.value;
+        condition.fast_period = document.getElementById(`${conditionId}_fast_period`)?.value;
+        // Add BB/KC parameters for fast MA if applicable
+        if (condition.fast_ma_type && condition.fast_ma_type.startsWith('BB_')) {
+          condition.fast_bb_std = document.getElementById(`${conditionId}_fast_bb_std`)?.value || '2.0';
+        }
+        if (condition.fast_ma_type && condition.fast_ma_type.startsWith('KC_')) {
+          condition.fast_kc_mult = document.getElementById(`${conditionId}_fast_kc_mult`)?.value || '2.0';
+        }
+        condition.slow_ma_type = document.getElementById(`${conditionId}_slow_ma_type`)?.value;
+        condition.slow_period = document.getElementById(`${conditionId}_slow_period`)?.value;
+        // Add BB/KC parameters for slow MA if applicable
+        if (condition.slow_ma_type && condition.slow_ma_type.startsWith('BB_')) {
+          condition.slow_bb_std = document.getElementById(`${conditionId}_slow_bb_std`)?.value || '2.0';
+        }
+        if (condition.slow_ma_type && condition.slow_ma_type.startsWith('KC_')) {
+          condition.slow_kc_mult = document.getElementById(`${conditionId}_slow_kc_mult`)?.value || '2.0';
+        }
+        condition.direction = document.getElementById(`${conditionId}_direction`)?.value;
+        break;
+    }
+    
+    conditions.push(condition);
+  });
+  
+  return conditions;
+}
+
+// Expose functions to window
+window.addCondition = addCondition;
+window.removeCondition = removeCondition;
+window.toggleMirrorEntry = toggleMirrorEntry;
+window.toggleTakeProfit = toggleTakeProfit;
+window.toggleStopLoss = toggleStopLoss;
+window.toggleTakeProfitType = toggleTakeProfitType;
+window.toggleStopLossType = toggleStopLossType;
+window.validateTimeframe = validateTimeframe;
+window.toggleInteractionFields = toggleInteractionFields;
+window.toggleMAParams = toggleMAParams;
+window.toggleTargetParams = toggleTargetParams;
+
+// ============================================================================
+// STRATEGY PREVIEW VISUALIZATION
+// ============================================================================
+
+let cachedSP500Data = null;
+let previewEnabled = false;
+
+// Toggle strategy preview on/off
+function toggleStrategyPreview() {
+  previewEnabled = document.getElementById('previewToggle').checked;
+  const container = document.getElementById('strategyPreviewContainer');
+  
+  if (previewEnabled) {
+    container.style.display = 'block';
+    initializeStrategyPreview();
+  } else {
+    container.style.display = 'none';
+  }
+}
+
+// Initialize preview by loading S&P 500 data
+async function initializeStrategyPreview() {
+  const statusEl = document.getElementById('previewStatus');
+  
+  if (cachedSP500Data) {
+    statusEl.textContent = `Using cached S&P 500 data (${cachedSP500Data.dates.length} days). Click "Update Preview" to refresh visualization.`;
+    statusEl.style.color = 'var(--text-secondary)';
+    return;
+  }
+  
+  statusEl.textContent = 'Loading S&P 500 data for preview...';
+  statusEl.style.color = 'var(--text-secondary)';
+  
+  try {
+    // Fetch 1 year of daily S&P 500 data from yfinance
+    const result = await window.electronAPI.loadPreviewData({
+      ticker: 'SPY',
+      period: '1y',
+      interval: '1d'
+    });
+    
+    if (result.success) {
+      cachedSP500Data = result.data;
+      console.log('[PREVIEW] Full result:', result);
+      console.log('[PREVIEW] Loaded data keys:', Object.keys(cachedSP500Data));
+      console.log('[PREVIEW] Dates type:', typeof cachedSP500Data.dates, 'length:', cachedSP500Data.dates?.length);
+      console.log('[PREVIEW] Dates sample:', cachedSP500Data.dates?.slice(0, 5));
+      console.log('[PREVIEW] Close type:', typeof cachedSP500Data.close, 'length:', cachedSP500Data.close?.length);
+      console.log('[PREVIEW] Close sample:', cachedSP500Data.close?.slice(0, 5));
+      console.log('[PREVIEW] Close values:', cachedSP500Data.close?.slice(0, 3).map(v => `${v} (${typeof v})`));
+      statusEl.textContent = `Loaded ${cachedSP500Data.dates.length} days of S&P 500 data. Click "Update Preview" to generate charts.`;
+      statusEl.style.color = 'var(--text-secondary)';
+    } else {
+      statusEl.textContent = `Error loading data: ${result.error}`;
+      statusEl.style.color = 'var(--accent-red)';
+    }
+  } catch (error) {
+    console.error('Preview data error:', error);
+    statusEl.textContent = `Error: ${error.message}`;
+    statusEl.style.color = 'var(--accent-red)';
+  }
+}
+
+// Refresh the preview charts based on current conditions
+function refreshStrategyPreview() {
+  console.log('[PREVIEW] Refresh called, cached data:', cachedSP500Data);
+  
+  if (!cachedSP500Data) {
+    initializeStrategyPreview();
+    return;
+  }
+  
+  const entryConditions = collectConditions('entry');
+  const exitConditions = document.getElementById('mirrorEntry').checked 
+    ? [] 
+    : collectConditions('exit');
+  
+  console.log('[PREVIEW] Entry conditions:', entryConditions);
+  console.log('[PREVIEW] Exit conditions:', exitConditions);
+  
+  const chartsContainer = document.getElementById('previewCharts');
+  chartsContainer.innerHTML = '';
+  
+  if (entryConditions.length === 0) {
+    chartsContainer.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Add entry conditions to see preview.</p>';
+    return;
+  }
+  
+  // Create a chart for each entry condition
+  entryConditions.forEach((condition, idx) => {
+    createConditionChart('entry', condition, idx + 1);
+  });
+  
+  // Create a chart for each exit condition
+  exitConditions.forEach((condition, idx) => {
+    createConditionChart('exit', condition, idx + 1);
+  });
+}
+
+// Create a Plotly chart for a single condition
+function createConditionChart(group, condition, number) {
+  console.log('[PREVIEW] Creating chart for:', group, condition, number);
+  
+  const chartsContainer = document.getElementById('previewCharts');
+  const chartId = `preview_${group}_${number}`;
+  
+  // Create chart container
+  const chartDiv = document.createElement('div');
+  chartDiv.style.marginBottom = '20px';
+  chartDiv.innerHTML = `
+    <h5 style="color: ${group === 'entry' ? 'var(--accent-blue)' : 'var(--accent-orange)'};">
+      ${group === 'entry' ? '↑' : '↓'} ${group.charAt(0).toUpperCase() + group.slice(1)} Condition #${number}: ${condition.type}
+    </h5>
+    <div id="${chartId}" style="width: 100%; height: 400px;"></div>
+  `;
+  chartsContainer.appendChild(chartDiv);
+  
+  // For RSI, create a separate chart without price
+  if (condition.type === 'rsi') {
+    createRSIChart(chartId, condition, group);
+    return;
+  }
+  
+  // For MA Crossover, create a separate chart
+  if (condition.type === 'ma_crossover') {
+    createMACrossoverChart(chartId, condition, group);
+    return;
+  }
+  
+  // For Price conditions, show price line with indicators
+  createPriceChart(chartId, condition, group);
+}
+
+// Create price condition chart
+function createPriceChart(chartId, condition, group) {
+  // Calculate signals based on condition type
+  const signals = calculateConditionSignals(condition);
+  
+  // Create base price trace
+  const priceTrace = {
+    x: cachedSP500Data.dates,
+    y: cachedSP500Data.close,
+    type: 'scatter',
+    mode: 'lines',
+    name: 'S&P 500 (SPY)',
+    line: { color: 'rgba(100, 149, 237, 0.8)', width: 2 }
+  };
+  
+  const traces = [priceTrace];
+  
+  // Add indicator traces (MAs)
+  const indicatorTraces = createIndicatorTraces(condition);
+  traces.push(...indicatorTraces);
+  
+  // Add signal markers with sequential numbering per chart
+  const annotations = createSignalAnnotations(signals, group, cachedSP500Data.close);
+  
+  const layout = {
+    title: '',
+    xaxis: { title: 'Date' },
+    yaxis: { title: 'Price ($)' },
+    showlegend: true,
+    legend: { x: 0, y: 1 },
+    margin: { l: 50, r: 50, t: 30, b: 50 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    annotations: annotations,
+    hovermode: 'closest'
+  };
+  
+  const config = { responsive: true, displayModeBar: true };
+  
+  Plotly.newPlot(chartId, traces, layout, config);
+}
+
+// Create RSI chart
+function createRSIChart(chartId, condition, group) {
+  // Parse comma-separated RSI periods
+  const periodString = condition.rsi_period || '14';
+  const periods = periodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+  
+  console.log('[PREVIEW] Creating RSI traces for periods:', periods);
+  
+  const traces = [];
+  const rsiColors = [
+    'rgba(128, 0, 255, 0.8)',
+    'rgba(180, 0, 255, 0.8)',
+    'rgba(100, 0, 200, 0.8)',
+    'rgba(150, 0, 255, 0.8)',
+    'rgba(128, 50, 255, 0.8)'
+  ];
+  
+  // Calculate RSI for first period (use for annotations)
+  const firstRsiValues = calculateRSI(cachedSP500Data.close, periods[0]);
+  
+  periods.forEach((rsiPeriod, idx) => {
+    const rsiValues = calculateRSI(cachedSP500Data.close, rsiPeriod);
+    
+    traces.push({
+      x: cachedSP500Data.dates,
+      y: rsiValues,
+      type: 'scatter',
+      mode: 'lines',
+      name: `RSI(${rsiPeriod})`,
+      line: { color: rsiColors[idx % rsiColors.length], width: 2 }
+    });
+  });
+  
+  // Add target lines (MA or value)
+  const targetTraces = createRSITargetTraces(condition);
+  traces.push(...targetTraces);
+  
+  const signals = calculateConditionSignals(condition);
+  const annotations = createSignalAnnotations(signals, group, firstRsiValues);
+  
+  const layout = {
+    title: '',
+    xaxis: { title: 'Date' },
+    yaxis: { title: 'RSI', range: [0, 100] },
+    showlegend: true,
+    legend: { x: 0, y: 1 },
+    margin: { l: 50, r: 50, t: 30, b: 50 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    annotations: annotations,
+    hovermode: 'closest'
+  };
+  
+  const config = { responsive: true, displayModeBar: true };
+  
+  Plotly.newPlot(chartId, traces, layout, config);
+}
+
+// Create MA Crossover chart
+function createMACrossoverChart(chartId, condition, group) {
+  const signals = calculateConditionSignals(condition);
+  
+  // Show price line
+  const priceTrace = {
+    x: cachedSP500Data.dates,
+    y: cachedSP500Data.close,
+    type: 'scatter',
+    mode: 'lines',
+    name: 'S&P 500 (SPY)',
+    line: { color: 'rgba(100, 149, 237, 0.8)', width: 2 }
+  };
+  
+  const traces = [priceTrace];
+  
+  // Add fast and slow MAs
+  const indicatorTraces = createIndicatorTraces(condition);
+  traces.push(...indicatorTraces);
+  
+  const annotations = createSignalAnnotations(signals, group, cachedSP500Data.close);
+  
+  const layout = {
+    title: '',
+    xaxis: { title: 'Date' },
+    yaxis: { title: 'Price ($)' },
+    showlegend: true,
+    legend: { x: 0, y: 1 },
+    margin: { l: 50, r: 50, t: 30, b: 50 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    annotations: annotations,
+    hovermode: 'closest'
+  };
+  
+  const config = { responsive: true, displayModeBar: true };
+  
+  Plotly.newPlot(chartId, traces, layout, config);
+}
+
+// Create signal annotations - signals is array of {indices: [], lineNumber: X}
+function createSignalAnnotations(signalsByLine, group, yValues) {
+  const annotations = [];
+  const maxSignalsPerLine = 15;
+  
+  signalsByLine.forEach(lineData => {
+    const signals = lineData.indices;
+    const lineNumber = lineData.lineNumber;
+    
+    const signalsToShow = signals.length > maxSignalsPerLine 
+      ? signals.filter((_, idx) => idx % Math.ceil(signals.length / maxSignalsPerLine) === 0)
+      : signals;
+      
+    signalsToShow.forEach((signalIdx) => {
+      if (signalIdx >= 0 && signalIdx < cachedSP500Data.dates.length) {
+        const date = cachedSP500Data.dates[signalIdx];
+        const yValue = yValues[signalIdx];
+        
+        annotations.push({
+          x: date,
+          y: yValue,
+          text: `${lineNumber}`,
+          showarrow: true,
+          arrowhead: 2,
+          arrowsize: 1.5,
+          arrowwidth: 2,
+          arrowcolor: group === 'entry' ? '#00cc00' : '#ff3333',
+          ax: 0,
+          ay: group === 'entry' ? -40 : 40,
+          font: {
+            size: 11,
+            color: 'white',
+            family: 'Arial, sans-serif',
+            weight: 'bold'
+          },
+          bgcolor: group === 'entry' ? 'rgba(0, 180, 0, 0.9)' : 'rgba(255, 50, 50, 0.9)',
+          borderpad: 3,
+          bordercolor: 'white',
+          borderwidth: 1
+        });
+      }
+    });
+  });
+  
+  return annotations;
+}
+
+// Calculate RSI
+function calculateRSI(prices, period = 14) {
+  const result = new Array(prices.length).fill(null);
+  
+  if (prices.length < period + 1) return result;
+  
+  // Calculate price changes
+  const changes = [];
+  for (let i = 1; i < prices.length; i++) {
+    changes.push(prices[i] - prices[i - 1]);
+  }
+  
+  // Calculate initial average gains and losses
+  let avgGain = 0;
+  let avgLoss = 0;
+  
+  for (let i = 0; i < period; i++) {
+    if (changes[i] > 0) {
+      avgGain += changes[i];
+    } else {
+      avgLoss += Math.abs(changes[i]);
+    }
+  }
+  
+  avgGain /= period;
+  avgLoss /= period;
+  
+  // Calculate RSI for first period
+  let rs = avgGain / (avgLoss || 0.0001);
+  result[period] = 100 - (100 / (1 + rs));
+  
+  // Calculate RSI for remaining periods using smoothed averages
+  for (let i = period + 1; i < prices.length; i++) {
+    const change = changes[i - 1];
+    const gain = change > 0 ? change : 0;
+    const loss = change < 0 ? Math.abs(change) : 0;
+    
+    avgGain = ((avgGain * (period - 1)) + gain) / period;
+    avgLoss = ((avgLoss * (period - 1)) + loss) / period;
+    
+    rs = avgGain / (avgLoss || 0.0001);
+    result[i] = 100 - (100 / (1 + rs));
+  }
+  
+  return result;
+}
+
+// Calculate when a condition would trigger (returns array of {indices: [], lineNumber: X})
+function calculateConditionSignals(condition) {
+  const signalsByLine = [];
+  const prices = cachedSP500Data.close;
+  
+  if (condition.type === 'timing') {
+    // Timing signals - show first occurrence as example
+    signalsByLine.push({
+      indices: [Math.floor(prices.length / 2)],
+      lineNumber: 1
+    });
+    return signalsByLine;
+  }
+  
+  if (condition.type === 'price') {
+    const targetType = condition.target_type;
+    const interaction = condition.interaction;
+    
+    if (targetType === 'Value') {
+      // Price crossing a fixed value - parse comma-separated values
+      const valueString = condition.target_value || '100';
+      const targetValues = valueString.toString().split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+      
+      targetValues.forEach((targetValue, lineIdx) => {
+        const lineSignals = [];
+        
+        for (let i = 1; i < prices.length; i++) {
+          if (interaction === 'cross') {
+            // Price crosses the value
+            if ((prices[i-1] < targetValue && prices[i] > targetValue) ||
+                (prices[i-1] > targetValue && prices[i] < targetValue)) {
+              lineSignals.push(i);
+            }
+          } else if (interaction === 'touch') {
+            // Price touches the value (within 1%)
+            const threshold = targetValue * 0.01;
+            if (Math.abs(prices[i] - targetValue) < threshold) {
+              lineSignals.push(i);
+            }
+          }
+        }
+        
+        if (lineSignals.length > 0) {
+          signalsByLine.push({
+            indices: lineSignals,
+            lineNumber: lineIdx + 1
+          });
+        }
+      });
+    } else {
+      // Price crossing MA - parse comma-separated periods
+      const periodString = condition.target_period || '20';
+      const periods = periodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+      
+      periods.forEach((period, lineIdx) => {
+        const lineSignals = [];
+        const ma = calculateSimpleMA(prices, period);
+        
+        for (let i = period; i < prices.length; i++) {
+          if (!ma[i] || !ma[i-1]) continue;
+          
+          if (interaction === 'cross') {
+            // Price crosses MA
+            if ((prices[i-1] < ma[i-1] && prices[i] > ma[i]) ||
+                (prices[i-1] > ma[i-1] && prices[i] < ma[i])) {
+              lineSignals.push(i);
+            }
+          } else if (interaction === 'touch') {
+            // Price touches MA (within 0.5%)
+            const threshold = ma[i] * 0.005;
+            if (Math.abs(prices[i] - ma[i]) < threshold) {
+              lineSignals.push(i);
+            }
+          }
+        }
+        
+        if (lineSignals.length > 0) {
+          signalsByLine.push({
+            indices: lineSignals,
+            lineNumber: lineIdx + 1
+          });
+        }
+      });
+    }
+  } else if (condition.type === 'rsi') {
+    // RSI condition - parse comma-separated RSI periods
+    const rsiPeriodString = condition.rsi_period || '14';
+    const rsiPeriods = rsiPeriodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+    const interaction = condition.interaction || 'cross';
+    
+    let lineNumber = 0;
+    
+    if (condition.target_type === 'Value') {
+      // RSI crossing/touching fixed value(s) - create all combinations
+      const valueString = condition.target_value || '30';
+      const values = valueString.toString().split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+      
+      // For each RSI period and each value, create a separate line
+      rsiPeriods.forEach(rsiPeriod => {
+        values.forEach(targetValue => {
+          lineNumber++;
+          const lineSignals = [];
+          const rsiValues = calculateRSI(prices, rsiPeriod);
+          
+          for (let i = rsiPeriod + 1; i < rsiValues.length; i++) {
+            if (!rsiValues[i] || !rsiValues[i-1]) continue;
+            
+            if (interaction === 'cross') {
+              // RSI crosses value
+              if ((rsiValues[i-1] < targetValue && rsiValues[i] > targetValue) ||
+                  (rsiValues[i-1] > targetValue && rsiValues[i] < targetValue)) {
+                lineSignals.push(i);
+              }
+            } else if (interaction === 'touch') {
+              // RSI touches value (check if it wasn't touching before)
+              const wasFarAway = Math.abs(rsiValues[i-1] - targetValue) > 2;
+              const isCloseNow = Math.abs(rsiValues[i] - targetValue) < 1;
+              if (wasFarAway && isCloseNow) {
+                lineSignals.push(i);
+              }
+            }
+          }
+          
+          if (lineSignals.length > 0) {
+            signalsByLine.push({
+              indices: lineSignals,
+              lineNumber: lineNumber
+            });
+          }
+        });
+      });
+    } else {
+      // RSI crossing/touching a moving average OF THE RSI - create all combinations
+      const targetPeriodString = condition.target_period || '14';
+      const targetPeriods = targetPeriodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+      
+      // For each RSI period and each MA period, create a separate line
+      rsiPeriods.forEach(rsiPeriod => {
+        targetPeriods.forEach(targetPeriod => {
+          lineNumber++;
+          const lineSignals = [];
+          const rsiValues = calculateRSI(prices, rsiPeriod);
+          const maOfRSI = calculateSimpleMA(rsiValues, targetPeriod);
+          const maxPeriod = Math.max(rsiPeriod, targetPeriod);
+          
+          for (let i = maxPeriod + 1; i < rsiValues.length; i++) {
+            if (!rsiValues[i] || !rsiValues[i-1] || !maOfRSI[i] || !maOfRSI[i-1]) continue;
+            
+            if (interaction === 'cross') {
+              // RSI crosses its moving average
+              if ((rsiValues[i-1] < maOfRSI[i-1] && rsiValues[i] > maOfRSI[i]) ||
+                  (rsiValues[i-1] > maOfRSI[i-1] && rsiValues[i] < maOfRSI[i])) {
+                lineSignals.push(i);
+              }
+            } else if (interaction === 'touch') {
+              // RSI touches its MA
+              const wasFarAway = Math.abs(rsiValues[i-1] - maOfRSI[i-1]) > 2;
+              const isCloseNow = Math.abs(rsiValues[i] - maOfRSI[i]) < 1;
+              if (wasFarAway && isCloseNow) {
+                lineSignals.push(i);
+              }
+            }
+          }
+          
+          if (lineSignals.length > 0) {
+            signalsByLine.push({
+              indices: lineSignals,
+              lineNumber: lineNumber
+            });
+          }
+        });
+      });
+    }
+  } else if (condition.type === 'ma_crossover') {
+    // MA crossover - parse comma-separated periods
+    const fastString = condition.fast_period || '10';
+    const slowString = condition.slow_period || '30';
+    const fastPeriods = fastString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+    const slowPeriods = slowString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+    const direction = condition.direction || 'bullish';
+    
+    let lineNumber = 0;
+    
+    // Check all combinations of fast and slow periods
+    fastPeriods.forEach(fastPeriod => {
+      slowPeriods.forEach(slowPeriod => {
+        lineNumber++;
+        const lineSignals = [];
+        const fastMA = calculateSimpleMA(prices, fastPeriod);
+        const slowMA = calculateSimpleMA(prices, slowPeriod);
+        const maxPeriod = Math.max(fastPeriod, slowPeriod);
+        
+        for (let i = maxPeriod; i < prices.length; i++) {
+          if (!fastMA[i] || !slowMA[i] || !fastMA[i-1] || !slowMA[i-1]) continue;
+          
+          if (direction === 'bullish') {
+            // Fast crosses above slow
+            if (fastMA[i-1] < slowMA[i-1] && fastMA[i] > slowMA[i]) {
+              lineSignals.push(i);
+            }
+          } else {
+            // Fast crosses below slow
+            if (fastMA[i-1] > slowMA[i-1] && fastMA[i] < slowMA[i]) {
+              lineSignals.push(i);
+            }
+          }
+        }
+        
+        if (lineSignals.length > 0) {
+          signalsByLine.push({
+            indices: lineSignals,
+            lineNumber: lineNumber
+          });
+        }
+      });
+    });
+  }
+  
+  return signalsByLine;
+}
+
+// Create RSI target traces (MA or value lines)
+function createRSITargetTraces(condition) {
+  const traces = [];
+  const targetColors = [
+    'rgba(255, 165, 0, 0.8)',
+    'rgba(255, 100, 0, 0.8)',
+    'rgba(200, 165, 0, 0.8)',
+    'rgba(255, 200, 0, 0.8)',
+    'rgba(255, 140, 0, 0.8)'
+  ];
+  
+  if (condition.target_type === 'Value') {
+    // Parse comma-separated values
+    const valueString = condition.target_value || '30';
+    const values = valueString.toString().split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+    
+    values.forEach((value, idx) => {
+      traces.push({
+        x: cachedSP500Data.dates,
+        y: new Array(cachedSP500Data.dates.length).fill(value),
+        type: 'scatter',
+        mode: 'lines',
+        name: `Target: ${value}`,
+        line: { color: targetColors[idx % targetColors.length], width: 2, dash: 'dot' }
+      });
+    });
+  } else {
+    // Target is a moving average OF THE RSI (not another RSI)
+    // Need to show MA for each RSI period and each MA period combination
+    const rsiPeriodString = condition.rsi_period || '14';
+    const rsiPeriods = rsiPeriodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+    
+    // Parse comma-separated periods for MA of RSI
+    const periodString = condition.target_period || '14';
+    const maPeriods = periodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+    
+    let colorIdx = 0;
+    rsiPeriods.forEach(rsiPeriod => {
+      const rsiValues = calculateRSI(cachedSP500Data.close, rsiPeriod);
+      
+      maPeriods.forEach(maPeriod => {
+        // Calculate moving average OF THE RSI VALUES
+        const maOfRSI = calculateSimpleMA(rsiValues, maPeriod);
+        
+        traces.push({
+          x: cachedSP500Data.dates,
+          y: maOfRSI,
+          type: 'scatter',
+          mode: 'lines',
+          name: `${condition.target_type}(${maPeriod}) of RSI(${rsiPeriod})`,
+          line: { color: targetColors[colorIdx % targetColors.length], width: 2, dash: 'dot' }
+        });
+        colorIdx++;
+      });
+    });
+  }
+  
+  return traces;
+}
+
+// Create indicator traces for the chart - handle comma-separated values
+function createIndicatorTraces(condition) {
+  const traces = [];
+  
+  if (condition.type === 'price' && condition.target_type !== 'Value') {
+    // Parse comma-separated periods
+    const periodString = condition.target_period || '20';
+    const periods = periodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+    
+    console.log('[PREVIEW] Creating MA traces for periods:', periods);
+    
+    periods.forEach((period, idx) => {
+      const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+      const colors = [
+        'rgba(255, 165, 0, 0.8)',
+        'rgba(255, 100, 0, 0.8)',
+        'rgba(200, 165, 0, 0.8)',
+        'rgba(255, 200, 0, 0.8)',
+        'rgba(255, 140, 0, 0.8)'
+      ];
+      
+      console.log('[PREVIEW] Adding MA trace:', period, 'first few values:', maValues.slice(0, 5));
+      
+      traces.push({
+        x: cachedSP500Data.dates,
+        y: maValues,
+        type: 'scatter',
+        mode: 'lines',
+        name: `${condition.target_type}(${period})`,
+        line: { color: colors[idx % colors.length], width: 2 }
+      });
+    });
+  } else if (condition.type === 'ma_crossover') {
+    // Parse comma-separated periods for fast and slow
+    const fastString = condition.fast_period || '10';
+    const slowString = condition.slow_period || '30';
+    const fastPeriods = fastString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+    const slowPeriods = slowString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+    
+    // Create fast MA lines
+    fastPeriods.forEach((period, idx) => {
+      const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+      const colors = [
+        'rgba(0, 255, 0, 0.8)',
+        'rgba(50, 255, 50, 0.8)',
+        'rgba(0, 200, 0, 0.8)',
+        'rgba(100, 255, 100, 0.8)',
+        'rgba(0, 220, 0, 0.8)'
+      ];
+      
+      traces.push({
+        x: cachedSP500Data.dates,
+        y: maValues,
+        type: 'scatter',
+        mode: 'lines',
+        name: `Fast ${condition.fast_ma_type}(${period})`,
+        line: { color: colors[idx % colors.length], width: 2, dash: 'solid' }
+      });
+    });
+    
+    // Create slow MA lines
+    slowPeriods.forEach((period, idx) => {
+      const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+      const colors = [
+        'rgba(255, 0, 0, 0.8)',
+        'rgba(255, 50, 50, 0.8)',
+        'rgba(200, 0, 0, 0.8)',
+        'rgba(255, 100, 100, 0.8)',
+        'rgba(220, 0, 0, 0.8)'
+      ];
+      
+      traces.push({
+        x: cachedSP500Data.dates,
+        y: maValues,
+        type: 'scatter',
+        mode: 'lines',
+        name: `Slow ${condition.slow_ma_type}(${period})`,
+        line: { color: colors[idx % colors.length], width: 2, dash: 'dash' }
+      });
+    });
+  }
+  
+  return traces;
+}
+
+// Simple moving average calculation
+function calculateSimpleMA(prices, period) {
+  const result = new Array(prices.length).fill(null);
+  
+  for (let i = period - 1; i < prices.length; i++) {
+    let sum = 0;
+    for (let j = 0; j < period; j++) {
+      sum += prices[i - j];
+    }
+    result[i] = sum / period;
+  }
+  
+  return result;
+}
+
+// Expose preview functions
+window.toggleStrategyPreview = toggleStrategyPreview;
+window.refreshStrategyPreview = refreshStrategyPreview;
+
+// ============================================================================
+// END STRATEGY PREVIEW
+// ============================================================================
 
 // MUST be at end of file after all functions are defined
 console.log('[INIT] Exposing functions to window scope...');

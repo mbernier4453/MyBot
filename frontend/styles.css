@@ -2738,6 +2738,9 @@ textarea.form-input {
   cursor: pointer;
   user-select: none;
   transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
 .section-header:hover {
@@ -2749,6 +2752,7 @@ textarea.form-input {
   color: var(--text-primary);
   font-size: 16px;
   font-weight: 600;
+  flex: 0 0 auto;
 }
 
 .section-content {
@@ -3258,6 +3262,86 @@ kbd {
   font-size: 12px;
   color: var(--color-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Strategy Conditions */
+.conditions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 15px 0;
+}
+
+.condition-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 15px;
+  position: relative;
+}
+
+.condition-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.condition-type-label {
+  font-weight: 600;
+  color: var(--accent-blue);
+  font-size: 0.95em;
+}
+
+.condition-remove-btn {
+  background: #ff6b6b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.85em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.condition-remove-btn:hover {
+  background: #ff5252;
+}
+
+.condition-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.condition-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.condition-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.condition-field label {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.condition-field select,
+.condition-field input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.9em;
 }
 
 @media (max-width: 768px) {

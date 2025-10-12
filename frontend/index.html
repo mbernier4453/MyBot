@@ -527,10 +527,18 @@
                     <input type="number" id="initialCapital" value="100000" min="0" step="1000" />
                   </div>
                   <div class="form-group">
-                    <label for="timescale">Timescale:</label>
-                    <select id="timescale" disabled>
-                      <option value="1Day" selected>1 Day (Only option implemented)</option>
+                    <label for="timeframe">Timeframe:</label>
+                    <select id="timeframe" onchange="validateTimeframe()">
+                      <option value="1day" selected>1 Day</option>
+                      <option value="4hour">4 Hour</option>
+                      <option value="1hour">1 Hour</option>
+                      <option value="15min">15 Minute</option>
+                      <option value="5min">5 Minute</option>
+                      <option value="1min">1 Minute</option>
                     </select>
+                    <small id="timeframeWarning" style="color: #ff6b6b; display: none;">
+                      ⚠️ Intraday data limited to 3 months
+                    </small>
                   </div>
                 </div>
                 <div class="form-row">
@@ -576,6 +584,29 @@
                   <div class="form-group">
                     <label for="periodsPerYear">Periods Per Year:</label>
                     <input type="number" id="periodsPerYear" value="252" min="1" step="1" />
+                  </div>
+                </div>
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="targetWeight">Target Weight:</label>
+                    <input type="number" id="targetWeight" value="0.95" min="0" max="1" step="0.05" />
+                    <small>Fraction of capital per position (0.0 - 1.0)</small>
+                  </div>
+                  <div class="form-group">
+                    <label for="entryFees">Entry Fees (bps):</label>
+                    <input type="number" id="entryFees" value="10" min="0" step="1" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="exitFees">Exit Fees (bps):</label>
+                    <input type="number" id="exitFees" value="10" min="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="slipOpen">Slippage (bps):</label>
+                    <input type="number" id="slipOpen" value="2" min="0" step="1" />
+                    <small>Entry/exit slippage in basis points</small>
                   </div>
                 </div>
               </div>
@@ -635,75 +666,171 @@
               </div>
             </div>
 
-            <!-- Entry Configuration -->
+            <!-- Strategy Conditions -->
             <div class="config-section">
-              <div class="section-header" onclick="toggleSection('entrySection')">
-                <h3>▶ Entry Configuration</h3>
+              <div class="section-header" onclick="toggleSection('strategySection')">
+                <h3>▶ Strategy Conditions</h3>
+                <div style="display: flex; gap: 10px; align-items: center; margin-left: auto;">
+                  <label style="display: flex; align-items: center; gap: 5px; margin: 0; font-size: 0.9em; cursor: pointer;">
+                    <input type="checkbox" id="previewToggle" onchange="toggleStrategyPreview()" />
+                    Preview
+                  </label>
+                </div>
               </div>
-              <div id="entrySection" class="section-content collapsed">
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="targetWeight">Target Weight:</label>
-                    <input type="number" id="targetWeight" value="0.95" min="0" max="1" step="0.05" />
-                    <small>Fraction of capital per position (0.0 - 1.0)</small>
+              <div id="strategySection" class="section-content collapsed">
+                <!-- Strategy Preview Container -->
+                <div id="strategyPreviewContainer" style="display: none; margin-bottom: 20px; padding: 15px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h4 style="margin: 0;">Strategy Visualization (S&P 500 - 1 Year)</h4>
+                    <button type="button" class="btn btn-primary" onclick="refreshStrategyPreview()" style="padding: 8px 20px; font-size: 0.95em;">
+                      Update Preview
+                    </button>
                   </div>
-                  <div class="form-group">
-                    <label for="entryFees">Entry Fees (bps):</label>
-                    <input type="number" id="entryFees" value="10" min="0" step="1" />
-                  </div>
+                  <div id="previewStatus" style="color: var(--text-secondary); margin-bottom: 10px; font-size: 0.9em;"></div>
+                  <div id="previewCharts"></div>
                 </div>
-                <div class="form-group">
-                  <label for="slipOpen">Slippage - Open (bps):</label>
-                  <input type="number" id="slipOpen" value="2" min="0" step="1" />
-                  <small>Entry slippage in basis points</small>
-                </div>
-              </div>
-            </div>
-
-            <!-- Exit Configuration -->
-            <div class="config-section">
-              <div class="section-header" onclick="toggleSection('exitSection')">
-                <h3>▶ Exit Configuration</h3>
-              </div>
-              <div id="exitSection" class="section-content collapsed">
-                <div class="form-group">
-                  <label for="exitFees">Exit Fees (bps):</label>
-                  <input type="number" id="exitFees" value="10" min="0" step="1" />
-                  <small>Exit transaction fees in basis points</small>
-                </div>
-              </div>
-            </div>
-
-            <!-- Indicators Configuration -->
-            <div class="config-section">
-              <div class="section-header" onclick="toggleSection('indicatorsSection')">
-                <h3>▶ Indicators Configuration</h3>
-              </div>
-              <div id="indicatorsSection" class="section-content collapsed">
-                <div class="form-group">
-                  <h4>RSI (Relative Strength Index)</h4>
-                  <div class="form-group checkbox-group">
-                    <label>
-                      <input type="checkbox" id="rsiEnabled" checked />
-                      Enable RSI Strategy
+                
+                <!-- Position Type Selection -->
+                <div class="form-group" style="border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; background: var(--bg-tertiary); margin-bottom: 20px;">
+                  <label style="font-weight: 600; margin-bottom: 10px; display: block;">Position Type:</label>
+                  <div style="display: flex; gap: 15px;">
+                    <label style="margin: 0; font-weight: normal;">
+                      <input type="radio" name="positionType" value="long" checked /> Long (Buy to enter)
+                    </label>
+                    <label style="margin: 0; font-weight: normal;">
+                      <input type="radio" name="positionType" value="short" /> Short (Sell to enter)
                     </label>
                   </div>
-                  <div id="rsiSettings">
-                    <div class="form-group">
-                      <label for="rsiPeriods">RSI Periods:</label>
-                      <input type="text" id="rsiPeriods" value="14" placeholder="14 or 12,14,16 for grid" />
-                      <small>Single value or comma-separated for grid search (e.g., "12,13,14,15,16,17,18,19")</small>
+                  <small>Long: Buy when entry conditions met. Short: Sell when entry conditions met.</small>
+                </div>
+                
+                <!-- Entry Conditions -->
+                <div class="form-group" style="border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; background: var(--bg-tertiary);">
+                  <h4 style="margin-top: 0; color: var(--accent-blue);">Entry Conditions</h4>
+                  <div class="form-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                      <label style="margin: 0;">Entry Mode:</label>
+                      <div style="display: flex; gap: 15px;">
+                        <label style="margin: 0; font-weight: normal;">
+                          <input type="radio" name="entryMode" value="all" checked /> All (AND)
+                        </label>
+                        <label style="margin: 0; font-weight: normal;">
+                          <input type="radio" name="entryMode" value="any" /> Any (OR)
+                        </label>
+                      </div>
                     </div>
-                    <div class="form-group">
-                      <label for="rsiBuyBelow">RSI Buy Below:</label>
-                      <input type="text" id="rsiBuyBelow" value="30" placeholder="30 or 20,25,30 for grid" />
-                      <small>Buy signal when RSI drops below this level (e.g., "5,10,15,20,25,30,35,40,45")</small>
+                    <small>All: Every condition must be met. Any: First condition met triggers entry.</small>
+                  </div>
+                  
+                  <div id="entryConditionsList" class="conditions-list"></div>
+                  
+                  <button type="button" class="btn btn-secondary" onclick="addCondition('entry')">
+                    + Add Entry Condition
+                  </button>
+                </div>
+
+                <!-- Exit Conditions -->
+                <div class="form-group" style="border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; background: var(--bg-tertiary); margin-top: 20px;">
+                  <h4 style="margin-top: 0; color: var(--accent-orange);">Exit Conditions</h4>
+                  
+                  <div class="form-group" style="display: flex; gap: 15px; align-items: center;">
+                    <div class="checkbox-group">
+                      <label>
+                        <input type="checkbox" id="mirrorEntry" onchange="toggleMirrorEntry()" />
+                        Mirror Entry Conditions
+                      </label>
+                      <small>Use same conditions as entry (reversed logic)</small>
                     </div>
-                    <div class="form-group">
-                      <label for="rsiSellAbove">RSI Sell Above:</label>
-                      <input type="text" id="rsiSellAbove" value="70" placeholder="70 or 70,75,80 for grid" />
-                      <small>Sell signal when RSI rises above this level (e.g., "55,60,65,70,75,80,85,90,95")</small>
+                    <div class="checkbox-group">
+                      <label>
+                        <input type="checkbox" id="viceVersa" />
+                        Vice Versa
+                      </label>
+                      <small>Reverse position on exit (Long→Short or Short→Long)</small>
                     </div>
+                  </div>
+                  
+                  <div id="exitManualSection">
+                    <div id="exitModeSection" class="form-group">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="margin: 0;">Exit Mode:</label>
+                        <div style="display: flex; gap: 15px;">
+                          <label style="margin: 0; font-weight: normal;">
+                            <input type="radio" name="exitMode" value="all" checked /> All (AND)
+                          </label>
+                          <label style="margin: 0; font-weight: normal;">
+                            <input type="radio" name="exitMode" value="any" /> Any (OR)
+                          </label>
+                        </div>
+                      </div>
+                      <small>All: Every condition must be met. Any: First condition met triggers exit.</small>
+                    </div>
+                    
+                    <!-- Take Profit -->
+                    <div class="form-group">
+                      <h4>Take Profit</h4>
+                      <div class="form-group checkbox-group">
+                        <label>
+                          <input type="checkbox" id="takeProfitEnabled" onchange="toggleTakeProfit()" />
+                          Enable Take Profit
+                        </label>
+                      </div>
+                      <div id="takeProfitSettings" style="display: none;">
+                        <div class="form-group">
+                          <label for="takeProfitType">Type:</label>
+                          <select id="takeProfitType" class="form-input" onchange="toggleTakeProfitType()">
+                            <option value="percent">Percentage</option>
+                            <option value="dollar">Dollar Amount</option>
+                          </select>
+                        </div>
+                        <div id="takeProfitPercent" class="form-group">
+                          <label for="takeProfitPercentValue">Target %:</label>
+                          <input type="number" id="takeProfitPercentValue" class="form-input" value="10" step="0.1" />
+                          <small>Percentage gain (e.g., 10 = 10%)</small>
+                        </div>
+                        <div id="takeProfitDollar" class="form-group" style="display: none;">
+                          <label for="takeProfitDollarValue">Target $:</label>
+                          <input type="number" id="takeProfitDollarValue" class="form-input" value="100" step="1" />
+                          <small>Dollar amount gain per share</small>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Stop Loss -->
+                    <div class="form-group">
+                      <h4>Stop Loss</h4>
+                      <div class="form-group checkbox-group">
+                        <label>
+                          <input type="checkbox" id="stopLossEnabled" onchange="toggleStopLoss()" />
+                          Enable Stop Loss
+                        </label>
+                      </div>
+                      <div id="stopLossSettings" style="display: none;">
+                        <div class="form-group">
+                          <label for="stopLossType">Type:</label>
+                          <select id="stopLossType" class="form-input" onchange="toggleStopLossType()">
+                            <option value="percent">Percentage</option>
+                            <option value="dollar">Dollar Amount</option>
+                          </select>
+                        </div>
+                        <div id="stopLossPercent" class="form-group">
+                          <label for="stopLossPercentValue">Target %:</label>
+                          <input type="number" id="stopLossPercentValue" class="form-input" value="5" step="0.1" />
+                          <small>Percentage loss (e.g., 5 = -5%)</small>
+                        </div>
+                        <div id="stopLossDollar" class="form-group" style="display: none;">
+                          <label for="stopLossDollarValue">Target $:</label>
+                          <input type="number" id="stopLossDollarValue" class="form-input" value="100" step="1" />
+                          <small>Dollar amount loss per share</small>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div id="exitConditionsList" class="conditions-list"></div>
+                    
+                    <button type="button" class="btn btn-secondary" onclick="addCondition('exit')">
+                      + Add Exit Condition
+                    </button>
                   </div>
                 </div>
               </div>

@@ -1495,3 +1495,60 @@ ipcMain.handle('backtest-run', async (event, config) => {
     });
   });
 });
+
+// Load preview data for strategy visualization
+ipcMain.handle('load-preview-data', async (event, params) => {
+  return new Promise((resolve, reject) => {
+    console.log('[PREVIEW] Loading data for visualization:', params);
+    
+    const pythonCommand = getPythonExecutable();
+    const scriptPath = path.join(__dirname, '..', 'load_preview_data.py');
+    const paramsJson = JSON.stringify(params);
+    
+    // Spawn Python process
+    const pythonProcess = spawn(pythonCommand, [scriptPath, paramsJson], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let output = '';
+    let errorOutput = '';
+
+    pythonProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+      console.error('[PREVIEW ERROR]', data.toString());
+    });
+
+    pythonProcess.on('error', (error) => {
+      console.error('[PREVIEW] Process error:', error);
+      resolve({ success: false, error: error.message });
+    });
+
+    pythonProcess.on('exit', (code) => {
+      console.log(`[PREVIEW] Process exited with code ${code}`);
+      
+      if (code === 0) {
+        try {
+          const result = JSON.parse(output);
+          resolve(result);
+        } catch (e) {
+          resolve({
+            success: false,
+            error: 'Failed to parse preview data',
+            details: output
+          });
+        }
+      } else {
+        resolve({
+          success: false,
+          error: `Process exited with code ${code}`,
+          stderr: errorOutput
+        });
+      }
+    });
+  });
+});
