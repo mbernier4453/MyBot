@@ -7142,6 +7142,65 @@ function populateBacktestConfig(config) {
   // EXIT section
   if (config.EXIT_FEES_BPS !== undefined) document.getElementById('exitFees').value = config.EXIT_FEES_BPS;
   
+  // STRATEGY CONDITIONS section
+  if (config.POSITION_TYPE !== undefined) {
+    const positionTypeRadio = document.querySelector(`input[name="positionType"][value="${config.POSITION_TYPE}"]`);
+    if (positionTypeRadio) positionTypeRadio.checked = true;
+  }
+  
+  // Load entry conditions
+  if (config.ENTRY_CONDITIONS && Array.isArray(config.ENTRY_CONDITIONS)) {
+    // Clear existing conditions
+    document.getElementById('entryConditionsList').innerHTML = '';
+    // Add each condition
+    config.ENTRY_CONDITIONS.forEach(condition => {
+      addConditionFromData('entry', condition);
+    });
+  }
+  
+  if (config.ENTRY_MODE !== undefined) {
+    const entryModeRadio = document.querySelector(`input[name="entryMode"][value="${config.ENTRY_MODE}"]`);
+    if (entryModeRadio) entryModeRadio.checked = true;
+  }
+  
+  // Mirror entry checkbox
+  if (config.EXIT_MIRROR_ENTRY !== undefined) {
+    const mirrorEntryCheckbox = document.getElementById('mirrorEntry');
+    if (mirrorEntryCheckbox) {
+      mirrorEntryCheckbox.checked = config.EXIT_MIRROR_ENTRY;
+      toggleMirrorEntry(); // Update UI visibility
+    }
+  }
+  
+  if (config.VICE_VERSA !== undefined) {
+    document.getElementById('viceVersa').checked = config.VICE_VERSA;
+  }
+  
+  // Load exit conditions (only if not mirroring)
+  if (!config.EXIT_MIRROR_ENTRY && config.EXIT_CONDITIONS && Array.isArray(config.EXIT_CONDITIONS)) {
+    // Clear existing conditions
+    document.getElementById('exitConditionsList').innerHTML = '';
+    // Add each condition
+    config.EXIT_CONDITIONS.forEach(condition => {
+      addConditionFromData('exit', condition);
+    });
+  }
+  
+  if (config.EXIT_MODE !== undefined) {
+    const exitModeRadio = document.querySelector(`input[name="exitMode"][value="${config.EXIT_MODE}"]`);
+    if (exitModeRadio) exitModeRadio.checked = true;
+  }
+  
+  // Take Profit / Stop Loss
+  if (config.TAKE_PROFIT_ENABLED !== undefined) {
+    const tpCheckbox = document.getElementById('takeProfitEnabled');
+    if (tpCheckbox) tpCheckbox.checked = config.TAKE_PROFIT_ENABLED;
+  }
+  if (config.STOP_LOSS_ENABLED !== undefined) {
+    const slCheckbox = document.getElementById('stopLossEnabled');
+    if (slCheckbox) slCheckbox.checked = config.STOP_LOSS_ENABLED;
+  }
+  
   // INDICATORS section
   if (config.RSI_ENABLED !== undefined) document.getElementById('rsiEnabled').checked = config.RSI_ENABLED;
   if (config.RSI_PERIOD !== undefined) document.getElementById('rsiPeriods').value = Array.isArray(config.RSI_PERIOD) ? config.RSI_PERIOD.join(',') : config.RSI_PERIOD;
@@ -7991,7 +8050,7 @@ function buildPriceFields(id) {
       </div>
       <div class="condition-field" id="${id}_value_field" style="display: none;">
         <label>Value(s)</label>
-        <input type="text" id="${id}_target_value" value="100.00" placeholder="100 or 100,110,120" />
+        <input type="text" id="${id}_target_value" value="600" placeholder="100 or 100,110,120" />
         <small>Single value or comma-separated list for grid</small>
       </div>
       <div class="condition-field" id="${id}_period_field">
@@ -8276,6 +8335,73 @@ function removeCondition(conditionId) {
 }
 
 // Toggle mirror entry checkbox
+// Add condition from saved data (for loading configs)
+function addConditionFromData(conditionGroup, conditionData) {
+  // Create the condition card first
+  createConditionCard(conditionGroup, conditionData.type);
+  
+  // Get the newly created condition's ID (it's the last one added)
+  const listId = conditionGroup === 'entry' ? 'entryConditionsList' : 'exitConditionsList';
+  const cards = document.querySelectorAll(`#${listId} .condition-card`);
+  const card = cards[cards.length - 1];
+  const conditionId = card.dataset.conditionId;
+  
+  // Populate fields based on condition type
+  setTimeout(() => {
+    switch (conditionData.type) {
+      case 'timing':
+        if (conditionData.time1) document.getElementById(`${conditionId}_time1`).value = conditionData.time1;
+        if (conditionData.time2) document.getElementById(`${conditionId}_time2`).value = conditionData.time2;
+        break;
+        
+      case 'price':
+        if (conditionData.target_type) {
+          document.getElementById(`${conditionId}_target_type`).value = conditionData.target_type;
+          toggleTargetParams(conditionId);
+        }
+        if (conditionData.target_value) document.getElementById(`${conditionId}_target_value`).value = conditionData.target_value;
+        if (conditionData.target_period) document.getElementById(`${conditionId}_target_period`).value = conditionData.target_period;
+        if (conditionData.interaction) {
+          document.getElementById(`${conditionId}_interaction`).value = conditionData.interaction;
+          toggleInteractionFields(conditionId);
+        }
+        if (conditionData.direction) document.getElementById(`${conditionId}_direction`).value = conditionData.direction;
+        if (conditionData.threshold_pct !== undefined) document.getElementById(`${conditionId}_threshold_pct`).value = conditionData.threshold_pct;
+        if (conditionData.delay !== undefined) document.getElementById(`${conditionId}_delay`).value = conditionData.delay;
+        if (conditionData.touches !== undefined) document.getElementById(`${conditionId}_touches`).value = conditionData.touches;
+        break;
+        
+      case 'rsi':
+        if (conditionData.rsi_period) document.getElementById(`${conditionId}_rsi_period`).value = conditionData.rsi_period;
+        if (conditionData.target_type) {
+          document.getElementById(`${conditionId}_target_type`).value = conditionData.target_type;
+          toggleTargetParams(conditionId);
+        }
+        if (conditionData.target_value) document.getElementById(`${conditionId}_target_value`).value = conditionData.target_value;
+        if (conditionData.target_period) document.getElementById(`${conditionId}_target_period`).value = conditionData.target_period;
+        if (conditionData.interaction) {
+          document.getElementById(`${conditionId}_interaction`).value = conditionData.interaction;
+          toggleInteractionFields(conditionId);
+        }
+        if (conditionData.direction) document.getElementById(`${conditionId}_direction`).value = conditionData.direction;
+        if (conditionData.threshold_pct !== undefined) document.getElementById(`${conditionId}_threshold_pct`).value = conditionData.threshold_pct;
+        if (conditionData.delay !== undefined) document.getElementById(`${conditionId}_delay`).value = conditionData.delay;
+        if (conditionData.touches !== undefined) document.getElementById(`${conditionId}_touches`).value = conditionData.touches;
+        break;
+        
+      case 'ma_crossover':
+        if (conditionData.fast_ma_type) document.getElementById(`${conditionId}_fast_ma_type`).value = conditionData.fast_ma_type;
+        if (conditionData.fast_period) document.getElementById(`${conditionId}_fast_period`).value = conditionData.fast_period;
+        if (conditionData.slow_ma_type) document.getElementById(`${conditionId}_slow_ma_type`).value = conditionData.slow_ma_type;
+        if (conditionData.slow_period) document.getElementById(`${conditionId}_slow_period`).value = conditionData.slow_period;
+        if (conditionData.direction) document.getElementById(`${conditionId}_direction`).value = conditionData.direction;
+        if (conditionData.threshold_pct !== undefined) document.getElementById(`${conditionId}_threshold_pct`).value = conditionData.threshold_pct;
+        if (conditionData.delay !== undefined) document.getElementById(`${conditionId}_delay`).value = conditionData.delay;
+        break;
+    }
+  }, 100); // Small delay to ensure DOM is ready
+}
+
 function toggleMirrorEntry() {
   const mirrorChecked = document.getElementById('mirrorEntry')?.checked;
   const exitModeSection = document.getElementById('exitModeSection');
@@ -8290,6 +8416,11 @@ function toggleMirrorEntry() {
     exitModeSection.style.display = 'block';
     exitConditionsList.style.display = 'flex';
     addExitBtn.style.display = 'inline-block';
+  }
+  
+  // Refresh preview to show/hide exit charts
+  if (document.getElementById('previewToggle')?.checked) {
+    refreshStrategyPreview();
   }
 }
 
@@ -8539,6 +8670,103 @@ async function initializeStrategyPreview() {
   }
 }
 
+// Match entry and exit signals for positional trading
+function matchEntryExitSignals(entrySignalsByLine, exitSignalsByLine, signalMode) {
+  if (signalMode === 'all') {
+    // Return all signals with their line numbers intact
+    return {
+      entries: entrySignalsByLine,
+      exits: exitSignalsByLine
+    };
+  }
+  
+  // Positional mode: For each line, alternate between entry and exit
+  const matchedEntries = [];
+  const matchedExits = [];
+  
+  // Process each entry line
+  entrySignalsByLine.forEach(entryLine => {
+    // Find corresponding exit line (same line number)
+    const exitLine = exitSignalsByLine.find(el => el.lineNumber === entryLine.lineNumber);
+    
+    if (!exitLine) {
+      // No exits for this line, just show first entry
+      if (entryLine.indices.length > 0) {
+        matchedEntries.push({
+          lineNumber: entryLine.lineNumber,
+          indices: [entryLine.indices[0]]
+        });
+      }
+      return;
+    }
+    
+    // Alternate between entries and exits for this specific line
+    const lineEntries = [];
+    const lineExits = [];
+    
+    let entryIdx = 0;
+    let exitIdx = 0;
+    let inPosition = false;
+    
+    // Get all signals for this line sorted by index
+    const allSignals = [];
+    entryLine.indices.forEach(idx => allSignals.push({ index: idx, type: 'entry' }));
+    exitLine.indices.forEach(idx => allSignals.push({ index: idx, type: 'exit' }));
+    allSignals.sort((a, b) => a.index - b.index);
+    
+    // Process signals chronologically for this line
+    allSignals.forEach(signal => {
+      if (!inPosition && signal.type === 'entry') {
+        lineEntries.push(signal.index);
+        inPosition = true;
+      } else if (inPosition && signal.type === 'exit') {
+        lineExits.push(signal.index);
+        inPosition = false;
+      }
+    });
+    
+    if (lineEntries.length > 0) {
+      matchedEntries.push({
+        lineNumber: entryLine.lineNumber,
+        indices: lineEntries
+      });
+    }
+    
+    if (lineExits.length > 0) {
+      matchedExits.push({
+        lineNumber: entryLine.lineNumber,
+        indices: lineExits
+      });
+    }
+  });
+  
+  console.log('[PREVIEW] Positional mode - matched entries:', matchedEntries, 'exits:', matchedExits);
+  
+  return {
+    entries: matchedEntries,
+    exits: matchedExits
+  };
+}
+
+// Mirror a condition for exit (flip the direction)
+function mirrorConditionForExit(entryCondition) {
+  const mirrored = { ...entryCondition };
+  
+  // Flip direction based on condition type
+  if (entryCondition.type === 'price' || entryCondition.type === 'rsi') {
+    // For Price and RSI: flip above/below
+    mirrored.direction = entryCondition.direction === 'above' ? 'below' : 'above';
+  } else if (entryCondition.type === 'ma_crossover') {
+    // For MA Crossover: flip bullish/bearish
+    mirrored.direction = entryCondition.direction === 'bullish' ? 'bearish' : 'bullish';
+  } else if (entryCondition.type === 'timing') {
+    // Timing conditions don't really have an opposite for exit
+    return null;
+  }
+  
+  return mirrored;
+}
+
 // Refresh the preview charts based on current conditions
 function refreshStrategyPreview() {
   console.log('[PREVIEW] Refresh called, cached data:', cachedSP500Data);
@@ -8553,11 +8781,11 @@ function refreshStrategyPreview() {
   console.log('[PREVIEW] Signal mode:', signalMode);
   
   const entryConditions = collectConditions('entry');
-  const exitConditions = document.getElementById('mirrorEntry').checked 
-    ? [] 
-    : collectConditions('exit');
+  const mirrorEntry = document.getElementById('mirrorEntry').checked;
+  const exitConditions = mirrorEntry ? [] : collectConditions('exit');
   
   console.log('[PREVIEW] Entry conditions:', entryConditions);
+  console.log('[PREVIEW] Mirror entry mode:', mirrorEntry);
   console.log('[PREVIEW] Exit conditions:', exitConditions);
   
   const chartsContainer = document.getElementById('previewCharts');
@@ -8568,15 +8796,44 @@ function refreshStrategyPreview() {
     return;
   }
   
-  // Create a chart for each entry condition
-  entryConditions.forEach((condition, idx) => {
-    createConditionChart('entry', condition, idx + 1, signalMode);
-  });
+  // Prepare exit conditions (either mirrored or custom)
+  const effectiveExitConditions = mirrorEntry
+    ? entryConditions.map(c => mirrorConditionForExit(c)).filter(c => c !== null)
+    : exitConditions;
   
-  // Create a chart for each exit condition
-  exitConditions.forEach((condition, idx) => {
-    createConditionChart('exit', condition, idx + 1, signalMode);
+  // Create combined charts (one chart per entry condition, showing both entry and exit)
+  entryConditions.forEach((entryCondition, idx) => {
+    const exitCondition = effectiveExitConditions[idx];
+    createCombinedConditionChart(entryCondition, exitCondition, idx + 1, signalMode);
   });
+}
+
+// Create a combined chart showing both entry and exit signals
+function createCombinedConditionChart(entryCondition, exitCondition, number, signalMode = 'positional') {
+  console.log('[PREVIEW] Creating combined chart for condition #', number, 'signalMode:', signalMode);
+  
+  const chartsContainer = document.getElementById('previewCharts');
+  const chartId = `preview_combined_${number}`;
+  
+  // Create chart container
+  const chartDiv = document.createElement('div');
+  chartDiv.style.marginBottom = '20px';
+  chartDiv.innerHTML = `
+    <h5 style="color: var(--accent-blue);">
+      Strategy Condition #${number}: ${entryCondition.type}
+    </h5>
+    <div id="${chartId}" style="width: 100%; height: 400px;"></div>
+  `;
+  chartsContainer.appendChild(chartDiv);
+  
+  // Determine chart type based on condition
+  if (entryCondition.type === 'rsi') {
+    createCombinedRSIChart(chartId, entryCondition, exitCondition, signalMode);
+  } else if (entryCondition.type === 'ma_crossover') {
+    createCombinedMACrossoverChart(chartId, entryCondition, exitCondition, signalMode);
+  } else {
+    createCombinedPriceChart(chartId, entryCondition, exitCondition, signalMode);
+  }
 }
 
 // Create a Plotly chart for a single condition
@@ -8613,6 +8870,331 @@ function createConditionChart(group, condition, number, signalMode = 'first') {
   createPriceChart(chartId, condition, group, signalMode);
 }
 
+// Create combined price chart with entry and exit signals
+function createCombinedPriceChart(chartId, entryCondition, exitCondition, signalMode) {
+  // Calculate entry and exit signals
+  const entrySignals = calculateConditionSignals(entryCondition, 'all'); // Get all signals first
+  const exitSignals = exitCondition ? calculateConditionSignals(exitCondition, 'all') : [];
+  
+  // Match signals based on mode
+  const matched = matchEntryExitSignals(entrySignals, exitSignals, signalMode);
+  
+  // Create base price trace
+  const priceTrace = {
+    x: cachedSP500Data.dates,
+    y: cachedSP500Data.close,
+    type: 'scatter',
+    mode: 'lines',
+    name: 'S&P 500 (SPY)',
+    line: { color: 'rgba(255, 255, 255, 0.9)', width: 2 }
+  };
+  
+  const traces = [priceTrace];
+  
+  // Add indicator traces
+  const indicatorTraces = createIndicatorTraces(entryCondition);
+  traces.push(...indicatorTraces);
+  
+  // Create scatter traces for each line number (for legend toggling)
+  // Group entries and exits by line number
+  const entryLineNumbers = matched.entries ? [...new Set(matched.entries.map(l => l.lineNumber))].sort() : [];
+  const exitLineNumbers = matched.exits ? [...new Set(matched.exits.map(l => l.lineNumber))].sort() : [];
+  const allLineNumbers = [...new Set([...entryLineNumbers, ...exitLineNumbers])].sort();
+  
+  // Add a scatter trace for each line number's entries
+  allLineNumbers.forEach(lineNum => {
+    const entryLine = matched.entries?.find(l => l.lineNumber === lineNum);
+    if (entryLine) {
+      const x = entryLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = entryLine.indices.map(idx => cachedSP500Data.close[idx]);
+      
+      traces.push({
+        x: x,
+        y: y,
+        type: 'scatter',
+        mode: 'markers+text',
+        name: `Entry ${lineNum}`,
+        text: x.map(() => '▲'),
+        textposition: 'top center',
+        textfont: { size: 16, color: '#00ff00', family: 'Arial Black' },
+        marker: { size: 10, color: '#00ff00', symbol: 'triangle-up' },
+        legendgroup: `line${lineNum}`,
+        showlegend: true
+      });
+    }
+  });
+  
+  // Add a scatter trace for each line number's exits
+  allLineNumbers.forEach(lineNum => {
+    const exitLine = matched.exits?.find(l => l.lineNumber === lineNum);
+    if (exitLine) {
+      const x = exitLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = exitLine.indices.map(idx => cachedSP500Data.close[idx]);
+      
+      traces.push({
+        x: x,
+        y: y,
+        type: 'scatter',
+        mode: 'markers+text',
+        name: `Exit ${lineNum}`,
+        text: x.map(() => '▼'),
+        textposition: 'bottom center',
+        textfont: { size: 16, color: '#ff0000', family: 'Arial Black' },
+        marker: { size: 10, color: '#ff0000', symbol: 'triangle-down' },
+        legendgroup: `line${lineNum}`,
+        showlegend: true
+      });
+    }
+  });
+  
+  const layout = {
+    title: '',
+    xaxis: { 
+      title: 'Date',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
+    yaxis: { 
+      title: 'Price ($)',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
+    showlegend: true,
+    legend: { x: 0, y: 1 },
+    margin: { l: 50, r: 50, t: 30, b: 50 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    hovermode: 'closest'
+  };
+  
+  const config = { responsive: true, displayModeBar: true };
+  
+  Plotly.newPlot(chartId, traces, layout, config);
+}
+
+// Create combined RSI chart with entry and exit signals
+function createCombinedRSIChart(chartId, entryCondition, exitCondition, signalMode) {
+  // Calculate entry and exit signals
+  const entrySignals = calculateConditionSignals(entryCondition, 'all');
+  const exitSignals = exitCondition ? calculateConditionSignals(exitCondition, 'all') : [];
+  
+  // Match signals based on mode
+  const matched = matchEntryExitSignals(entrySignals, exitSignals, signalMode);
+  
+  // Create RSI traces
+  const periodString = entryCondition.rsi_period || '14';
+  const periods = periodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+  
+  const traces = [];
+  const rsiColors = [
+    'rgba(255, 0, 255, 0.9)',     // Pure magenta
+    'rgba(200, 0, 255, 0.9)',     // Purple-magenta
+    'rgba(255, 50, 200, 0.9)',    // Pink-magenta
+    'rgba(150, 0, 200, 0.9)',     // Deep purple
+    'rgba(255, 100, 255, 0.9)'    // Light magenta
+  ];
+  
+  const firstRsiValues = calculateRSI(cachedSP500Data.close, periods[0]);
+  
+  periods.forEach((rsiPeriod, idx) => {
+    const rsiValues = calculateRSI(cachedSP500Data.close, rsiPeriod);
+    traces.push({
+      x: cachedSP500Data.dates,
+      y: rsiValues,
+      type: 'scatter',
+      mode: 'lines',
+      name: `RSI(${rsiPeriod})`,
+      line: { color: rsiColors[idx % rsiColors.length], width: 2 }
+    });
+  });
+  
+  // Add target traces
+  const targetTraces = createRSITargetTraces(entryCondition);
+  traces.push(...targetTraces);
+  
+  // Create scatter traces for each line number (for legend toggling)
+  const entryLineNumbers = matched.entries ? [...new Set(matched.entries.map(l => l.lineNumber))].sort() : [];
+  const exitLineNumbers = matched.exits ? [...new Set(matched.exits.map(l => l.lineNumber))].sort() : [];
+  const allLineNumbers = [...new Set([...entryLineNumbers, ...exitLineNumbers])].sort();
+  
+  // Add entry traces
+  allLineNumbers.forEach(lineNum => {
+    const entryLine = matched.entries?.find(l => l.lineNumber === lineNum);
+    if (entryLine) {
+      const x = entryLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = entryLine.indices.map(idx => firstRsiValues[idx]);
+      
+      traces.push({
+        x: x,
+        y: y,
+        type: 'scatter',
+        mode: 'markers+text',
+        name: `Entry ${lineNum}`,
+        text: x.map(() => '▲'),
+        textposition: 'top center',
+        textfont: { size: 16, color: '#00ff00', family: 'Arial Black' },
+        marker: { size: 10, color: '#00ff00', symbol: 'triangle-up' },
+        legendgroup: `line${lineNum}`,
+        showlegend: true
+      });
+    }
+  });
+  
+  // Add exit traces
+  allLineNumbers.forEach(lineNum => {
+    const exitLine = matched.exits?.find(l => l.lineNumber === lineNum);
+    if (exitLine) {
+      const x = exitLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = exitLine.indices.map(idx => firstRsiValues[idx]);
+      
+      traces.push({
+        x: x,
+        y: y,
+        type: 'scatter',
+        mode: 'markers+text',
+        name: `Exit ${lineNum}`,
+        text: x.map(() => '▼'),
+        textposition: 'bottom center',
+        textfont: { size: 16, color: '#ff0000', family: 'Arial Black' },
+        marker: { size: 10, color: '#ff0000', symbol: 'triangle-down' },
+        legendgroup: `line${lineNum}`,
+        showlegend: true
+      });
+    }
+  });
+  
+  const layout = {
+    title: '',
+    xaxis: { 
+      title: 'Date',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
+    yaxis: { 
+      title: 'RSI',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
+    showlegend: true,
+    legend: { x: 0, y: 1 },
+    margin: { l: 50, r: 50, t: 30, b: 50 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    hovermode: 'closest'
+  };
+  
+  const config = { responsive: true, displayModeBar: true };
+  
+  Plotly.newPlot(chartId, traces, layout, config);
+}
+
+// Create combined MA crossover chart with entry and exit signals
+function createCombinedMACrossoverChart(chartId, entryCondition, exitCondition, signalMode) {
+  // Calculate entry and exit signals
+  const entrySignals = calculateConditionSignals(entryCondition, 'all');
+  const exitSignals = exitCondition ? calculateConditionSignals(exitCondition, 'all') : [];
+  
+  // Match signals based on mode
+  const matched = matchEntryExitSignals(entrySignals, exitSignals, signalMode);
+  
+  // Create price trace
+  const priceTrace = {
+    x: cachedSP500Data.dates,
+    y: cachedSP500Data.close,
+    type: 'scatter',
+    mode: 'lines',
+    name: 'S&P 500 (SPY)',
+    line: { color: 'rgba(255, 255, 255, 0.9)', width: 2 }
+  };
+  
+  const traces = [priceTrace];
+  
+  // Add MA crossover traces
+  const maTraces = createMACrossoverTraces(entryCondition);
+  traces.push(...maTraces);
+  
+  // Create scatter traces for each line number (for legend toggling)
+  const entryLineNumbers = matched.entries ? [...new Set(matched.entries.map(l => l.lineNumber))].sort() : [];
+  const exitLineNumbers = matched.exits ? [...new Set(matched.exits.map(l => l.lineNumber))].sort() : [];
+  const allLineNumbers = [...new Set([...entryLineNumbers, ...exitLineNumbers])].sort();
+  
+  // Add entry traces
+  allLineNumbers.forEach(lineNum => {
+    const entryLine = matched.entries?.find(l => l.lineNumber === lineNum);
+    if (entryLine) {
+      const x = entryLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = entryLine.indices.map(idx => cachedSP500Data.close[idx]);
+      
+      traces.push({
+        x: x,
+        y: y,
+        type: 'scatter',
+        mode: 'markers+text',
+        name: `Entry ${lineNum}`,
+        text: x.map(() => '▲'),
+        textposition: 'top center',
+        textfont: { size: 16, color: '#00ff00', family: 'Arial Black' },
+        marker: { size: 10, color: '#00ff00', symbol: 'triangle-up' },
+        legendgroup: `line${lineNum}`,
+        showlegend: true
+      });
+    }
+  });
+  
+  // Add exit traces
+  allLineNumbers.forEach(lineNum => {
+    const exitLine = matched.exits?.find(l => l.lineNumber === lineNum);
+    if (exitLine) {
+      const x = exitLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = exitLine.indices.map(idx => cachedSP500Data.close[idx]);
+      
+      traces.push({
+        x: x,
+        y: y,
+        type: 'scatter',
+        mode: 'markers+text',
+        name: `Exit ${lineNum}`,
+        text: x.map(() => '▼'),
+        textposition: 'bottom center',
+        textfont: { size: 16, color: '#ff0000', family: 'Arial Black' },
+        marker: { size: 10, color: '#ff0000', symbol: 'triangle-down' },
+        legendgroup: `line${lineNum}`,
+        showlegend: true
+      });
+    }
+  });
+  
+  const layout = {
+    title: '',
+    xaxis: { 
+      title: 'Date',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
+    yaxis: { 
+      title: 'Price ($)',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
+    showlegend: true,
+    legend: { x: 0, y: 1 },
+    margin: { l: 50, r: 50, t: 30, b: 50 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    hovermode: 'closest'
+  };
+  
+  const config = { responsive: true, displayModeBar: true };
+  
+  Plotly.newPlot(chartId, traces, layout, config);
+}
+
 // Create price condition chart
 function createPriceChart(chartId, condition, group, signalMode = 'first') {
   // Calculate signals based on condition type
@@ -8625,7 +9207,7 @@ function createPriceChart(chartId, condition, group, signalMode = 'first') {
     type: 'scatter',
     mode: 'lines',
     name: 'S&P 500 (SPY)',
-    line: { color: 'rgba(100, 149, 237, 0.8)', width: 2 }
+    line: { color: 'rgba(255, 255, 255, 0.9)', width: 2 }
   };
   
   const traces = [priceTrace];
@@ -8639,8 +9221,18 @@ function createPriceChart(chartId, condition, group, signalMode = 'first') {
   
   const layout = {
     title: '',
-    xaxis: { title: 'Date' },
-    yaxis: { title: 'Price ($)' },
+    xaxis: { 
+      title: 'Date',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
+    yaxis: { 
+      title: 'Price ($)',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
     showlegend: true,
     legend: { x: 0, y: 1 },
     margin: { l: 50, r: 50, t: 30, b: 50 },
@@ -8665,11 +9257,11 @@ function createRSIChart(chartId, condition, group, signalMode = 'first') {
   
   const traces = [];
   const rsiColors = [
-    'rgba(128, 0, 255, 0.8)',
-    'rgba(180, 0, 255, 0.8)',
-    'rgba(100, 0, 200, 0.8)',
-    'rgba(150, 0, 255, 0.8)',
-    'rgba(128, 50, 255, 0.8)'
+    'rgba(255, 0, 255, 0.9)',     // Pure magenta
+    'rgba(200, 0, 255, 0.9)',     // Purple-magenta
+    'rgba(255, 50, 200, 0.9)',    // Pink-magenta
+    'rgba(150, 0, 200, 0.9)',     // Deep purple
+    'rgba(255, 100, 255, 0.9)'    // Light magenta
   ];
   
   // Calculate RSI for first period (use for annotations)
@@ -8697,8 +9289,19 @@ function createRSIChart(chartId, condition, group, signalMode = 'first') {
   
   const layout = {
     title: '',
-    xaxis: { title: 'Date' },
-    yaxis: { title: 'RSI', range: [0, 100] },
+    xaxis: { 
+      title: 'Date',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
+    yaxis: { 
+      title: 'RSI', 
+      range: [0, 100],
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
     showlegend: true,
     legend: { x: 0, y: 1 },
     margin: { l: 50, r: 50, t: 30, b: 50 },
@@ -8724,7 +9327,7 @@ function createMACrossoverChart(chartId, condition, group, signalMode = 'first')
     type: 'scatter',
     mode: 'lines',
     name: 'S&P 500 (SPY)',
-    line: { color: 'rgba(100, 149, 237, 0.8)', width: 2 }
+    line: { color: 'rgba(255, 255, 255, 0.9)', width: 2 }
   };
   
   const traces = [priceTrace];
@@ -8737,8 +9340,18 @@ function createMACrossoverChart(chartId, condition, group, signalMode = 'first')
   
   const layout = {
     title: '',
-    xaxis: { title: 'Date' },
-    yaxis: { title: 'Price ($)' },
+    xaxis: { 
+      title: 'Date',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
+    yaxis: { 
+      title: 'Price ($)',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash'
+    },
     showlegend: true,
     legend: { x: 0, y: 1 },
     margin: { l: 50, r: 50, t: 30, b: 50 },
@@ -8867,7 +9480,7 @@ function calculateConditionSignals(condition, signalMode = 'first') {
     
     if (targetType === 'Value') {
       // Price crossing a fixed value - parse comma-separated values
-      const valueString = condition.target_value || '100';
+      const valueString = condition.target_value || '600';
       const targetValues = valueString.toString().split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
       
       targetValues.forEach((targetValue, lineIdx) => {
@@ -9152,14 +9765,16 @@ function calculateConditionSignals(condition, signalMode = 'first') {
   }
   
   // Apply signal mode filter
-  if (signalMode === 'first') {
-    // Keep only the first signal for each line
+  if (signalMode === 'positional') {
+    // Keep only the first signal for each line (for now - will track entry/exit when exits are implemented)
+    // TODO: When exit conditions are added, this will filter based on position state
     return signalsByLine.map(line => ({
       indices: line.indices.length > 0 ? [line.indices[0]] : [],
       lineNumber: line.lineNumber
     })).filter(line => line.indices.length > 0);
   }
   
+  // 'all' mode - return all signals
   return signalsByLine;
 }
 
@@ -9167,11 +9782,11 @@ function calculateConditionSignals(condition, signalMode = 'first') {
 function createRSITargetTraces(condition) {
   const traces = [];
   const targetColors = [
-    'rgba(255, 165, 0, 0.8)',
-    'rgba(255, 100, 0, 0.8)',
-    'rgba(200, 165, 0, 0.8)',
-    'rgba(255, 200, 0, 0.8)',
-    'rgba(255, 140, 0, 0.8)'
+    'rgba(30, 144, 255, 0.9)',   // Dodger blue
+    'rgba(0, 100, 255, 0.9)',    // Deep bright blue
+    'rgba(70, 180, 255, 0.9)',   // Sky blue
+    'rgba(0, 50, 200, 0.9)',     // Navy blue
+    'rgba(100, 200, 255, 0.9)'   // Light cyan blue
   ];
   
   if (condition.target_type === 'Value') {
@@ -9236,12 +9851,13 @@ function createIndicatorTraces(condition) {
     
     periods.forEach((period, idx) => {
       const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+      // Blue shades for MAs
       const colors = [
-        'rgba(255, 165, 0, 0.8)',
-        'rgba(255, 100, 0, 0.8)',
-        'rgba(200, 165, 0, 0.8)',
-        'rgba(255, 200, 0, 0.8)',
-        'rgba(255, 140, 0, 0.8)'
+        'rgba(30, 144, 255, 0.9)',   // Dodger blue
+        'rgba(0, 100, 255, 0.9)',    // Deep bright blue
+        'rgba(70, 180, 255, 0.9)',   // Sky blue
+        'rgba(0, 50, 200, 0.9)',     // Navy blue
+        'rgba(100, 200, 255, 0.9)'   // Light cyan blue
       ];
       
       console.log('[PREVIEW] Adding MA trace:', period, 'first few values:', maValues.slice(0, 5));
@@ -9266,11 +9882,11 @@ function createIndicatorTraces(condition) {
     fastPeriods.forEach((period, idx) => {
       const maValues = calculateSimpleMA(cachedSP500Data.close, period);
       const colors = [
-        'rgba(0, 255, 0, 0.8)',
-        'rgba(50, 255, 50, 0.8)',
-        'rgba(0, 200, 0, 0.8)',
-        'rgba(100, 255, 100, 0.8)',
-        'rgba(0, 220, 0, 0.8)'
+        'rgba(30, 144, 255, 0.9)',   // Dodger blue
+        'rgba(0, 100, 255, 0.9)',    // Deep bright blue
+        'rgba(70, 180, 255, 0.9)',   // Sky blue
+        'rgba(0, 50, 200, 0.9)',     // Navy blue
+        'rgba(100, 200, 255, 0.9)'   // Light cyan blue
       ];
       
       traces.push({
@@ -9287,11 +9903,11 @@ function createIndicatorTraces(condition) {
     slowPeriods.forEach((period, idx) => {
       const maValues = calculateSimpleMA(cachedSP500Data.close, period);
       const colors = [
-        'rgba(255, 0, 0, 0.8)',
-        'rgba(255, 50, 50, 0.8)',
-        'rgba(200, 0, 0, 0.8)',
-        'rgba(255, 100, 100, 0.8)',
-        'rgba(220, 0, 0, 0.8)'
+        'rgba(255, 0, 255, 0.9)',     // Pure magenta
+        'rgba(200, 0, 255, 0.9)',     // Purple-magenta
+        'rgba(255, 50, 200, 0.9)',    // Pink-magenta
+        'rgba(150, 0, 200, 0.9)',     // Deep purple
+        'rgba(255, 100, 255, 0.9)'    // Light magenta
       ];
       
       traces.push({
@@ -9304,6 +9920,61 @@ function createIndicatorTraces(condition) {
       });
     });
   }
+  
+  return traces;
+}
+
+// Create MA crossover traces (separate function for combined charts)
+function createMACrossoverTraces(condition) {
+  const traces = [];
+  
+  // Parse comma-separated periods for fast and slow
+  const fastString = condition.fast_period || '10';
+  const slowString = condition.slow_period || '30';
+  const fastPeriods = fastString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+  const slowPeriods = slowString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+  
+  // Create fast MA lines
+  fastPeriods.forEach((period, idx) => {
+    const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+    const colors = [
+      'rgba(30, 144, 255, 0.9)',   // Dodger blue
+      'rgba(0, 100, 255, 0.9)',    // Deep bright blue
+      'rgba(70, 180, 255, 0.9)',   // Sky blue
+      'rgba(0, 50, 200, 0.9)',     // Navy blue
+      'rgba(100, 200, 255, 0.9)'   // Light cyan blue
+    ];
+    
+    traces.push({
+      x: cachedSP500Data.dates,
+      y: maValues,
+      type: 'scatter',
+      mode: 'lines',
+      name: `Fast ${condition.fast_ma_type}(${period})`,
+      line: { color: colors[idx % colors.length], width: 2, dash: 'solid' }
+    });
+  });
+  
+  // Create slow MA lines
+  slowPeriods.forEach((period, idx) => {
+    const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+    const colors = [
+      'rgba(255, 0, 255, 0.9)',     // Pure magenta
+      'rgba(200, 0, 255, 0.9)',     // Purple-magenta
+      'rgba(255, 50, 200, 0.9)',    // Pink-magenta
+      'rgba(150, 0, 200, 0.9)',     // Deep purple
+      'rgba(255, 100, 255, 0.9)'    // Light magenta
+    ];
+    
+    traces.push({
+      x: cachedSP500Data.dates,
+      y: maValues,
+      type: 'scatter',
+      mode: 'lines',
+      name: `Slow ${condition.slow_ma_type}(${period})`,
+      line: { color: colors[idx % colors.length], width: 2, dash: 'dash' }
+    });
+  });
   
   return traces;
 }

@@ -684,12 +684,12 @@
                     <h4 style="margin: 0;">Strategy Visualization (S&P 500 - 1 Year)</h4>
                     <div style="display: flex; gap: 15px; align-items: center;">
                       <label style="display: flex; align-items: center; gap: 5px; margin: 0; font-size: 0.9em;">
-                        <input type="radio" name="previewSignalMode" value="first" checked onchange="refreshStrategyPreview()" />
-                        First Entry Only
+                        <input type="radio" name="previewSignalMode" value="positional" checked onchange="refreshStrategyPreview()" />
+                        Positional
                       </label>
                       <label style="display: flex; align-items: center; gap: 5px; margin: 0; font-size: 0.9em;">
                         <input type="radio" name="previewSignalMode" value="all" onchange="refreshStrategyPreview()" />
-                        All Entries
+                        All Signals
                       </label>
                       <button type="button" class="btn btn-primary" onclick="refreshStrategyPreview()" style="padding: 8px 20px; font-size: 0.95em;">
                         Update Preview
@@ -746,7 +746,7 @@
                   <div class="form-group" style="display: flex; gap: 15px; align-items: center;">
                     <div class="checkbox-group">
                       <label>
-                        <input type="checkbox" id="mirrorEntry" onchange="toggleMirrorEntry()" />
+                        <input type="checkbox" id="mirrorEntry" onchange="toggleMirrorEntry()" checked />
                         Mirror Entry Conditions
                       </label>
                       <small>Use same conditions as entry (reversed logic)</small>
