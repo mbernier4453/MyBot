@@ -2637,6 +2637,18 @@ window.electronAPI.onPolygonUpdate((data) => {
   lastUpdateTime = new Date();
   updateLastUpdateDisplay();
   
+  // Update watchlist data if this ticker is in the current watchlist
+  if (currentWatchlist && currentWatchlist.tickers.includes(data.ticker)) {
+    watchlistStockData.set(data.ticker, data);
+    if (!window.watchlistUpdateScheduled) {
+      window.watchlistUpdateScheduled = true;
+      setTimeout(() => {
+        displayWatchlistStocks();
+        window.watchlistUpdateScheduled = false;
+      }, 2000);
+    }
+  }
+  
   // Redraw treemap periodically (every 5 seconds to avoid too frequent redraws)
   if (!window.treemapUpdateScheduled) {
     window.treemapUpdateScheduled = true;
@@ -2651,6 +2663,11 @@ window.electronAPI.onPolygonUpdate((data) => {
 window.electronAPI.onPolygonInitialLoad((data) => {
   console.log(`Initial data loaded: ${data.count} stocks`);
   drawTreemap(); // Draw immediately when initial data arrives
+  
+  // Refresh watchlist if one is selected
+  if (currentWatchlist) {
+    loadWatchlistStockData();
+  }
 });
 
 // Listen for connection status
@@ -3191,15 +3208,33 @@ function selectWatchlist(id) {
 }
 
 // Load stock data for current watchlist
-function loadWatchlistStockData() {
+async function loadWatchlistStockData() {
   if (!currentWatchlist) return;
   
-  // Get data from main treemap data or fetch fresh
+  // First, get data from main treemap data if available
   currentWatchlist.tickers.forEach(ticker => {
     if (treemapData.has(ticker)) {
       watchlistStockData.set(ticker, treemapData.get(ticker));
     }
   });
+  
+  // If treemapData is empty or missing tickers, fetch all data
+  if (treemapData.size === 0 || currentWatchlist.tickers.some(t => !watchlistStockData.has(t))) {
+    try {
+      const allData = await window.electronAPI.polygonGetAllData();
+      if (allData && Array.isArray(allData)) {
+        allData.forEach(stock => {
+          if (currentWatchlist.tickers.includes(stock.ticker)) {
+            watchlistStockData.set(stock.ticker, stock);
+          }
+        });
+        // Refresh the display after fetching
+        displayWatchlistStocks();
+      }
+    } catch (error) {
+      console.error('Error fetching watchlist stock data:', error);
+    }
+  }
 }
 
 // Display stocks in table
@@ -5605,10 +5640,26 @@ function calculateRSIBollinger(rsiValues, period = 20, stdDevMultiplier = 2) {
     return null;
   }
 
+  // Convert to normalized format: {rsi: number, index: number}
+  // Handle both plain number arrays and object arrays
+  const normalizedValues = rsiValues.map((val, idx) => {
+    if (typeof val === 'number') {
+      return { rsi: val, index: idx };
+    } else if (val && typeof val.rsi === 'number') {
+      return { rsi: val.rsi, index: val.index !== undefined ? val.index : idx };
+    } else {
+      return null;
+    }
+  }).filter(val => val !== null && !isNaN(val.rsi));
+  
+  if (normalizedValues.length < period) {
+    return null;
+  }
+
   const result = [];
   
-  for (let i = period - 1; i < rsiValues.length; i++) {
-    const slice = rsiValues.slice(i - period + 1, i + 1);
+  for (let i = period - 1; i < normalizedValues.length; i++) {
+    const slice = normalizedValues.slice(i - period + 1, i + 1);
     const sum = slice.reduce((acc, val) => acc + val.rsi, 0);
     const mean = sum / period;
     
@@ -5617,11 +5668,11 @@ function calculateRSIBollinger(rsiValues, period = 20, stdDevMultiplier = 2) {
     const stdDev = Math.sqrt(variance);
     
     result.push({
-      rsi: rsiValues[i].rsi,
+      rsi: normalizedValues[i].rsi,
       sma: mean,
       upper: mean + (stdDevMultiplier * stdDev),
       lower: mean - (stdDevMultiplier * stdDev),
-      index: rsiValues[i].index
+      index: normalizedValues[i].index
     });
   }
   
@@ -5779,11 +5830,20 @@ async function loadRSIWatchlistData(watchlistName) {
       const data = await fetchRSIMarketData(ticker, '1Y', 'day');
       
       if (data && data.length > rsiPeriod) {
-        const closes = data.map(bar => bar.c);
+        const closes = data.map(bar => bar.c).filter(c => c !== null && c !== undefined && !isNaN(c));
+        
+        if (closes.length <= rsiPeriod) {
+          console.warn(`${ticker}: Not enough valid price data after filtering`);
+          return null;
+        }
+        
         const rsiValues = calculateRSI(closes, rsiPeriod);
         
         if (rsiValues && rsiValues.length > 0) {
-          const currentRSI = rsiValues[rsiValues.length - 1].rsi;
+          // calculateRSI returns array of numbers (or objects with .rsi property)
+          // Handle both formats
+          const lastRSI = rsiValues[rsiValues.length - 1];
+          const currentRSI = typeof lastRSI === 'number' ? lastRSI : (lastRSI ? lastRSI.rsi : undefined);
           
           // Calculate Bollinger Bands for coloring
           let bollingerStatus = 'neutral';
@@ -5791,12 +5851,20 @@ async function loadRSIWatchlistData(watchlistName) {
             const bollingerData = calculateRSIBollinger(rsiValues, 20);
             if (bollingerData && bollingerData.length > 0) {
               const lastBB = bollingerData[bollingerData.length - 1];
-              if (currentRSI > lastBB.upper) {
-                bollingerStatus = 'overbought'; // Above upper band
-              } else if (currentRSI < lastBB.lower) {
-                bollingerStatus = 'oversold'; // Below lower band
+              if (lastBB && lastBB.upper !== undefined && lastBB.lower !== undefined) {
+                if (currentRSI > lastBB.upper) {
+                  bollingerStatus = 'overbought'; // Above upper band
+                } else if (currentRSI < lastBB.lower) {
+                  bollingerStatus = 'oversold'; // Below lower band
+                }
               }
             }
+          }
+          
+          // Final validation before returning
+          if (currentRSI === undefined || currentRSI === null || isNaN(currentRSI)) {
+            console.warn(`${ticker}: currentRSI is invalid:`, currentRSI);
+            return null;
           }
           
           return {
@@ -5921,6 +5989,11 @@ function renderRSIBasketTable() {
   }
 
   rsiBasketData.forEach(item => {
+    // Skip items with invalid RSI
+    if (!item || item.rsi === undefined || item.rsi === null || isNaN(item.rsi)) {
+      return;
+    }
+    
     const row = document.createElement('tr');
     if (item.ticker === rsiSelectedSymbol) {
       row.classList.add('selected');
@@ -6031,13 +6104,17 @@ async function renderRSIHistory(ticker, tickerData) {
           rsiValues.forEach((rsiItem, idx) => {
             const dataIdx = idx + 14; // RSI starts after 14 periods
             if (dataIdx < windowData.length) {
-              if (rsiItem.rsi < minRSI) {
-                minRSI = rsiItem.rsi;
-                minDate = new Date(windowData[dataIdx].t);
-              }
-              if (rsiItem.rsi > maxRSI) {
-                maxRSI = rsiItem.rsi;
-                maxDate = new Date(windowData[dataIdx].t);
+              // Handle both RSI function formats
+              const rsiValue = typeof rsiItem === 'number' ? rsiItem : (rsiItem ? rsiItem.rsi : null);
+              if (rsiValue !== null && rsiValue !== undefined) {
+                if (rsiValue < minRSI) {
+                  minRSI = rsiValue;
+                  minDate = new Date(windowData[dataIdx].t);
+                }
+                if (rsiValue > maxRSI) {
+                  maxRSI = rsiValue;
+                  maxDate = new Date(windowData[dataIdx].t);
+                }
               }
             }
           });
@@ -6091,7 +6168,13 @@ async function renderRSISynergy(ticker) {
         const rsiValues = calculateRSI(closes, rsiPeriod);
         
         if (rsiValues && rsiValues.length > 0) {
-          const currentRSI = rsiValues[rsiValues.length - 1].rsi;
+          const lastRSI = rsiValues[rsiValues.length - 1];
+          // Handle both RSI function formats
+          const currentRSI = typeof lastRSI === 'number' ? lastRSI : (lastRSI ? lastRSI.rsi : undefined);
+          
+          if (currentRSI === undefined || currentRSI === null || isNaN(currentRSI)) {
+            continue; // Skip this timeframe if RSI is invalid
+          }
           
           // Check Bollinger status for this timeframe
           let bollingerStatus = '';
@@ -6182,6 +6265,16 @@ async function renderRSIBollingerChart(ticker, tickerData) {
     const rsiLine = bollingerData.map(item => item.rsi);
     const upperBand = bollingerData.map(item => item.upper);
     const lowerBand = bollingerData.map(item => item.lower);
+
+    // Check for data gaps (warn if gap > 7 days between consecutive bars)
+    let hasSignificantGap = false;
+    for (let i = 1; i < dates.length; i++) {
+      const daysDiff = (dates[i] - dates[i-1]) / (1000 * 60 * 60 * 24);
+      if (daysDiff > 7) {
+        console.warn(`${ticker}: Data gap detected - ${daysDiff.toFixed(0)} days between ${dates[i-1].toLocaleDateString()} and ${dates[i].toLocaleDateString()}`);
+        hasSignificantGap = true;
+      }
+    }
 
     // Create traces
     const smaLine = bollingerData.map(item => item.sma);
@@ -6294,8 +6387,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       responsive: true,
       displayModeBar: true,
       displaylogo: false,
-      modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d'],
-      scrollZoom: true
+      modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d']
     };
 
     Plotly.newPlot(chartDiv, [oversoldLine, overboughtLine, lowerTrace, middleTrace, rsiTrace, upperTrace], layout, config);
