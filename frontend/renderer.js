@@ -2368,7 +2368,8 @@ function displayEquityChart(strategyEquity, buyholdEquity, benchmarkEquity, even
     responsive: true,
     displayModeBar: true,
     displaylogo: false,
-    modeBarButtonsToRemove: ['lasso2d', 'select2d']
+    modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+    scrollZoom: true
   };
   
   Plotly.newPlot('equityChart', traces, layout, config);
@@ -2538,7 +2539,7 @@ function displayVolMatchedChart(strategyEquity, comparisonEquity, chartElementId
     hovermode: 'x unified'
   };
   
-  Plotly.newPlot(chartElementId, traces, layout, { displayModeBar: false, responsive: true });
+  Plotly.newPlot(chartElementId, traces, layout, { displayModeBar: false, responsive: true, scrollZoom: true });
 }
 
 function displayDrawdownChart(strategyEquity, buyholdEquity, benchmarkEquity) {
@@ -2615,7 +2616,7 @@ function displayDrawdownChart(strategyEquity, buyholdEquity, benchmarkEquity) {
     hovermode: 'x unified'
   };
   
-  Plotly.newPlot('drawdownChart', traces, layout, { displayModeBar: false, responsive: true });
+  Plotly.newPlot('drawdownChart', traces, layout, { displayModeBar: false, responsive: true, scrollZoom: true });
 }
 
 // =====================================================
@@ -4180,6 +4181,7 @@ class ChartTab {
       displayModeBar: true,
       modeBarButtonsToRemove: ['lasso2d', 'select2d'],
       displaylogo: false,
+      scrollZoom: true,
       modeBarButtonsToAdd: [{
         name: 'Pan',
         icon: Plotly.Icons.pan,
@@ -5310,6 +5312,7 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
     displayModeBar: true,
     modeBarButtonsToRemove: ['lasso2d', 'select2d'],
     displaylogo: false,
+    scrollZoom: true,
     modeBarButtonsToAdd: [{
       name: 'Pan',
       icon: Plotly.Icons.pan,
@@ -6291,7 +6294,8 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       responsive: true,
       displayModeBar: true,
       displaylogo: false,
-      modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d']
+      modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d'],
+      scrollZoom: true
     };
 
     Plotly.newPlot(chartDiv, [oversoldLine, overboughtLine, lowerTrace, middleTrace, rsiTrace, upperTrace], layout, config);
@@ -8969,7 +8973,11 @@ function createCombinedPriceChart(chartId, entryCondition, exitCondition, signal
     hovermode: 'closest'
   };
   
-  const config = { responsive: true, displayModeBar: true };
+  const config = { 
+    responsive: true, 
+    displayModeBar: true,
+    scrollZoom: true
+  };
   
   Plotly.newPlot(chartId, traces, layout, config);
 }
@@ -9087,7 +9095,11 @@ function createCombinedRSIChart(chartId, entryCondition, exitCondition, signalMo
     hovermode: 'closest'
   };
   
-  const config = { responsive: true, displayModeBar: true };
+  const config = { 
+    responsive: true, 
+    displayModeBar: true,
+    scrollZoom: true
+  };
   
   Plotly.newPlot(chartId, traces, layout, config);
 }
@@ -9190,7 +9202,11 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitCondition, 
     hovermode: 'closest'
   };
   
-  const config = { responsive: true, displayModeBar: true };
+  const config = { 
+    responsive: true, 
+    displayModeBar: true,
+    scrollZoom: true
+  };
   
   Plotly.newPlot(chartId, traces, layout, config);
 }
@@ -9242,7 +9258,11 @@ function createPriceChart(chartId, condition, group, signalMode = 'first') {
     hovermode: 'closest'
   };
   
-  const config = { responsive: true, displayModeBar: true };
+  const config = { 
+    responsive: true, 
+    displayModeBar: true,
+    scrollZoom: true
+  };
   
   Plotly.newPlot(chartId, traces, layout, config);
 }
@@ -9311,7 +9331,11 @@ function createRSIChart(chartId, condition, group, signalMode = 'first') {
     hovermode: 'closest'
   };
   
-  const config = { responsive: true, displayModeBar: true };
+  const config = { 
+    responsive: true, 
+    displayModeBar: true,
+    scrollZoom: true
+  };
   
   Plotly.newPlot(chartId, traces, layout, config);
 }
@@ -9361,7 +9385,11 @@ function createMACrossoverChart(chartId, condition, group, signalMode = 'first')
     hovermode: 'closest'
   };
   
-  const config = { responsive: true, displayModeBar: true };
+  const config = { 
+    responsive: true, 
+    displayModeBar: true,
+    scrollZoom: true
+  };
   
   Plotly.newPlot(chartId, traces, layout, config);
 }
@@ -10001,6 +10029,50 @@ window.refreshStrategyPreview = refreshStrategyPreview;
 // ============================================================================
 // END STRATEGY PREVIEW
 // ============================================================================
+
+// ============================================================================
+// CHART TAB KEYBOARD SHORTCUTS
+// ============================================================================
+
+document.addEventListener('keydown', (e) => {
+  // Ctrl+T: Create new chart tab
+  if (e.ctrlKey && e.key === 't') {
+    e.preventDefault();
+    createChartTab();
+    return;
+  }
+  
+  // Ctrl+W: Close current chart tab
+  if (e.ctrlKey && e.key === 'w') {
+    e.preventDefault();
+    if (activeChartTabId !== null) {
+      closeChartTab(activeChartTabId);
+    }
+    return;
+  }
+  
+  // Ctrl+Tab: Next tab
+  if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
+    e.preventDefault();
+    const currentIndex = chartTabs.findIndex(t => t.id === activeChartTabId);
+    if (currentIndex !== -1 && chartTabs.length > 1) {
+      const nextIndex = (currentIndex + 1) % chartTabs.length;
+      activateChartTab(chartTabs[nextIndex].id);
+    }
+    return;
+  }
+  
+  // Ctrl+Shift+Tab: Previous tab
+  if (e.ctrlKey && e.shiftKey && e.key === 'Tab') {
+    e.preventDefault();
+    const currentIndex = chartTabs.findIndex(t => t.id === activeChartTabId);
+    if (currentIndex !== -1 && chartTabs.length > 1) {
+      const prevIndex = (currentIndex - 1 + chartTabs.length) % chartTabs.length;
+      activateChartTab(chartTabs[prevIndex].id);
+    }
+    return;
+  }
+});
 
 // MUST be at end of file after all functions are defined
 console.log('[INIT] Exposing functions to window scope...');
