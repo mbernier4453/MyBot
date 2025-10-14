@@ -118,6 +118,155 @@ def generate_rsi_signals(df, condition):
     
     return signals.fillna(False), rsi
 
+def generate_rsi_bollinger_signals(df, condition):
+    """
+    Generate entry/exit signals for RSI Bollinger Bands conditions
+    RSI crosses above/below Bollinger Bands (upper/lower)
+    """
+    # Get parameters (after grid expansion, should be single numbers)
+    rsi_period = int(parse_param_value(condition.get('rsi_period', 14)))
+    bb_period = int(parse_param_value(condition.get('target_period', 20)))  # BB period comes from target_period
+    bb_std = float(parse_param_value(condition.get('bb_std', 2.0)))  # Changed from std_dev to bb_std
+    
+    interaction = condition.get('interaction')
+    target_type = condition.get('target_type')
+    
+    # Calculate RSI
+    close_series = df['Close'].squeeze() if hasattr(df['Close'], 'squeeze') else df['Close']
+    rsi = rsi_sma(close_series, rsi_period)
+    
+    # Calculate Bollinger Bands on RSI
+    # SMA of RSI values
+    rsi_sma_line = rsi.rolling(window=bb_period).mean()
+    # Standard deviation of RSI values
+    rsi_std = rsi.rolling(window=bb_period).std()
+    # Upper and Lower bands
+    upper_band = rsi_sma_line + (bb_std * rsi_std)
+    lower_band = rsi_sma_line - (bb_std * rsi_std)
+    
+    # Only handle Bollinger Band targets - frontend uses BB_TOP, BB_MID, BB_BOTTOM
+    if target_type in ['BB_TOP', 'Upper Band']:
+        # Signals based on interaction with upper band
+        signals = pd.Series(False, index=df.index)
+        
+        direction = condition.get('direction', 'below')
+        threshold_pct = float(condition.get('threshold_pct', 0)) / 100.0
+        delay_bars = int(condition.get('delay_bars', 0))
+        
+        if interaction == 'cross' and direction:
+            interaction = f'cross_{direction}'
+        
+        if interaction == 'cross_above':
+            # RSI crosses above upper band
+            for i in range(1, len(rsi)):
+                if pd.isna(rsi.iloc[i]) or pd.isna(rsi.iloc[i-1]) or pd.isna(upper_band.iloc[i]) or pd.isna(upper_band.iloc[i-1]):
+                    continue
+                crossed_up = (rsi.iloc[i-1] < upper_band.iloc[i-1]) and (rsi.iloc[i] > upper_band.iloc[i])
+                if crossed_up:
+                    move_amount = rsi.iloc[i] - upper_band.iloc[i]
+                    threshold_amount = upper_band.iloc[i] * threshold_pct
+                    if move_amount >= threshold_amount:
+                        signal_idx = min(i + delay_bars, len(signals) - 1)
+                        signals.iloc[signal_idx] = True
+        elif interaction == 'cross_below':
+            # RSI crosses below upper band (comes back down)
+            for i in range(1, len(rsi)):
+                if pd.isna(rsi.iloc[i]) or pd.isna(rsi.iloc[i-1]) or pd.isna(upper_band.iloc[i]) or pd.isna(upper_band.iloc[i-1]):
+                    continue
+                crossed_down = (rsi.iloc[i-1] > upper_band.iloc[i-1]) and (rsi.iloc[i] < upper_band.iloc[i])
+                if crossed_down:
+                    move_amount = upper_band.iloc[i] - rsi.iloc[i]
+                    threshold_amount = upper_band.iloc[i] * threshold_pct
+                    if move_amount >= threshold_amount:
+                        signal_idx = min(i + delay_bars, len(signals) - 1)
+                        signals.iloc[signal_idx] = True
+        elif interaction == 'above':
+            # RSI is above upper band
+            signals = (rsi > upper_band)
+        elif interaction == 'below':
+            # RSI is below upper band
+            signals = (rsi < upper_band)
+        else:
+            print(f"[DYNAMIC] Unknown BB interaction '{interaction}'", file=sys.stderr)
+            return None, None
+            
+    elif target_type in ['BB_BOTTOM', 'Lower Band']:
+        # Signals based on interaction with lower band
+        signals = pd.Series(False, index=df.index)
+        
+        direction = condition.get('direction', 'above')
+        threshold_pct = float(condition.get('threshold_pct', 0)) / 100.0  # Convert percentage to decimal
+        delay_bars = int(condition.get('delay_bars', 0))
+        
+        if interaction == 'cross' and direction:
+            interaction = f'cross_{direction}'
+        
+        if interaction == 'cross_above':
+            # RSI crosses above lower band (comes back up)
+            # Match frontend logic: check previous bar below, current bar above, with threshold
+            for i in range(1, len(rsi)):
+                if pd.isna(rsi.iloc[i]) or pd.isna(rsi.iloc[i-1]) or pd.isna(lower_band.iloc[i]) or pd.isna(lower_band.iloc[i-1]):
+                    continue
+                crossed_up = (rsi.iloc[i-1] < lower_band.iloc[i-1]) and (rsi.iloc[i] > lower_band.iloc[i])
+                if crossed_up:
+                    # Check threshold: RSI must move threshold_pct beyond target
+                    move_amount = rsi.iloc[i] - lower_band.iloc[i]
+                    threshold_amount = lower_band.iloc[i] * threshold_pct
+                    if move_amount >= threshold_amount:
+                        # Apply delay
+                        signal_idx = min(i + delay_bars, len(signals) - 1)
+                        signals.iloc[signal_idx] = True
+        elif interaction == 'cross_below':
+            # RSI crosses below lower band
+            for i in range(1, len(rsi)):
+                if pd.isna(rsi.iloc[i]) or pd.isna(rsi.iloc[i-1]) or pd.isna(lower_band.iloc[i]) or pd.isna(lower_band.iloc[i-1]):
+                    continue
+                crossed_down = (rsi.iloc[i-1] > lower_band.iloc[i-1]) and (rsi.iloc[i] < lower_band.iloc[i])
+                if crossed_down:
+                    move_amount = lower_band.iloc[i] - rsi.iloc[i]
+                    threshold_amount = lower_band.iloc[i] * threshold_pct
+                    if move_amount >= threshold_amount:
+                        signal_idx = min(i + delay_bars, len(signals) - 1)
+                        signals.iloc[signal_idx] = True
+        elif interaction == 'above':
+            # RSI is above lower band
+            signals = (rsi > lower_band)
+        elif interaction == 'below':
+            # RSI is below lower band
+            signals = (rsi < lower_band)
+        else:
+            print(f"[DYNAMIC] Unknown BB interaction '{interaction}'", file=sys.stderr)
+            return None, None
+            
+    elif target_type == 'BB_MID':
+        # Signals based on interaction with middle band (SMA)
+        signals = pd.Series(False, index=df.index)
+        
+        direction = condition.get('direction', '')
+        if interaction == 'cross' and direction:
+            interaction = f'cross_{direction}'
+        
+        if interaction == 'cross_above':
+            # RSI crosses above middle band
+            signals = (rsi > rsi_sma_line) & (rsi.shift(1) <= rsi_sma_line.shift(1))
+        elif interaction == 'cross_below':
+            # RSI crosses below middle band
+            signals = (rsi < rsi_sma_line) & (rsi.shift(1) >= rsi_sma_line.shift(1))
+        elif interaction == 'above':
+            # RSI is above middle band
+            signals = (rsi > rsi_sma_line)
+        elif interaction == 'below':
+            # RSI is below middle band
+            signals = (rsi < rsi_sma_line)
+        else:
+            print(f"[DYNAMIC] Unknown BB interaction '{interaction}'", file=sys.stderr)
+            return None, None
+    else:
+        print(f"[DYNAMIC] Target type '{target_type}' not supported for Bollinger Bands", file=sys.stderr)
+        return None, None
+    
+    return signals.fillna(False), rsi
+
 def run_simple_backtest(df, entry_signals, exit_signals, initial_capital, position_size_pct=100):
     """
     Simple backtest execution
@@ -127,6 +276,13 @@ def run_simple_backtest(df, entry_signals, exit_signals, initial_capital, positi
     shares = 0
     equity_curve = []
     trades = []
+    
+    # Debug: Log signal counts
+    entry_count = entry_signals.sum()
+    exit_count = exit_signals.sum()
+    print(f"[BACKTEST] Entry signals: {entry_count}, Exit signals: {exit_count}", file=sys.stderr)
+    print(f"[BACKTEST] First 10 entry signal dates: {df.index[entry_signals].tolist()[:10]}", file=sys.stderr)
+    print(f"[BACKTEST] First 10 exit signal dates: {df.index[exit_signals].tolist()[:10]}", file=sys.stderr)
     
     for i in range(len(df)):
         date = df.index[i]
@@ -139,14 +295,12 @@ def run_simple_backtest(df, entry_signals, exit_signals, initial_capital, positi
         
         # Check exit first (if we have a position)
         if shares > 0 and exit_signals.iloc[i]:
-            # Sell
+            # Sell - UPDATE the last trade with exit info
             cash += shares * close_price
-            trades.append({
-                'exit_date': str(date),
-                'exit_price': float(close_price),
-                'shares': int(shares),
-                'pnl': float(shares * close_price - (shares * trades[-1]['entry_price']))
-            })
+            if trades and 'entry_date' in trades[-1] and 'exit_date' not in trades[-1]:
+                trades[-1]['exit_date'] = str(date)
+                trades[-1]['exit_price'] = float(close_price)
+                trades[-1]['pnl'] = float(shares * close_price - (shares * trades[-1]['entry_price']))
             shares = 0
         
         # Check entry (if we don't have a position)
@@ -214,11 +368,19 @@ def run_single_backtest(df, entry_cond, exit_conds, initial_capital, buyhold_ena
         buyhold_enabled: If True, calculate buy & hold equity
         benchmark_df: Optional benchmark DataFrame (aligned to same date range)
     """
-    # Generate entry signals
-    if entry_cond.get('type') != 'rsi':
-        return None, f"Condition type '{entry_cond.get('type')}' not yet supported"
+    # Generate entry signals - detect condition type
+    cond_type = entry_cond.get('type', 'rsi')
+    target_type = entry_cond.get('target_type', 'Value')
     
-    entry_signals, rsi_values = generate_rsi_signals(df, entry_cond)
+    # Check if this is a Bollinger Band condition
+    # Frontend uses BB_TOP, BB_MID, BB_BOTTOM
+    if target_type and target_type.startswith('BB_'):
+        entry_signals, rsi_values = generate_rsi_bollinger_signals(df, entry_cond)
+    elif cond_type == 'rsi':
+        entry_signals, rsi_values = generate_rsi_signals(df, entry_cond)
+    else:
+        return None, f"Condition type '{cond_type}' not yet supported"
+    
     if entry_signals is None:
         return None, 'Failed to generate entry signals'
     
@@ -226,24 +388,44 @@ def run_single_backtest(df, entry_cond, exit_conds, initial_capital, buyhold_ena
     if exit_conds and len(exit_conds) > 0:
         # Use first exit condition for now
         exit_cond = exit_conds[0]
-        if exit_cond.get('type') == 'rsi':
+        exit_type = exit_cond.get('type', 'rsi')
+        exit_target = exit_cond.get('target_type', 'Value')
+        
+        # Check if exit is Bollinger Band condition
+        if exit_target and exit_target.startswith('BB_'):
+            exit_signals, _ = generate_rsi_bollinger_signals(df, exit_cond)
+        elif exit_type == 'rsi':
             exit_signals, _ = generate_rsi_signals(df, exit_cond)
         else:
             # Default: opposite of entry
             exit_cond = entry_cond.copy()
-            if exit_cond['interaction'] == 'cross_above':
-                exit_cond['interaction'] = 'cross_below'
-            elif exit_cond['interaction'] == 'cross_below':
-                exit_cond['interaction'] = 'cross_above'
-            exit_signals, _ = generate_rsi_signals(df, exit_cond)
+            if 'cross' in exit_cond.get('interaction', ''):
+                direction = exit_cond.get('direction', '')
+                if direction == 'above':
+                    exit_cond['direction'] = 'below'
+                elif direction == 'below':
+                    exit_cond['direction'] = 'above'
+            
+            # Use same function as entry
+            if target_type and target_type.startswith('BB_'):
+                exit_signals, _ = generate_rsi_bollinger_signals(df, exit_cond)
+            else:
+                exit_signals, _ = generate_rsi_signals(df, exit_cond)
     else:
         # Default: opposite of entry
         exit_cond = entry_cond.copy()
-        if exit_cond['interaction'] == 'cross_above':
-            exit_cond['interaction'] = 'cross_below'
-        elif exit_cond['interaction'] == 'cross_below':
-            exit_cond['interaction'] = 'cross_above'
-        exit_signals, _ = generate_rsi_signals(df, exit_cond)
+        if 'cross' in exit_cond.get('interaction', ''):
+            direction = exit_cond.get('direction', '')
+            if direction == 'above':
+                exit_cond['direction'] = 'below'
+            elif direction == 'below':
+                exit_cond['direction'] = 'above'
+        
+        # Use same function as entry
+        if target_type and target_type.startswith('BB_'):
+            exit_signals, _ = generate_rsi_bollinger_signals(df, exit_cond)
+        else:
+            exit_signals, _ = generate_rsi_signals(df, exit_cond)
     
     # Run backtest
     equity_curve, trades = run_simple_backtest(

@@ -1193,6 +1193,9 @@ function displayStrategies(strategies) {
               ${Object.entries(s.params || {}).map(([k, v]) => `${k}:${v}`).join(', ')}
             </td>
             <td>
+              <button class="btn-view-chart" onclick="event.stopPropagation(); viewStrategyChart(${s.id})" title="View strategy chart with trades">
+                📊 Chart
+              </button>
               <button class="btn-view-tearsheet" onclick="event.stopPropagation(); viewTearsheet(${s.id})">
                 View Tearsheet
               </button>
@@ -1977,6 +1980,96 @@ async function displayPortfolioCapmMetrics(portfolio, benchmarkEquity) {
       `<p style="color: var(--negative); font-size: 11px; text-align: center; padding: 20px;">CAPM calculation error: ${error.message}</p>`;
   }
 }
+
+async function viewStrategyChart(strategyId) {
+  console.log('[STRATEGY CHART] Loading strategy chart for ID:', strategyId);
+  
+  try {
+    // Load strategy details
+    const result = await window.electronAPI.getStrategyDetails(strategyId);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to load strategy details');
+    }
+    
+    const strategy = result.data;
+    console.log('[STRATEGY CHART] Strategy loaded:', strategy);
+    
+    // Load price data for the ticker
+    const ticker = strategy.ticker;
+    console.log('[STRATEGY CHART] Loading price data for:', ticker);
+    
+    // Use the cached preview data if available and matches the ticker
+    let priceData = null;
+    
+    if (currentPreviewData && currentPreviewData.ticker === ticker) {
+      console.log('[STRATEGY CHART] Using cached preview data');
+      priceData = currentPreviewData;
+    } else {
+      // Load fresh price data - need to pass proper params object
+      console.log('[STRATEGY CHART] Loading fresh price data...');
+      
+      // Use wider date range to match backtest data (10 years to ensure we catch all trades)
+      const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - 10 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      const loadResult = await window.electronAPI.loadPreviewData({
+        ticker: ticker,
+        startDate: startDate,
+        endDate: endDate,
+        interval: '1d'
+      });
+      
+      if (!loadResult.success) {
+        throw new Error(`Failed to load price data: ${loadResult.error}`);
+      }
+      
+      priceData = loadResult.data;
+    }
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = 'background: var(--bg-primary); border-radius: 8px; padding: 20px; max-width: 95vw; max-height: 90vh; overflow: auto; position: relative;';
+    
+    modalContent.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 style="margin: 0;">Strategy Chart - ${ticker} #${strategyId}</h2>
+        <button onclick="this.closest('.modal-overlay').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-primary);">×</button>
+      </div>
+      <div id="strategyChartContainer" style="width: 100%; height: 600px;"></div>
+      <div style="margin-top: 15px; color: var(--text-secondary); font-size: 13px;">
+        <strong>Entry Condition:</strong> ${JSON.stringify(strategy.params)}
+      </div>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    // Generate the chart
+    try {
+      await createStrategyResultChart(strategy, 'strategyChartContainer', priceData);
+      console.log('[STRATEGY CHART] Chart generated successfully');
+    } catch (chartError) {
+      console.error('[STRATEGY CHART] Chart generation error:', chartError);
+      document.getElementById('strategyChartContainer').innerHTML = `
+        <div style="padding: 40px; text-align: center; color: var(--negative);">
+          <h3>Chart Generation Failed</h3>
+          <p>${chartError.message}</p>
+          <pre style="text-align: left; background: var(--bg-secondary); padding: 15px; border-radius: 4px; overflow: auto; font-size: 11px;">${chartError.stack}</pre>
+        </div>
+      `;
+    }
+    
+  } catch (error) {
+    console.error('[STRATEGY CHART] Error:', error);
+    alert(`Failed to generate strategy chart:\n\n${error.message}`);
+  }
+}
+window.viewStrategyChart = viewStrategyChart;
 
 async function viewTearsheet(strategyId) {
   const modal = document.getElementById('tearsheetModal');
@@ -7556,6 +7649,9 @@ function populateBacktestConfig(config) {
   if (config.SAVE_DB !== undefined) document.getElementById('saveDb').checked = config.SAVE_DB;
   if (config.SAVE_TRADES !== undefined) document.getElementById('saveTrades').checked = config.SAVE_TRADES;
   if (config.MAKE_TEARSHEETS !== undefined) document.getElementById('makeTearsheets').checked = config.MAKE_TEARSHEETS;
+  
+  // Update preview ticker dropdown with loaded tickers
+  updatePreviewTickerDropdown();
 }
 
 // Run backtest button handler
@@ -12301,6 +12397,479 @@ window.refreshStrategyPreview = refreshStrategyPreview;
 
 // ============================================================================
 // END STRATEGY PREVIEW
+// ============================================================================
+
+// ============================================================================
+// STRATEGY RESULT CHARTS (for backtest results display)
+// ============================================================================
+
+/**
+ * Generate a preview chart for a backtest strategy result
+ * Shows price + RSI with actual parameters used, with entry/exit trade arrows
+ * 
+ * @param {Object} strategyData - Strategy result from backtest
+ * @param {string} chartId - DOM element ID for the chart
+ * @param {Object} priceData - Price data { dates, open, high, low, close, volume }
+ * @returns {Promise} - Resolves when chart is rendered
+ */
+async function createStrategyResultChart(strategyData, chartId, priceData) {
+  console.log('[RESULT CHART] Creating chart for strategy:', strategyData);
+  
+  // Parse params properly - they may be nested in base_condition
+  const params = strategyData.params || {};
+  console.log('[RESULT CHART] Raw params:', params);
+  
+  // Check if params has base_condition (nested structure)
+  const baseCondition = params.base_condition || params;
+  const gridVariation = params.grid_variation || {};
+  
+  // Merge base condition with grid variation to get final entry condition
+  const entryCondition = {
+    type: 'rsi',
+    ...baseCondition,
+    ...gridVariation
+  };
+  
+  console.log('[RESULT CHART] Parsed entry condition:', entryCondition);
+  
+  // Parse exit conditions - may be in params.exit_conditions array
+  const exitConditions = params.exit_conditions || [];
+  const exitCondition = exitConditions.length > 0 ? exitConditions[0] : null;
+  
+  console.log('[RESULT CHART] Parsed exit condition:', exitCondition);
+  
+  // Get trades - backend returns alternating entries/exits, need to pair them
+  let rawTrades = [];
+  if (strategyData.events && Array.isArray(strategyData.events)) {
+    rawTrades = strategyData.events;
+  } else if (strategyData.events_json) {
+    try {
+      rawTrades = typeof strategyData.events_json === 'string' ? 
+        JSON.parse(strategyData.events_json) : strategyData.events_json;
+    } catch (e) {
+      console.error('[RESULT CHART] Failed to parse events_json:', e);
+      return;
+    }
+  }
+  
+  console.log('[RESULT CHART] Raw trades from backend:', rawTrades.length);
+  console.log('[RESULT CHART] First 3 raw trades:', rawTrades.slice(0, 3));
+  
+  // Trades are already complete with entry_date, entry_price, exit_date, exit_price
+  // Just use them directly
+  const trades = rawTrades.map(trade => ({
+    entry_date: trade.entry_date,
+    entry_price: trade.entry_price,
+    exit_date: trade.exit_date || null,
+    exit_price: trade.exit_price || null
+  }));
+  
+  console.log('[RESULT CHART] Parsed trades:', trades.length);
+  console.log('[RESULT CHART] First 3 parsed trades:', trades.slice(0, 3));
+  
+  console.log('[RESULT CHART] Entry condition:', entryCondition);
+  console.log('[RESULT CHART] Exit condition:', exitCondition);
+  console.log('[RESULT CHART] Trades count:', trades.length);
+  console.log('[RESULT CHART] First 3 trades:', trades.slice(0, 3));
+  console.log('[RESULT CHART] Price data length:', priceData.dates?.length);
+  console.log('[RESULT CHART] First 5 dates:', priceData.dates?.slice(0, 5));
+  console.log('[RESULT CHART] Last 5 dates:', priceData.dates?.slice(-5));
+  
+  // Determine position type
+  const isShort = entryCondition.position_type === 'short';
+  const entryColor = isShort ? '#8B0000' : '#00ff00';
+  const exitColor = isShort ? '#006400' : '#ff0000';
+  const entrySymbol = isShort ? 'triangle-down' : 'triangle-up';
+  const exitSymbol = isShort ? 'triangle-up' : 'triangle-down';
+  
+  // Calculate RSI
+  const rsiPeriod = parseInt(entryCondition.rsi_period) || 14;
+  console.log('[RESULT CHART] Calculating RSI with period:', rsiPeriod);
+  console.log('[RESULT CHART] Price data length:', priceData.close?.length);
+  console.log('[RESULT CHART] Price data sample:', priceData.close?.slice(0, 5));
+  
+  const rsiResult = calculateRSI(priceData.close, rsiPeriod);
+  
+  if (!rsiResult || rsiResult.length === 0) {
+    console.error('[RESULT CHART] Failed to calculate RSI');
+    throw new Error('RSI calculation failed - insufficient data');
+  }
+  
+  console.log('[RESULT CHART] RSI calculated, length:', rsiResult.length);
+  console.log('[RESULT CHART] RSI result sample:', rsiResult.slice(0, 20));
+  console.log('[RESULT CHART] RSI result last 5:', rsiResult.slice(-5));
+  
+  // Count non-null RSI values
+  const nonNullRsi = rsiResult.filter(v => v !== null && v !== undefined && !isNaN(v));
+  console.log('[RESULT CHART] Non-null RSI values:', nonNullRsi.length);
+  console.log('[RESULT CHART] RSI first 20 values:', rsiResult.slice(0, 20));
+  console.log('[RESULT CHART] RSI non-null count:', rsiResult.filter(v => v !== null && v !== undefined && !isNaN(v)).length);
+  
+  // Create traces array
+  const traces = [];
+  
+  const rsiColors = ['rgba(255, 0, 255, 0.9)', 'rgba(200, 0, 255, 0.9)'];
+  const targetColors = ['rgba(30, 144, 255, 0.9)', 'rgba(255, 165, 0, 0.7)'];
+  
+  // RSI line trace
+  traces.push({
+    x: priceData.dates,
+    y: rsiResult,
+    type: 'scatter',
+    mode: 'lines',
+    name: `RSI(${rsiPeriod})`,
+    line: { color: rsiColors[0], width: 2 }
+  });
+  console.log('[RESULT CHART] Added RSI trace, dates length:', priceData.dates?.length);
+  
+  // Add ENTRY target line/bands
+  console.log('[RESULT CHART] Entry target_type:', entryCondition.target_type);
+  console.log('[RESULT CHART] Entry target_value:', entryCondition.target_value);
+  
+  if (entryCondition.target_type === 'Value') {
+    const targetValue = parseFloat(entryCondition.target_value) || 30;
+    traces.push({
+      x: priceData.dates,
+      y: Array(priceData.dates.length).fill(targetValue),
+      type: 'scatter',
+      mode: 'lines',
+      name: `Entry Target: ${targetValue}`,
+      line: { color: targetColors[0], width: 2, dash: 'dot' }
+    });
+    console.log('[RESULT CHART] Added entry Value target line at', targetValue);
+  } else if (entryCondition.target_type && entryCondition.target_type.startsWith('BB_')) {
+    const bbPeriod = parseInt(entryCondition.target_period) || 20;
+    const bbStd = parseFloat(entryCondition.bb_std) || 2.0;
+    
+    console.log('[RESULT CHART] Calculating entry BB, period:', bbPeriod, 'std:', bbStd);
+    
+    const bb = calculateRSIBollinger(rsiResult, bbPeriod, bbStd);
+    
+    console.log('[RESULT CHART] Entry BB result:', bb ? bb.length : 'null', 'points');
+    
+    if (bb && bb.length > 0) {
+      const bbDates = bb.map(item => priceData.dates[item.index]);
+      
+      if (entryCondition.target_type === 'BB_TOP') {
+        traces.push({
+          x: bbDates,
+          y: bb.map(b => b.upper),
+          type: 'scatter',
+          mode: 'lines',
+          name: `Entry: BB_TOP(${bbPeriod}, ${bbStd})`,
+          line: { color: targetColors[0], width: 2, dash: 'dot' }
+        });
+      } else if (entryCondition.target_type === 'BB_MID') {
+        traces.push({
+          x: bbDates,
+          y: bb.map(b => b.sma),
+          type: 'scatter',
+          mode: 'lines',
+          name: `Entry: BB_MID(${bbPeriod})`,
+          line: { color: targetColors[0], width: 2, dash: 'dot' }
+        });
+      } else if (entryCondition.target_type === 'BB_BOTTOM') {
+        traces.push({
+          x: bbDates,
+          y: bb.map(b => b.lower),
+          type: 'scatter',
+          mode: 'lines',
+          name: `Entry: BB_BOTTOM(${bbPeriod}, ${bbStd})`,
+          line: { color: targetColors[0], width: 2, dash: 'dot' }
+        });
+      }
+      
+      // Show all 3 bands for context (with opacity)
+      traces.push({
+        x: bbDates,
+        y: bb.map(b => b.upper),
+        type: 'scatter',
+        mode: 'lines',
+        name: `BB Upper`,
+        line: { color: '#E91E63', width: 1, dash: 'dot' },
+        opacity: 0.3,
+        showlegend: false
+      });
+      traces.push({
+        x: bbDates,
+        y: bb.map(b => b.sma),
+        type: 'scatter',
+        mode: 'lines',
+        name: `BB Mid`,
+        line: { color: '#9C27B0', width: 1 },
+        opacity: 0.3,
+        showlegend: false
+      });
+      traces.push({
+        x: bbDates,
+        y: bb.map(b => b.lower),
+        type: 'scatter',
+        mode: 'lines',
+        name: `BB Lower`,
+        line: { color: '#4CAF50', width: 1, dash: 'dot' },
+        opacity: 0.3,
+        showlegend: false
+      });
+    }
+  }
+  
+  // Add EXIT target line/bands (with different color and opacity)
+  console.log('[RESULT CHART] Exit condition exists:', !!exitCondition);
+  if (exitCondition) {
+    console.log('[RESULT CHART] Exit target_type:', exitCondition.target_type);
+    console.log('[RESULT CHART] Exit target_value:', exitCondition.target_value);
+  }
+  
+  if (exitCondition && exitCondition.target_type === 'Value') {
+    const exitTargetValue = parseFloat(exitCondition.target_value) || 70;
+    traces.push({
+      x: priceData.dates,
+      y: Array(priceData.dates.length).fill(exitTargetValue),
+      type: 'scatter',
+      mode: 'lines',
+      name: `Exit Target: ${exitTargetValue}`,
+      line: { color: targetColors[1], width: 2, dash: 'dot' }
+    });
+    console.log('[RESULT CHART] Added exit Value target line at', exitTargetValue);
+  } else if (exitCondition && exitCondition.target_type && exitCondition.target_type.startsWith('BB_')) {
+    const exitBbPeriod = parseInt(exitCondition.target_period) || 20;
+    const exitBbStd = parseFloat(exitCondition.bb_std) || 2.0;
+    
+    const exitBb = calculateRSIBollinger(rsiResult, exitBbPeriod, exitBbStd);
+    
+    if (exitBb && exitBb.length > 0) {
+      const exitBbDates = exitBb.map(item => priceData.dates[item.index]);
+      
+      if (exitCondition.target_type === 'BB_TOP') {
+        traces.push({
+          x: exitBbDates,
+          y: exitBb.map(b => b.upper),
+          type: 'scatter',
+          mode: 'lines',
+          name: `Exit: BB_TOP(${exitBbPeriod}, ${exitBbStd})`,
+          line: { color: targetColors[1], width: 2, dash: 'dot' }
+        });
+      } else if (exitCondition.target_type === 'BB_MID') {
+        traces.push({
+          x: exitBbDates,
+          y: exitBb.map(b => b.sma),
+          type: 'scatter',
+          mode: 'lines',
+          name: `Exit: BB_MID(${exitBbPeriod})`,
+          line: { color: targetColors[1], width: 2, dash: 'dot' }
+        });
+      } else if (exitCondition.target_type === 'BB_BOTTOM') {
+        traces.push({
+          x: exitBbDates,
+          y: exitBb.map(b => b.lower),
+          type: 'scatter',
+          mode: 'lines',
+          name: `Exit: BB_BOTTOM(${exitBbPeriod}, ${exitBbStd})`,
+          line: { color: targetColors[1], width: 2, dash: 'dot' }
+        });
+      }
+    }
+  }
+  
+  // Add trade markers with letter labels
+  const tradeLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  
+  console.log('[RESULT CHART] Adding trade markers for', trades.length, 'trades');
+  console.log('[RESULT CHART] Trade array sample:', JSON.stringify(trades.slice(0, 3), null, 2));
+  
+  trades.forEach((trade, idx) => {
+    const tradeLetter = tradeLetters[idx % tradeLetters.length];
+    
+    console.log(`[RESULT CHART] Processing trade ${idx} (${tradeLetter}): entry=${trade.entry_date}, exit=${trade.exit_date}`);
+    
+    // Normalize date formats - handle ISO strings, datetime objects, or space-separated dates
+    // Convert to YYYY-MM-DD format to match price data
+    const normalizeDate = (dateStr) => {
+      if (!dateStr) return null;
+      // If it's already a Date object, convert to string
+      if (dateStr instanceof Date) {
+        return dateStr.toISOString().split('T')[0];
+      }
+      // If string contains 'T' (ISO format), extract date part
+      if (typeof dateStr === 'string' && dateStr.includes('T')) {
+        return dateStr.split('T')[0];
+      }
+      // If string contains space (datetime format), extract date part
+      if (typeof dateStr === 'string' && dateStr.includes(' ')) {
+        return dateStr.split(' ')[0];
+      }
+      // Otherwise assume it's already in correct format
+      return dateStr;
+    };
+    
+    const entryDateOnly = normalizeDate(trade.entry_date);
+    const exitDateOnly = normalizeDate(trade.exit_date);
+    
+    console.log('[RESULT CHART] Normalized dates:', entryDateOnly, '->', exitDateOnly);
+    
+    // Entry marker
+    const entryDateIdx = entryDateOnly ? priceData.dates.findIndex(d => d === entryDateOnly) : -1;
+    console.log('[RESULT CHART] Entry date index:', entryDateIdx, 'in', priceData.dates.length, 'dates');
+    
+    if (entryDateIdx >= 0) {
+      const entryRsi = rsiResult[entryDateIdx];
+      console.log('[RESULT CHART] Entry RSI at index', entryDateIdx, ':', entryRsi);
+      if (entryRsi !== null && entryRsi !== undefined && !isNaN(entryRsi)) {
+        traces.push({
+          x: [entryDateOnly],
+          y: [entryRsi],
+          type: 'scatter',
+          mode: 'markers+text',
+          name: `Trade ${tradeLetter} Entry`,
+          text: [tradeLetter],
+          textposition: 'top center',
+          textfont: { size: 14, color: entryColor, family: 'Arial Black' },
+          marker: { size: 12, color: entryColor, symbol: entrySymbol },
+          legendgroup: 'trades',
+          showlegend: idx === 0
+        });
+        console.log('[RESULT CHART] ✓ Added entry marker', tradeLetter, 'at', entryDateOnly, 'RSI:', entryRsi);
+      }
+    } else {
+      console.warn('[RESULT CHART] ✗ Entry date not found for trade', idx, '- date:', entryDateOnly);
+    }
+    
+    // Exit marker
+    if (exitDateOnly) {
+      const exitDateIdx = priceData.dates.findIndex(d => d === exitDateOnly);
+      console.log('[RESULT CHART] Exit date index:', exitDateIdx);
+      if (exitDateIdx >= 0) {
+        const exitRsi = rsiResult[exitDateIdx];
+        console.log('[RESULT CHART] Exit RSI at index', exitDateIdx, ':', exitRsi);
+        if (exitRsi !== null && exitRsi !== undefined && !isNaN(exitRsi)) {
+          traces.push({
+            x: [exitDateOnly],
+            y: [exitRsi],
+            type: 'scatter',
+            mode: 'markers+text',
+            name: `Trade ${tradeLetter} Exit`,
+            text: [tradeLetter],
+            textposition: 'bottom center',
+            textfont: { size: 14, color: exitColor, family: 'Arial Black' },
+            marker: { size: 12, color: exitColor, symbol: exitSymbol },
+            legendgroup: 'trades',
+            showlegend: false
+          });
+          console.log('[RESULT CHART] ✓ Added exit marker', tradeLetter, 'at', exitDateOnly, 'RSI:', exitRsi);
+        }
+      } else {
+        console.warn('[RESULT CHART] ✗ Exit date not found for trade', idx, '- date:', exitDateOnly);
+      }
+    }
+  });
+  
+  console.log('[RESULT CHART] Total traces created:', traces.length);
+  traces.forEach((trace, idx) => {
+    console.log(`[RESULT CHART] Trace ${idx}: ${trace.name}, data points: ${trace.y?.length}`);
+  });
+  
+  // Create layout - zoom to last 1/3 of data by default
+  const totalDates = priceData.dates.length;
+  const startIdx = Math.floor(totalDates * 0.66);
+  const xRange = [priceData.dates[startIdx], priceData.dates[totalDates - 1]];
+  
+  console.log('[RESULT CHART] X-axis range:', xRange);
+  console.log('[RESULT CHART] Total dates:', totalDates, 'Start idx:', startIdx);
+  
+  const layout = {
+    title: '',
+    xaxis: { 
+      title: 'Date',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash',
+      range: xRange  // Zoom to last 1/3
+    },
+    yaxis: { 
+      title: 'RSI',
+      gridcolor: 'rgba(128, 128, 128, 0.15)',
+      gridwidth: 1,
+      griddash: 'dash',
+      side: 'left',
+      range: [0, 100]  // RSI range
+    },
+    showlegend: true,
+    legend: { 
+      x: 0, 
+      y: 1,
+      xanchor: 'left',
+      yanchor: 'top',
+      tracegroupgap: 15
+    },
+    margin: { l: 50, r: 50, t: 30, b: 50 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    hovermode: 'closest'
+  };
+  
+  // Add watermark
+  layout.annotations = [{
+    text: 'Alpharhythm',
+    xref: 'paper',
+    yref: 'paper',
+    x: 0.5,
+    y: 0.5,
+    xanchor: 'center',
+    yanchor: 'middle',
+    showarrow: false,
+    font: {
+      size: 80,
+      color: 'rgba(128, 128, 128, 0.1)',
+      family: 'Arial Black'
+    }
+  }];
+  
+  const config = {
+    responsive: true,
+    displayModeBar: true,
+    displaylogo: false,
+    scrollZoom: true,  // Enable scroll zoom
+    modeBarButtonsToAdd: [],
+    modeBarButtonsToRemove: ['lasso2d', 'select2d', 'zoom2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d']
+  };
+  
+  // Create the plot
+  await Plotly.newPlot(chartId, traces, layout, config);
+  
+  // Set drag mode to pan after creation
+  await Plotly.relayout(chartId, { 'dragmode': 'pan' });
+  
+  console.log('[RESULT CHART] Chart created with pan mode enabled');
+  
+  return;
+}
+
+/**
+ * Format condition for short display in chart title
+ */
+function formatConditionShort(condition) {
+  const rsiPeriod = condition.rsi_period || 14;
+  const targetType = condition.target_type;
+  
+  if (targetType === 'Value') {
+    const value = condition.target_value;
+    const dir = condition.direction === 'above' ? '↑' : '↓';
+    return `RSI(${rsiPeriod}) ${dir} ${value}`;
+  } else if (targetType && targetType.startsWith('BB_')) {
+    const bbPeriod = condition.target_period || 20;
+    const bbStd = condition.bb_std || 2.0;
+    const band = targetType === 'BB_TOP' ? 'Upper' : targetType === 'BB_BOTTOM' ? 'Lower' : 'Mid';
+    const dir = condition.direction === 'above' ? '↑' : '↓';
+    return `RSI(${rsiPeriod}) ${dir} BB_${band}(${bbPeriod}, ${bbStd})`;
+  }
+  
+  return `RSI(${rsiPeriod})`;
+}
+
+window.createStrategyResultChart = createStrategyResultChart;
+
+// ============================================================================
+// END STRATEGY RESULT CHARTS
 // ============================================================================
 
 // ============================================================================

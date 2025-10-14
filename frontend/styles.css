@@ -1671,6 +1671,22 @@ textarea.form-input {
   color: var(--text-secondary);
 }
 
+.btn-view-chart {
+  padding: 4px 10px;
+  font-size: 11px;
+  background-color: var(--accent-green);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-right: 5px;
+}
+
+.btn-view-chart:hover {
+  background-color: #00a152;
+}
+
 .btn-view-tearsheet {
   padding: 4px 12px;
   font-size: 11px;
