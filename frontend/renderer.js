@@ -6536,8 +6536,89 @@ tickerSourceRadios.forEach(radio => {
       manualInput.style.display = 'none';
       watchlistInput.style.display = 'block';
     }
+    
+    // Update preview ticker dropdown
+    updatePreviewTickerDropdown();
+    
+    // Auto-reload preview if enabled
+    if (previewEnabled) {
+      const dropdown = document.getElementById('previewTickerSelect');
+      if (dropdown?.value) {
+        initializeStrategyPreview(dropdown.value);
+      }
+    }
   });
 });
+
+// Auto-reload preview when manual tickers change
+const tickersInput = document.getElementById('tickers');
+if (tickersInput) {
+  tickersInput.addEventListener('blur', () => {
+    updatePreviewTickerDropdown();
+    if (previewEnabled) {
+      const dropdown = document.getElementById('previewTickerSelect');
+      if (dropdown?.value) {
+        initializeStrategyPreview(dropdown.value);
+      }
+    }
+  });
+}
+
+// Auto-reload preview when watchlist selection changes
+const tickerWatchlistSelect = document.getElementById('tickerWatchlistSelect');
+if (tickerWatchlistSelect) {
+  tickerWatchlistSelect.addEventListener('change', () => {
+    updatePreviewTickerDropdown();
+    if (previewEnabled && tickerWatchlistSelect.value) {
+      initializeStrategyPreview();
+    }
+  });
+}
+
+// Function to populate preview ticker dropdown from config
+function updatePreviewTickerDropdown() {
+  const dropdown = document.getElementById('previewTickerSelect');
+  if (!dropdown) return;
+  
+  const tickers = [];
+  const tickerSource = document.querySelector('input[name="tickerSource"]:checked')?.value;
+  
+  if (tickerSource === 'manual') {
+    // Get from manual ticker input
+    const manualTickers = document.getElementById('tickers')?.value?.trim();
+    if (manualTickers) {
+      manualTickers.split(',').forEach(t => {
+        const ticker = t.trim().toUpperCase();
+        if (ticker) tickers.push(ticker);
+      });
+    }
+  } else if (tickerSource === 'watchlist') {
+    // Get from selected watchlist
+    const watchlistSelect = document.getElementById('tickerWatchlistSelect');
+    const selectedIndex = watchlistSelect?.value;
+    if (selectedIndex !== '' && selectedIndex !== undefined) {
+      const watchlists = JSON.parse(localStorage.getItem('watchlists') || '[]');
+      const watchlist = watchlists[parseInt(selectedIndex)];
+      if (watchlist?.tickers?.length > 0) {
+        tickers.push(...watchlist.tickers);
+      }
+    }
+  }
+  
+  // Populate dropdown
+  dropdown.innerHTML = '<option value="">Select ticker...</option>';
+  tickers.forEach(ticker => {
+    const option = document.createElement('option');
+    option.value = ticker;
+    option.textContent = ticker;
+    dropdown.appendChild(option);
+  });
+  
+  // Auto-select first ticker if we have any
+  if (tickers.length > 0 && !dropdown.value) {
+    dropdown.value = tickers[0];
+  }
+}
 
 // Toggle portfolio source (tickers vs strategies)
 const portfolioSourceRadios = document.querySelectorAll('input[name="portfolioSource"]');
@@ -8978,7 +9059,10 @@ function updateExitTargeting(exitConditionId) {
 // STRATEGY PREVIEW VISUALIZATION
 // ============================================================================
 
-let cachedSP500Data = null;
+// Cache for ticker data: key = 'TICKER_STARTDATE_ENDDATE_INTERVAL'
+let cachedTickerData = {};
+let currentPreviewData = null; // Currently active preview data
+let currentPreviewTicker = null; // Currently selected ticker
 let previewEnabled = false;
 
 // Toggle strategy preview on/off
@@ -8988,52 +9072,93 @@ function toggleStrategyPreview() {
   
   if (previewEnabled) {
     container.style.display = 'block';
-    initializeStrategyPreview();
+    updatePreviewTickerDropdown();
+    const dropdown = document.getElementById('previewTickerSelect');
+    if (dropdown?.value) {
+      initializeStrategyPreview(dropdown.value);
+    }
   } else {
     container.style.display = 'none';
   }
 }
 
-// Initialize preview by loading S&P 500 data
-async function initializeStrategyPreview() {
+// Initialize preview by loading ticker data
+async function initializeStrategyPreview(ticker = null) {
   const statusEl = document.getElementById('previewStatus');
   
-  if (cachedSP500Data) {
-    statusEl.textContent = `Using cached S&P 500 data (${cachedSP500Data.dates.length} days). Click "Update Preview" to refresh visualization.`;
+  // Get ticker from dropdown if not provided
+  if (!ticker) {
+    const dropdown = document.getElementById('previewTickerSelect');
+    ticker = dropdown?.value;
+    
+    if (!ticker) {
+      statusEl.textContent = 'Please select a ticker from the dropdown';
+      statusEl.style.color = 'var(--accent-yellow)';
+      return;
+    }
+  }
+  
+  currentPreviewTicker = ticker.toUpperCase();
+  
+  // Get date range from config
+  const startDate = document.getElementById('startDate')?.value || '2023-01-01';
+  const endDate = document.getElementById('endDate')?.value || new Date().toISOString().split('T')[0];
+  const interval = document.getElementById('dataInterval')?.value || '1d';
+  
+  // Create cache key
+  const cacheKey = `${ticker}_${startDate}_${endDate}_${interval}`;
+  
+  // Check if data is already cached
+  if (cachedTickerData[cacheKey]) {
+    currentPreviewData = cachedTickerData[cacheKey];
+    statusEl.textContent = `Using cached ${ticker} data (${currentPreviewData.dates.length} days). Click "Update Preview" to refresh visualization.`;
     statusEl.style.color = 'var(--text-secondary)';
+    updatePreviewTickerLabel(ticker);
     return;
   }
   
-  statusEl.textContent = 'Loading S&P 500 data for preview...';
+  statusEl.textContent = `Loading ${ticker} data for preview...`;
   statusEl.style.color = 'var(--text-secondary)';
   
   try {
-    // Fetch 1 year of daily S&P 500 data from yfinance
+    // Fetch ticker data from yfinance
     const result = await window.electronAPI.loadPreviewData({
-      ticker: 'SPY',
-      period: '1y',
-      interval: '1d'
+      ticker: ticker,
+      startDate: startDate,
+      endDate: endDate,
+      interval: interval
     });
     
     if (result.success) {
-      cachedSP500Data = result.data;
-      console.log('[PREVIEW] Full result:', result);
-      console.log('[PREVIEW] Loaded data keys:', Object.keys(cachedSP500Data));
-      console.log('[PREVIEW] Dates type:', typeof cachedSP500Data.dates, 'length:', cachedSP500Data.dates?.length);
-      console.log('[PREVIEW] Dates sample:', cachedSP500Data.dates?.slice(0, 5));
-      console.log('[PREVIEW] Close type:', typeof cachedSP500Data.close, 'length:', cachedSP500Data.close?.length);
-      console.log('[PREVIEW] Close sample:', cachedSP500Data.close?.slice(0, 5));
-      console.log('[PREVIEW] Close values:', cachedSP500Data.close?.slice(0, 3).map(v => `${v} (${typeof v})`));
-      statusEl.textContent = `Loaded ${cachedSP500Data.dates.length} days of S&P 500 data. Click "Update Preview" to generate charts.`;
+      // Store in cache
+      cachedTickerData[cacheKey] = result.data;
+      currentPreviewData = result.data;
+      
+      console.log(`[PREVIEW] Loaded ${ticker} data:`, {
+        dates: result.data.dates?.length,
+        close: result.data.close?.length,
+        cacheKey: cacheKey
+      });
+      
+      statusEl.textContent = `Loaded ${currentPreviewData.dates.length} days of ${ticker} data. Click "Update Preview" to generate charts.`;
       statusEl.style.color = 'var(--text-secondary)';
+      updatePreviewTickerLabel(ticker);
     } else {
-      statusEl.textContent = `Error loading data: ${result.error}`;
+      statusEl.textContent = `Error loading ${ticker} data: ${result.error}`;
       statusEl.style.color = 'var(--accent-red)';
     }
   } catch (error) {
     console.error('Preview data error:', error);
     statusEl.textContent = `Error: ${error.message}`;
     statusEl.style.color = 'var(--accent-red)';
+  }
+}
+
+// Helper function to update ticker label in preview section
+function updatePreviewTickerLabel(ticker) {
+  const labelEl = document.getElementById('previewTickerLabel');
+  if (labelEl) {
+    labelEl.textContent = `Previewing: ${ticker}`;
   }
 }
 
@@ -9439,7 +9564,7 @@ function calculateViceVersaSignals(entrySignals, exitSignals, vvConfig, signalMo
       const lineEntries = [];
       exitLine.indices.forEach(exitIdx => {
         const vvEntryIdx = exitIdx + delay;
-        if (vvEntryIdx < cachedSP500Data.dates.length) {
+        if (vvEntryIdx < currentPreviewData.dates.length) {
           lineEntries.push(vvEntryIdx);
         }
       });
@@ -9456,7 +9581,7 @@ function calculateViceVersaSignals(entrySignals, exitSignals, vvConfig, signalMo
       const lineExits = [];
       entryLine.indices.forEach(entryIdx => {
         const vvExitIdx = entryIdx + delay;
-        if (vvExitIdx < cachedSP500Data.dates.length) {
+        if (vvExitIdx < currentPreviewData.dates.length) {
           lineExits.push(vvExitIdx);
         }
       });
@@ -9484,7 +9609,7 @@ function calculateViceVersaSignals(entrySignals, exitSignals, vvConfig, signalMo
       // For each exit signal, create a VV entry
       exitLine.indices.forEach(exitIdx => {
         const vvEntryIdx = exitIdx + delay;
-        if (vvEntryIdx < cachedSP500Data.dates.length) {
+        if (vvEntryIdx < currentPreviewData.dates.length) {
           lineVvEntries.push(vvEntryIdx);
         }
       });
@@ -9492,7 +9617,7 @@ function calculateViceVersaSignals(entrySignals, exitSignals, vvConfig, signalMo
       // For each entry signal, create a VV exit
       entryLine.indices.forEach(entryIdx => {
         const vvExitIdx = entryIdx + delay;
-        if (vvExitIdx < cachedSP500Data.dates.length) {
+        if (vvExitIdx < currentPreviewData.dates.length) {
           lineVvExits.push(vvExitIdx);
         }
       });
@@ -9540,9 +9665,9 @@ function mirrorConditionForExit(entryCondition) {
 
 // Refresh the preview charts based on current conditions
 function refreshStrategyPreview() {
-  console.log('[PREVIEW] Refresh called, cached data:', cachedSP500Data);
+  console.log('[PREVIEW] Refresh called, cached data:', currentPreviewData);
   
-  if (!cachedSP500Data) {
+  if (!currentPreviewData) {
     initializeStrategyPreview();
     return;
   }
@@ -9726,7 +9851,7 @@ function createCombinedPriceChart(chartId, entryCondition, exitConditions, signa
     } : null;
     
     // Calculate TP/SL exits for main entries (gets ALL possible TP/SL exits)
-    const tpslResult = calculateTPSLExits(matched, cachedSP500Data.close, entryCondition.position_type, tpConfig, slConfig, 'all'); // Always use 'all' mode to get all possibilities
+    const tpslResult = calculateTPSLExits(matched, currentPreviewData.close, entryCondition.position_type, tpConfig, slConfig, 'all'); // Always use 'all' mode to get all possibilities
     let rawTpExits = tpslResult.tpExits;
     let rawSlExits = tpslResult.slExits;
     
@@ -9803,7 +9928,7 @@ function createCombinedPriceChart(chartId, entryCondition, exitConditions, signa
     if (vvEntries.length > 0 && (tpConfig || slConfig)) {
       const oppositePositionType = entryCondition.position_type === 'long' ? 'short' : 'long';
       const vvMatchedSignals = { entries: vvEntries, exits: vvExits };
-      const vvTpSlResult = calculateTPSLExits(vvMatchedSignals, cachedSP500Data.close, oppositePositionType, tpConfig, slConfig, signalMode, vvExits);
+      const vvTpSlResult = calculateTPSLExits(vvMatchedSignals, currentPreviewData.close, oppositePositionType, tpConfig, slConfig, signalMode, vvExits);
       
       console.log('[VV] Calculated TP/SL for VV positions (opposite position:', oppositePositionType, ')');
       console.log('[VV] VV TP exits:', vvTpSlResult.tpExits);
@@ -9833,8 +9958,8 @@ function createCombinedPriceChart(chartId, entryCondition, exitConditions, signa
   
   // Create base price trace
   const priceTrace = {
-    x: cachedSP500Data.dates,
-    y: cachedSP500Data.close,
+    x: currentPreviewData.dates,
+    y: currentPreviewData.close,
     type: 'scatter',
     mode: 'lines',
     name: 'S&P 500 (SPY)',
@@ -9896,9 +10021,9 @@ function createCombinedPriceChart(chartId, entryCondition, exitConditions, signa
         ];
         
         exitPeriods.forEach((exitRsiPeriod, idx) => {
-          const exitRsiValues = calculateRSI(cachedSP500Data.close, exitRsiPeriod);
+          const exitRsiValues = calculateRSI(currentPreviewData.close, exitRsiPeriod);
           traces.push({
-            x: cachedSP500Data.dates,
+            x: currentPreviewData.dates,
             y: exitRsiValues,
             type: 'scatter',
             mode: 'lines',
@@ -9970,8 +10095,8 @@ function createCombinedPriceChart(chartId, entryCondition, exitConditions, signa
   // Add entry traces - one trace per trade
   tradeEntries.forEach((trade, idx) => {
     traces.push({
-      x: [cachedSP500Data.dates[trade.idx]],
-      y: [cachedSP500Data.close[trade.idx]],
+      x: [currentPreviewData.dates[trade.idx]],
+      y: [currentPreviewData.close[trade.idx]],
       type: 'scatter',
       mode: 'markers+text',
       name: `Strategy${trade.lineNum} Trade${trade.letter}`,
@@ -9987,8 +10112,8 @@ function createCombinedPriceChart(chartId, entryCondition, exitConditions, signa
   // Add exit traces - one trace per trade
   tradeExits.forEach((trade, idx) => {
     traces.push({
-      x: [cachedSP500Data.dates[trade.idx]],
-      y: [cachedSP500Data.close[trade.idx]],
+      x: [currentPreviewData.dates[trade.idx]],
+      y: [currentPreviewData.close[trade.idx]],
       type: 'scatter',
       mode: 'markers+text',
       name: `Strategy${trade.lineNum} Exit${trade.letter}`,
@@ -10007,8 +10132,8 @@ function createCombinedPriceChart(chartId, entryCondition, exitConditions, signa
   // Add Vice Versa entry traces (opposite position enters on EXIT signal)
   if (vvEntries && vvEntries.length > 0) {
     vvEntries.forEach(vvLine => {
-      const x = vvLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = vvLine.indices.map(idx => cachedSP500Data.close[idx]);
+      const x = vvLine.indices.map(idx => currentPreviewData.dates[idx]);
+      const y = vvLine.indices.map(idx => currentPreviewData.close[idx]);
       
       // Vice versa is opposite position
       const isShort = entryCondition.position_type === 'short';
@@ -10035,8 +10160,8 @@ function createCombinedPriceChart(chartId, entryCondition, exitConditions, signa
   // Add Vice Versa exit traces (opposite position exits on ENTRY signal)
   if (typeof vvExits !== 'undefined' && vvExits && vvExits.length > 0) {
     vvExits.forEach(vvLine => {
-      const x = vvLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = vvLine.indices.map(idx => cachedSP500Data.close[idx]);
+      const x = vvLine.indices.map(idx => currentPreviewData.dates[idx]);
+      const y = vvLine.indices.map(idx => currentPreviewData.close[idx]);
       
       const isShort = entryCondition.position_type === 'short';
       const vvExitColor = isShort ? '#8B0000' : '#00ff00';
@@ -10062,8 +10187,8 @@ function createCombinedPriceChart(chartId, entryCondition, exitConditions, signa
   // Add VV Take Profit traces
   if (typeof vvTpExits !== 'undefined' && vvTpExits && vvTpExits.length > 0) {
     vvTpExits.forEach(tpLine => {
-      const x = tpLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = tpLine.indices.map(idx => cachedSP500Data.close[idx]);
+      const x = tpLine.indices.map(idx => currentPreviewData.dates[idx]);
+      const y = tpLine.indices.map(idx => currentPreviewData.close[idx]);
       
       traces.push({
         x, y,
@@ -10083,8 +10208,8 @@ function createCombinedPriceChart(chartId, entryCondition, exitConditions, signa
   // Add VV Stop Loss traces
   if (typeof vvSlExits !== 'undefined' && vvSlExits && vvSlExits.length > 0) {
     vvSlExits.forEach(slLine => {
-      const x = slLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = slLine.indices.map(idx => cachedSP500Data.close[idx]);
+      const x = slLine.indices.map(idx => currentPreviewData.dates[idx]);
+      const y = slLine.indices.map(idx => currentPreviewData.close[idx]);
       
       traces.push({
         x, y,
@@ -10198,7 +10323,7 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
     } : null;
     
     // Calculate TP/SL exits (get ALL possibilities first)
-    const tpslResult = calculateTPSLExits(matched, cachedSP500Data.close, entryCondition.position_type, tpConfig, slConfig, 'all');
+    const tpslResult = calculateTPSLExits(matched, currentPreviewData.close, entryCondition.position_type, tpConfig, slConfig, 'all');
     let rawTpExits = tpslResult.tpExits;
     let rawSlExits = tpslResult.slExits;
     
@@ -10259,7 +10384,7 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
     if (vvEntries.length > 0 && (tpConfig || slConfig)) {
       const oppositePositionType = entryCondition.position_type === 'long' ? 'short' : 'long';
       const vvMatchedSignals = { entries: vvEntries, exits: vvExits };
-      const vvTpSlResult = calculateTPSLExits(vvMatchedSignals, cachedSP500Data.close, oppositePositionType, tpConfig, slConfig, signalMode, vvExits);
+      const vvTpSlResult = calculateTPSLExits(vvMatchedSignals, currentPreviewData.close, oppositePositionType, tpConfig, slConfig, signalMode, vvExits);
       var vvTpExits = vvTpSlResult.tpExits;
       var vvSlExits = vvTpSlResult.slExits;
     } else {
@@ -10285,12 +10410,12 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
     'rgba(255, 100, 255, 0.9)'    // Light magenta
   ];
   
-  const firstRsiValues = calculateRSI(cachedSP500Data.close, periods[0]);
+  const firstRsiValues = calculateRSI(currentPreviewData.close, periods[0]);
   
   periods.forEach((rsiPeriod, idx) => {
-    const rsiValues = calculateRSI(cachedSP500Data.close, rsiPeriod);
+    const rsiValues = calculateRSI(currentPreviewData.close, rsiPeriod);
     traces.push({
-      x: cachedSP500Data.dates,
+      x: currentPreviewData.dates,
       y: rsiValues,
       type: 'scatter',
       mode: 'lines',
@@ -10314,9 +10439,9 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
         const exitPeriods = exitPeriodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
         
         exitPeriods.forEach((exitRsiPeriod, idx) => {
-          const exitRsiValues = calculateRSI(cachedSP500Data.close, exitRsiPeriod);
+          const exitRsiValues = calculateRSI(currentPreviewData.close, exitRsiPeriod);
           traces.push({
-            x: cachedSP500Data.dates,
+            x: currentPreviewData.dates,
             y: exitRsiValues,
             type: 'scatter',
             mode: 'lines',
@@ -10412,7 +10537,7 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
   // Add entry traces on RSI
   tradeEntries.forEach((trade, idx) => {
     traces.push({
-      x: [cachedSP500Data.dates[trade.idx]],
+      x: [currentPreviewData.dates[trade.idx]],
       y: [firstRsiValues[trade.idx]],
       type: 'scatter',
       mode: 'markers+text',
@@ -10429,7 +10554,7 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
   // Add exit traces on RSI
   tradeExits.forEach((trade, idx) => {
     traces.push({
-      x: [cachedSP500Data.dates[trade.idx]],
+      x: [currentPreviewData.dates[trade.idx]],
       y: [firstRsiValues[trade.idx]],
       type: 'scatter',
       mode: 'markers+text',
@@ -10449,7 +10574,7 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
   // Add Vice Versa entry traces
   if (vvEntries && vvEntries.length > 0) {
     vvEntries.forEach(vvLine => {
-      const x = vvLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const x = vvLine.indices.map(idx => currentPreviewData.dates[idx]);
       const y = vvLine.indices.map(idx => firstRsiValues[idx]);
       
       // Vice versa is opposite position, so flip colors
@@ -10574,7 +10699,7 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
     } : null;
     
     // Calculate TP/SL exits (get ALL possibilities first)
-    const tpslResult = calculateTPSLExits(matched, cachedSP500Data.close, entryCondition.position_type, tpConfig, slConfig, 'all');
+    const tpslResult = calculateTPSLExits(matched, currentPreviewData.close, entryCondition.position_type, tpConfig, slConfig, 'all');
     let rawTpExits = tpslResult.tpExits;
     let rawSlExits = tpslResult.slExits;
     
@@ -10635,7 +10760,7 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
     if (vvEntries.length > 0 && (tpConfig || slConfig)) {
       const oppositePositionType = entryCondition.position_type === 'long' ? 'short' : 'long';
       const vvMatchedSignals = { entries: vvEntries, exits: vvExits };
-      const vvTpSlResult = calculateTPSLExits(vvMatchedSignals, cachedSP500Data.close, oppositePositionType, tpConfig, slConfig, signalMode, vvExits);
+      const vvTpSlResult = calculateTPSLExits(vvMatchedSignals, currentPreviewData.close, oppositePositionType, tpConfig, slConfig, signalMode, vvExits);
       var vvTpExits = vvTpSlResult.tpExits;
       var vvSlExits = vvTpSlResult.slExits;
     } else {
@@ -10650,8 +10775,8 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
   
   // Create price trace
   const priceTrace = {
-    x: cachedSP500Data.dates,
-    y: cachedSP500Data.close,
+    x: currentPreviewData.dates,
+    y: currentPreviewData.close,
     type: 'scatter',
     mode: 'lines',
     name: 'S&P 500 (SPY)',
@@ -10702,9 +10827,9 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
         ];
         
         exitPeriods.forEach((exitRsiPeriod, idx) => {
-          const exitRsiValues = calculateRSI(cachedSP500Data.close, exitRsiPeriod);
+          const exitRsiValues = calculateRSI(currentPreviewData.close, exitRsiPeriod);
           traces.push({
-            x: cachedSP500Data.dates,
+            x: currentPreviewData.dates,
             y: exitRsiValues,
             type: 'scatter',
             mode: 'lines',
@@ -10775,8 +10900,8 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
   // Add entry traces
   tradeEntries.forEach((trade, idx) => {
     traces.push({
-      x: [cachedSP500Data.dates[trade.idx]],
-      y: [cachedSP500Data.close[trade.idx]],
+      x: [currentPreviewData.dates[trade.idx]],
+      y: [currentPreviewData.close[trade.idx]],
       type: 'scatter',
       mode: 'markers+text',
       name: `Strategy${trade.lineNum} Trade${trade.letter}`,
@@ -10792,8 +10917,8 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
   // Add exit traces
   tradeExits.forEach((trade, idx) => {
     traces.push({
-      x: [cachedSP500Data.dates[trade.idx]],
-      y: [cachedSP500Data.close[trade.idx]],
+      x: [currentPreviewData.dates[trade.idx]],
+      y: [currentPreviewData.close[trade.idx]],
       type: 'scatter',
       mode: 'markers+text',
       name: `Strategy${trade.lineNum} Exit${trade.letter}`,
@@ -10812,8 +10937,8 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
   // Add Vice Versa entry traces
   if (vvEntries && vvEntries.length > 0) {
     vvEntries.forEach(vvLine => {
-      const x = vvLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = vvLine.indices.map(idx => cachedSP500Data.close[idx]);
+      const x = vvLine.indices.map(idx => currentPreviewData.dates[idx]);
+      const y = vvLine.indices.map(idx => currentPreviewData.close[idx]);
       
       // Vice versa is opposite position, so flip colors
       const isShort = entryCondition.position_type === 'short';
@@ -10890,16 +11015,21 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
 
 // Create price condition chart
 function createPriceChart(chartId, condition, group, signalMode = 'first') {
+  if (!currentPreviewData) {
+    console.error('[CHART] No preview data available');
+    return;
+  }
+  
   // Calculate signals based on condition type
   const signals = calculateConditionSignals(condition, signalMode);
   
   // Create base price trace
   const priceTrace = {
-    x: cachedSP500Data.dates,
-    y: cachedSP500Data.close,
+    x: currentPreviewData.dates,
+    y: currentPreviewData.close,
     type: 'scatter',
     mode: 'lines',
-    name: 'S&P 500 (SPY)',
+    name: `${currentPreviewTicker || 'Price'}`,
     line: { color: 'rgba(255, 255, 255, 0.9)', width: 2 }
   };
   
@@ -10910,7 +11040,7 @@ function createPriceChart(chartId, condition, group, signalMode = 'first') {
   traces.push(...indicatorTraces);
   
   // Add signal markers with sequential numbering per chart
-  const annotations = createSignalAnnotations(signals, group, cachedSP500Data.close);
+  const annotations = createSignalAnnotations(signals, group, currentPreviewData.close);
   
   const layout = {
     title: '',
@@ -10948,6 +11078,11 @@ function createPriceChart(chartId, condition, group, signalMode = 'first') {
 
 // Create RSI chart
 function createRSIChart(chartId, condition, group, signalMode = 'first') {
+  if (!currentPreviewData) {
+    console.error('[CHART] No preview data available');
+    return;
+  }
+  
   // Parse comma-separated RSI periods
   const periodString = condition.rsi_period || '14';
   const periods = periodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
@@ -10964,13 +11099,13 @@ function createRSIChart(chartId, condition, group, signalMode = 'first') {
   ];
   
   // Calculate RSI for first period (use for annotations)
-  const firstRsiValues = calculateRSI(cachedSP500Data.close, periods[0]);
+  const firstRsiValues = calculateRSI(currentPreviewData.close, periods[0]);
   
   periods.forEach((rsiPeriod, idx) => {
-    const rsiValues = calculateRSI(cachedSP500Data.close, rsiPeriod);
+    const rsiValues = calculateRSI(currentPreviewData.close, rsiPeriod);
     
     traces.push({
-      x: cachedSP500Data.dates,
+      x: currentPreviewData.dates,
       y: rsiValues,
       type: 'scatter',
       mode: 'lines',
@@ -11027,8 +11162,8 @@ function createMACrossoverChart(chartId, condition, group, signalMode = 'first')
   
   // Show price line
   const priceTrace = {
-    x: cachedSP500Data.dates,
-    y: cachedSP500Data.close,
+    x: currentPreviewData.dates,
+    y: currentPreviewData.close,
     type: 'scatter',
     mode: 'lines',
     name: 'S&P 500 (SPY)',
@@ -11041,7 +11176,7 @@ function createMACrossoverChart(chartId, condition, group, signalMode = 'first')
   const indicatorTraces = createIndicatorTraces(condition);
   traces.push(...indicatorTraces);
   
-  const annotations = createSignalAnnotations(signals, group, cachedSP500Data.close);
+  const annotations = createSignalAnnotations(signals, group, currentPreviewData.close);
   
   const layout = {
     title: '',
@@ -11091,8 +11226,8 @@ function createSignalAnnotations(signalsByLine, group, yValues) {
       : signals;
       
     signalsToShow.forEach((signalIdx) => {
-      if (signalIdx >= 0 && signalIdx < cachedSP500Data.dates.length) {
-        const date = cachedSP500Data.dates[signalIdx];
+      if (signalIdx >= 0 && signalIdx < currentPreviewData.dates.length) {
+        const date = currentPreviewData.dates[signalIdx];
         const yValue = yValues[signalIdx];
         
         annotations.push({
@@ -11174,7 +11309,7 @@ function calculateRSI(prices, period = 14) {
 // Calculate when a condition would trigger (returns array of {indices: [], lineNumber: X})
 function calculateConditionSignals(condition, signalMode = 'first') {
   const signalsByLine = [];
-  const prices = cachedSP500Data.close;
+  const prices = currentPreviewData.close;
   
   if (condition.type === 'timing') {
     // Timing signals - show first occurrence as example
@@ -11620,8 +11755,8 @@ function createRSITargetTraces(condition) {
     
     values.forEach((value, idx) => {
       traces.push({
-        x: cachedSP500Data.dates,
-        y: new Array(cachedSP500Data.dates.length).fill(value),
+        x: currentPreviewData.dates,
+        y: new Array(currentPreviewData.dates.length).fill(value),
         type: 'scatter',
         mode: 'lines',
         name: `Target: ${value}`,
@@ -11640,7 +11775,7 @@ function createRSITargetTraces(condition) {
     
     let colorIdx = 0;
     rsiPeriods.forEach(rsiPeriod => {
-      const rsiValues = calculateRSI(cachedSP500Data.close, rsiPeriod);
+      const rsiValues = calculateRSI(currentPreviewData.close, rsiPeriod);
       
       bbPeriods.forEach(bbPeriod => {
         // Calculate SMA of RSI (middle band)
@@ -11662,7 +11797,7 @@ function createRSITargetTraces(condition) {
         // Add appropriate traces based on target type
         if (condition.target_type === 'BB_TOP') {
           traces.push({
-            x: cachedSP500Data.dates,
+            x: currentPreviewData.dates,
             y: upperBand,
             type: 'scatter',
             mode: 'lines',
@@ -11671,7 +11806,7 @@ function createRSITargetTraces(condition) {
           });
         } else if (condition.target_type === 'BB_MID') {
           traces.push({
-            x: cachedSP500Data.dates,
+            x: currentPreviewData.dates,
             y: smaOfRSI,
             type: 'scatter',
             mode: 'lines',
@@ -11680,7 +11815,7 @@ function createRSITargetTraces(condition) {
           });
         } else if (condition.target_type === 'BB_BOTTOM') {
           traces.push({
-            x: cachedSP500Data.dates,
+            x: currentPreviewData.dates,
             y: lowerBand,
             type: 'scatter',
             mode: 'lines',
@@ -11704,14 +11839,14 @@ function createRSITargetTraces(condition) {
     
     let colorIdx = 0;
     rsiPeriods.forEach(rsiPeriod => {
-      const rsiValues = calculateRSI(cachedSP500Data.close, rsiPeriod);
+      const rsiValues = calculateRSI(currentPreviewData.close, rsiPeriod);
       
       maPeriods.forEach(maPeriod => {
         // Calculate moving average OF THE RSI VALUES
         const maOfRSI = calculateSimpleMA(rsiValues, maPeriod);
         
         traces.push({
-          x: cachedSP500Data.dates,
+          x: currentPreviewData.dates,
           y: maOfRSI,
           type: 'scatter',
           mode: 'lines',
@@ -11751,12 +11886,12 @@ function createIndicatorTraces(condition) {
       
       periods.forEach((period, idx) => {
         // Calculate SMA of price (middle band)
-        const smaValues = calculateSimpleMA(cachedSP500Data.close, period);
+        const smaValues = calculateSimpleMA(currentPreviewData.close, period);
         
         // Calculate standard deviation of price
-        const stdDev = cachedSP500Data.close.map((val, i) => {
+        const stdDev = currentPreviewData.close.map((val, i) => {
           if (i < period - 1) return NaN;
-          const slice = cachedSP500Data.close.slice(i - period + 1, i + 1);
+          const slice = currentPreviewData.close.slice(i - period + 1, i + 1);
           const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
           const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / slice.length;
           return Math.sqrt(variance);
@@ -11769,7 +11904,7 @@ function createIndicatorTraces(condition) {
         // Add appropriate trace based on target type
         if (condition.target_type === 'BB_TOP') {
           traces.push({
-            x: cachedSP500Data.dates,
+            x: currentPreviewData.dates,
             y: upperBand,
             type: 'scatter',
             mode: 'lines',
@@ -11778,7 +11913,7 @@ function createIndicatorTraces(condition) {
           });
         } else if (condition.target_type === 'BB_MID') {
           traces.push({
-            x: cachedSP500Data.dates,
+            x: currentPreviewData.dates,
             y: smaValues,
             type: 'scatter',
             mode: 'lines',
@@ -11787,7 +11922,7 @@ function createIndicatorTraces(condition) {
           });
         } else if (condition.target_type === 'BB_BOTTOM') {
           traces.push({
-            x: cachedSP500Data.dates,
+            x: currentPreviewData.dates,
             y: lowerBand,
             type: 'scatter',
             mode: 'lines',
@@ -11799,12 +11934,12 @@ function createIndicatorTraces(condition) {
     } else {
       // Regular MA (SMA, EMA, etc.)
       periods.forEach((period, idx) => {
-        const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+        const maValues = calculateSimpleMA(currentPreviewData.close, period);
         
         console.log('[PREVIEW] Adding MA trace:', period, 'first few values:', maValues.slice(0, 5));
         
         traces.push({
-          x: cachedSP500Data.dates,
+          x: currentPreviewData.dates,
           y: maValues,
           type: 'scatter',
           mode: 'lines',
@@ -11822,7 +11957,7 @@ function createIndicatorTraces(condition) {
     
     // Create fast MA lines
     fastPeriods.forEach((period, idx) => {
-      const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+      const maValues = calculateSimpleMA(currentPreviewData.close, period);
       const colors = [
         'rgba(30, 144, 255, 0.9)',   // Dodger blue
         'rgba(0, 100, 255, 0.9)',    // Deep bright blue
@@ -11832,7 +11967,7 @@ function createIndicatorTraces(condition) {
       ];
       
       traces.push({
-        x: cachedSP500Data.dates,
+        x: currentPreviewData.dates,
         y: maValues,
         type: 'scatter',
         mode: 'lines',
@@ -11843,7 +11978,7 @@ function createIndicatorTraces(condition) {
     
     // Create slow MA lines
     slowPeriods.forEach((period, idx) => {
-      const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+      const maValues = calculateSimpleMA(currentPreviewData.close, period);
       const colors = [
         'rgba(255, 0, 255, 0.9)',     // Pure magenta
         'rgba(200, 0, 255, 0.9)',     // Purple-magenta
@@ -11853,7 +11988,7 @@ function createIndicatorTraces(condition) {
       ];
       
       traces.push({
-        x: cachedSP500Data.dates,
+        x: currentPreviewData.dates,
         y: maValues,
         type: 'scatter',
         mode: 'lines',
@@ -11878,7 +12013,7 @@ function createMACrossoverTraces(condition) {
   
   // Create fast MA lines
   fastPeriods.forEach((period, idx) => {
-    const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+    const maValues = calculateSimpleMA(currentPreviewData.close, period);
     const colors = [
       'rgba(30, 144, 255, 0.9)',   // Dodger blue
       'rgba(0, 100, 255, 0.9)',    // Deep bright blue
@@ -11888,7 +12023,7 @@ function createMACrossoverTraces(condition) {
     ];
     
     traces.push({
-      x: cachedSP500Data.dates,
+      x: currentPreviewData.dates,
       y: maValues,
       type: 'scatter',
       mode: 'lines',
@@ -11899,7 +12034,7 @@ function createMACrossoverTraces(condition) {
   
   // Create slow MA lines
   slowPeriods.forEach((period, idx) => {
-    const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+    const maValues = calculateSimpleMA(currentPreviewData.close, period);
     const colors = [
       'rgba(255, 0, 255, 0.9)',     // Pure magenta
       'rgba(200, 0, 255, 0.9)',     // Purple-magenta
@@ -11909,7 +12044,7 @@ function createMACrossoverTraces(condition) {
     ];
     
     traces.push({
-      x: cachedSP500Data.dates,
+      x: currentPreviewData.dates,
       y: maValues,
       type: 'scatter',
       mode: 'lines',
@@ -11996,5 +12131,6 @@ window.createNewFolder = createNewFolder;
 // Note: All onclick handler functions are now exposed to window immediately after their definitions
 // This ensures they're available when HTML with onclick handlers is dynamically generated
 // No need for duplicate assignments here - all functions are already exposed above
+
 
 

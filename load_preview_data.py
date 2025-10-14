@@ -14,7 +14,9 @@ def load_preview_data(params):
     Args:
         params: dict with keys:
             - ticker: str (e.g., 'SPY')
-            - period: str (e.g., '1y', '6mo', '3mo')
+            - period: str (e.g., '1y', '6mo', '3mo') OR
+            - startDate: str (e.g., '2023-01-01')
+            - endDate: str (e.g., '2024-01-01')
             - interval: str (e.g., '1d', '1h', '15m')
     
     Returns:
@@ -22,11 +24,19 @@ def load_preview_data(params):
     """
     try:
         ticker = params.get('ticker', 'SPY')
-        period = params.get('period', '1y')
         interval = params.get('interval', '1d')
+        period = params.get('period', '1y')  # Set default even if using date range
         
-        # Download data from yfinance (auto_adjust=True to suppress warning)
-        data = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
+        # Check if using date range or period
+        start_date = params.get('startDate')
+        end_date = params.get('endDate')
+        
+        if start_date and end_date:
+            # Use date range
+            data = yf.download(ticker, start=start_date, end=end_date, interval=interval, progress=False, auto_adjust=True)
+        else:
+            # Use period
+            data = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
         
         if data.empty:
             return {

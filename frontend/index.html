@@ -681,7 +681,18 @@
                 <!-- Strategy Preview Container -->
                 <div id="strategyPreviewContainer" style="display: none; margin-bottom: 20px; padding: 15px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px;">
                   <div id="strategyPreviewHeader" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; position: sticky; top: 0; background: var(--bg-secondary); z-index: 100; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
-                    <h4 style="margin: 0;">Strategy Visualization (S&P 500 - 1 Year)</h4>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                      <h4 style="margin: 0;">Strategy Visualization</h4>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <label for="previewTickerSelect" style="margin: 0; font-size: 0.9em; color: var(--text-secondary);">Ticker:</label>
+                        <select id="previewTickerSelect" 
+                                style="padding: 5px 10px; font-size: 0.9em; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);" 
+                                onchange="initializeStrategyPreview(this.value)">
+                          <option value="">Select ticker...</option>
+                        </select>
+                        <span id="previewTickerLabel" style="font-size: 0.85em; color: var(--accent-blue); font-weight: 600;"></span>
+                      </div>
+                    </div>
                     <div style="display: flex; gap: 15px; align-items: center;">
                       <label style="display: flex; align-items: center; gap: 5px; margin: 0; font-size: 0.9em;">
                         <input type="radio" name="previewSignalMode" value="positional" checked onchange="refreshStrategyPreview()" />
