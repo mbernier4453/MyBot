@@ -680,7 +680,7 @@
               <div id="strategySection" class="section-content collapsed">
                 <!-- Strategy Preview Container -->
                 <div id="strategyPreviewContainer" style="display: none; margin-bottom: 20px; padding: 15px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                  <div id="strategyPreviewHeader" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; position: sticky; top: 0; background: var(--bg-secondary); z-index: 100; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
                     <h4 style="margin: 0;">Strategy Visualization (S&P 500 - 1 Year)</h4>
                     <div style="display: flex; gap: 15px; align-items: center;">
                       <label style="display: flex; align-items: center; gap: 5px; margin: 0; font-size: 0.9em;">
@@ -698,20 +698,6 @@
                   </div>
                   <div id="previewStatus" style="color: var(--text-secondary); margin-bottom: 10px; font-size: 0.9em;"></div>
                   <div id="previewCharts"></div>
-                </div>
-                
-                <!-- Position Type Selection -->
-                <div class="form-group" style="border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; background: var(--bg-tertiary); margin-bottom: 20px;">
-                  <label style="font-weight: 600; margin-bottom: 10px; display: block;">Position Type:</label>
-                  <div style="display: flex; gap: 15px;">
-                    <label style="margin: 0; font-weight: normal;">
-                      <input type="radio" name="positionType" value="long" checked /> Long (Buy to enter)
-                    </label>
-                    <label style="margin: 0; font-weight: normal;">
-                      <input type="radio" name="positionType" value="short" /> Short (Sell to enter)
-                    </label>
-                  </div>
-                  <small>Long: Buy when entry conditions met. Short: Sell when entry conditions met.</small>
                 </div>
                 
                 <!-- Entry Conditions -->
@@ -742,23 +728,6 @@
                 <!-- Exit Conditions -->
                 <div class="form-group" style="border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; background: var(--bg-tertiary); margin-top: 20px;">
                   <h4 style="margin-top: 0; color: var(--accent-orange);">Exit Conditions</h4>
-                  
-                  <div class="form-group" style="display: flex; gap: 15px; align-items: center;">
-                    <div class="checkbox-group">
-                      <label>
-                        <input type="checkbox" id="mirrorEntry" onchange="toggleMirrorEntry()" checked />
-                        Mirror Entry Conditions
-                      </label>
-                      <small>Use same conditions as entry (reversed logic)</small>
-                    </div>
-                    <div class="checkbox-group">
-                      <label>
-                        <input type="checkbox" id="viceVersa" />
-                        Vice Versa
-                      </label>
-                      <small>Reverse position on exit (Long→Short or Short→Long)</small>
-                    </div>
-                  </div>
                   
                   <div id="exitManualSection">
                     <div id="exitModeSection" class="form-group">
@@ -832,6 +801,25 @@
                           <label for="stopLossDollarValue">Target $:</label>
                           <input type="number" id="stopLossDollarValue" class="form-input" value="100" step="1" />
                           <small>Dollar amount loss per share</small>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Vice Versa -->
+                    <div class="form-group">
+                      <h4>Vice Versa 🚧</h4>
+                      <div class="form-group checkbox-group">
+                        <label>
+                          <input type="checkbox" id="viceVersaEnabled" onchange="toggleViceVersa()" />
+                          Enable Vice Versa (Under Construction)
+                        </label>
+                        <small>Reverse position on exit (Long→Short or Short→Long)</small>
+                      </div>
+                      <div id="viceVersaSettings" style="display: none;">
+                        <div class="form-group">
+                          <label for="viceVersaDelay">Delay Bars:</label>
+                          <input type="number" id="viceVersaDelay" class="form-input" value="1" min="0" step="1" />
+                          <small>Number of bars to wait after exit before entering opposite position</small>
                         </div>
                       </div>
                     </div>

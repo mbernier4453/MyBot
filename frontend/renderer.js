@@ -2364,6 +2364,8 @@ function displayEquityChart(strategyEquity, buyholdEquity, benchmarkEquity, even
     height: 550
   };
   
+  addWatermark(layout);
+  
   const config = {
     responsive: true,
     displayModeBar: true,
@@ -2539,6 +2541,8 @@ function displayVolMatchedChart(strategyEquity, comparisonEquity, chartElementId
     hovermode: 'x unified'
   };
   
+  addWatermark(layout);
+  
   Plotly.newPlot(chartElementId, traces, layout, { displayModeBar: false, responsive: true, scrollZoom: true });
 }
 
@@ -2580,7 +2584,7 @@ function displayDrawdownChart(strategyEquity, buyholdEquity, benchmarkEquity) {
       name: 'Buy & Hold',
       line: { color: '#c8f0c8', width: 2 },
       fill: 'tozeroy',
-      fillcolor: 'rgba(200, 240, 200, 0.1)'
+      fillcolor: 'rgba(200, 240, 200, 0.10)'
     });
   }
   
@@ -2615,6 +2619,8 @@ function displayDrawdownChart(strategyEquity, buyholdEquity, benchmarkEquity) {
     legend: { x: 0.02, y: 0.02, font: { size: 9 }, bgcolor: 'rgba(10, 10, 10, 0.8)' },
     hovermode: 'x unified'
   };
+  
+  addWatermark(layout);
   
   Plotly.newPlot('drawdownChart', traces, layout, { displayModeBar: false, responsive: true, scrollZoom: true });
 }
@@ -4211,6 +4217,8 @@ class ChartTab {
       dragmode: 'pan'
     };
     
+    addWatermark(layout);
+    
     const config = {
       responsive: true,
       displayModeBar: true,
@@ -4619,7 +4627,7 @@ class ChartTab {
   
   getRandomColor() {
     const colors = [
-      '#ff6b6b', '#4ecdc4', '#45b7d1', '#feca57', '#ff9ff3',
+      '#FF1744', '#4ecdc4', '#45b7d1', '#feca57', '#ff9ff3',
       '#54a0ff', '#48dbfb', '#00d2d3', '#1dd1a1', '#10ac84',
       '#ee5a6f', '#c44569', '#f368e0', '#ff9ff3', '#a29bfe'
     ];
@@ -5341,6 +5349,8 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
     },
     showlegend: false  // Hide legend completely
   };
+  
+  addWatermark(layout);
   
   const config = {
     responsive: true,
@@ -6383,6 +6393,8 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       showlegend: false
     };
 
+    addWatermark(layout);
+
     const config = {
       responsive: true,
       displayModeBar: true,
@@ -7043,39 +7055,39 @@ function collectBacktestConfig() {
   config.EXIT_FEES_BPS = parseInt(document.getElementById('exitFees')?.value || 10);
   
   // STRATEGY CONDITIONS section
-  config.POSITION_TYPE = document.querySelector('input[name="positionType"]:checked')?.value || 'long';
+  // Position type is now per-condition, not global
   config.ENTRY_CONDITIONS = collectConditions('entry');
   config.ENTRY_MODE = document.querySelector('input[name="entryMode"]:checked')?.value || 'all';
   
-  const mirrorEntry = document.getElementById('mirrorEntry')?.checked || false;
-  config.EXIT_MIRROR_ENTRY = mirrorEntry;
-  config.VICE_VERSA = document.getElementById('viceVersa')?.checked || false;
+  config.EXIT_CONDITIONS = collectConditions('exit');
+  config.EXIT_MODE = document.querySelector('input[name="exitMode"]:checked')?.value || 'all';
   
-  if (!mirrorEntry) {
-    config.EXIT_CONDITIONS = collectConditions('exit');
-    config.EXIT_MODE = document.querySelector('input[name="exitMode"]:checked')?.value || 'all';
-    
-    // Take Profit
-    config.TAKE_PROFIT_ENABLED = document.getElementById('takeProfitEnabled')?.checked || false;
-    if (config.TAKE_PROFIT_ENABLED) {
-      config.TAKE_PROFIT_TYPE = document.getElementById('takeProfitType')?.value;
-      if (config.TAKE_PROFIT_TYPE === 'percent') {
-        config.TAKE_PROFIT_PERCENT = parseFloat(document.getElementById('takeProfitPercentValue')?.value || 10.0);
-      } else if (config.TAKE_PROFIT_TYPE === 'dollar') {
-        config.TAKE_PROFIT_DOLLAR = parseFloat(document.getElementById('takeProfitDollarValue')?.value || 100.0);
-      }
+  // Take Profit
+  config.TAKE_PROFIT_ENABLED = document.getElementById('takeProfitEnabled')?.checked || false;
+  if (config.TAKE_PROFIT_ENABLED) {
+    config.TAKE_PROFIT_TYPE = document.getElementById('takeProfitType')?.value;
+    if (config.TAKE_PROFIT_TYPE === 'percent') {
+      config.TAKE_PROFIT_PERCENT = parseFloat(document.getElementById('takeProfitPercentValue')?.value || 10.0);
+    } else if (config.TAKE_PROFIT_TYPE === 'dollar') {
+      config.TAKE_PROFIT_DOLLAR = parseFloat(document.getElementById('takeProfitDollarValue')?.value || 100.0);
     }
-    
-    // Stop Loss
-    config.STOP_LOSS_ENABLED = document.getElementById('stopLossEnabled')?.checked || false;
-    if (config.STOP_LOSS_ENABLED) {
-      config.STOP_LOSS_TYPE = document.getElementById('stopLossType')?.value;
-      if (config.STOP_LOSS_TYPE === 'percent') {
-        config.STOP_LOSS_PERCENT = parseFloat(document.getElementById('stopLossPercentValue')?.value || 5.0);
-      } else if (config.STOP_LOSS_TYPE === 'dollar') {
-        config.STOP_LOSS_DOLLAR = parseFloat(document.getElementById('stopLossDollarValue')?.value || 100.0);
-      }
+  }
+  
+  // Stop Loss
+  config.STOP_LOSS_ENABLED = document.getElementById('stopLossEnabled')?.checked || false;
+  if (config.STOP_LOSS_ENABLED) {
+    config.STOP_LOSS_TYPE = document.getElementById('stopLossType')?.value;
+    if (config.STOP_LOSS_TYPE === 'percent') {
+      config.STOP_LOSS_PERCENT = parseFloat(document.getElementById('stopLossPercentValue')?.value || 5.0);
+    } else if (config.STOP_LOSS_TYPE === 'dollar') {
+      config.STOP_LOSS_DOLLAR = parseFloat(document.getElementById('stopLossDollarValue')?.value || 100.0);
     }
+  }
+  
+  // Vice Versa
+  config.VICE_VERSA_ENABLED = document.getElementById('viceVersaEnabled')?.checked || false;
+  if (config.VICE_VERSA_ENABLED) {
+    config.VICE_VERSA_DELAY = parseInt(document.getElementById('viceVersaDelay')?.value || 1);
   }
   
   // OUTPUTS section (only implemented features)
@@ -7239,10 +7251,7 @@ function populateBacktestConfig(config) {
   if (config.EXIT_FEES_BPS !== undefined) document.getElementById('exitFees').value = config.EXIT_FEES_BPS;
   
   // STRATEGY CONDITIONS section
-  if (config.POSITION_TYPE !== undefined) {
-    const positionTypeRadio = document.querySelector(`input[name="positionType"][value="${config.POSITION_TYPE}"]`);
-    if (positionTypeRadio) positionTypeRadio.checked = true;
-  }
+  // Position type is now per-condition, not global
   
   // Load entry conditions
   if (config.ENTRY_CONDITIONS && Array.isArray(config.ENTRY_CONDITIONS)) {
@@ -7259,21 +7268,20 @@ function populateBacktestConfig(config) {
     if (entryModeRadio) entryModeRadio.checked = true;
   }
   
-  // Mirror entry checkbox
-  if (config.EXIT_MIRROR_ENTRY !== undefined) {
-    const mirrorEntryCheckbox = document.getElementById('mirrorEntry');
-    if (mirrorEntryCheckbox) {
-      mirrorEntryCheckbox.checked = config.EXIT_MIRROR_ENTRY;
-      toggleMirrorEntry(); // Update UI visibility
+  // Vice Versa
+  if (config.VICE_VERSA_ENABLED !== undefined) {
+    const viceVersaCheckbox = document.getElementById('viceVersaEnabled');
+    if (viceVersaCheckbox) {
+      viceVersaCheckbox.checked = config.VICE_VERSA_ENABLED;
+      toggleViceVersa();
     }
   }
-  
-  if (config.VICE_VERSA !== undefined) {
-    document.getElementById('viceVersa').checked = config.VICE_VERSA;
+  if (config.VICE_VERSA_DELAY !== undefined) {
+    document.getElementById('viceVersaDelay').value = config.VICE_VERSA_DELAY;
   }
   
-  // Load exit conditions (only if not mirroring)
-  if (!config.EXIT_MIRROR_ENTRY && config.EXIT_CONDITIONS && Array.isArray(config.EXIT_CONDITIONS)) {
+  // Load exit conditions
+  if (config.EXIT_CONDITIONS && Array.isArray(config.EXIT_CONDITIONS)) {
     // Clear existing conditions
     document.getElementById('exitConditionsList').innerHTML = '';
     // Add each condition
@@ -7287,14 +7295,48 @@ function populateBacktestConfig(config) {
     if (exitModeRadio) exitModeRadio.checked = true;
   }
   
-  // Take Profit / Stop Loss
+  // Take Profit
   if (config.TAKE_PROFIT_ENABLED !== undefined) {
     const tpCheckbox = document.getElementById('takeProfitEnabled');
-    if (tpCheckbox) tpCheckbox.checked = config.TAKE_PROFIT_ENABLED;
+    if (tpCheckbox) {
+      tpCheckbox.checked = config.TAKE_PROFIT_ENABLED;
+      toggleTakeProfit(); // Show/hide settings
+    }
   }
+  if (config.TAKE_PROFIT_TYPE !== undefined) {
+    const tpTypeSelect = document.getElementById('takeProfitType');
+    if (tpTypeSelect) {
+      tpTypeSelect.value = config.TAKE_PROFIT_TYPE;
+      toggleTakeProfitType(); // Show/hide percent vs dollar
+    }
+  }
+  if (config.TAKE_PROFIT_PERCENT !== undefined) {
+    document.getElementById('takeProfitPercentValue').value = config.TAKE_PROFIT_PERCENT;
+  }
+  if (config.TAKE_PROFIT_DOLLAR !== undefined) {
+    document.getElementById('takeProfitDollarValue').value = config.TAKE_PROFIT_DOLLAR;
+  }
+  
+  // Stop Loss
   if (config.STOP_LOSS_ENABLED !== undefined) {
     const slCheckbox = document.getElementById('stopLossEnabled');
-    if (slCheckbox) slCheckbox.checked = config.STOP_LOSS_ENABLED;
+    if (slCheckbox) {
+      slCheckbox.checked = config.STOP_LOSS_ENABLED;
+      toggleStopLoss(); // Show/hide settings
+    }
+  }
+  if (config.STOP_LOSS_TYPE !== undefined) {
+    const slTypeSelect = document.getElementById('stopLossType');
+    if (slTypeSelect) {
+      slTypeSelect.value = config.STOP_LOSS_TYPE;
+      toggleStopLossType(); // Show/hide percent vs dollar
+    }
+  }
+  if (config.STOP_LOSS_PERCENT !== undefined) {
+    document.getElementById('stopLossPercentValue').value = config.STOP_LOSS_PERCENT;
+  }
+  if (config.STOP_LOSS_DOLLAR !== undefined) {
+    document.getElementById('stopLossDollarValue').value = config.STOP_LOSS_DOLLAR;
   }
   
   // INDICATORS section
@@ -8091,6 +8133,14 @@ function createConditionCard(conditionGroup, conditionType) {
   `;
   card.appendChild(header);
   
+  // Add exit condition targeting if this is an exit condition
+  if (conditionGroup === 'exit') {
+    const targetingDiv = document.createElement('div');
+    targetingDiv.className = 'exit-targeting';
+    targetingDiv.innerHTML = buildExitTargetingFields(conditionId);
+    card.appendChild(targetingDiv);
+  }
+  
   // Fields container
   const fieldsDiv = document.createElement('div');
   fieldsDiv.className = 'condition-fields';
@@ -8115,6 +8165,45 @@ function createConditionCard(conditionGroup, conditionType) {
   list.appendChild(card);
 }
 
+// Build exit targeting fields
+function buildExitTargetingFields(id) {
+  // Get all entry conditions to populate checkboxes
+  const entryCards = document.querySelectorAll('#entryConditionsList .condition-card');
+  let checkboxesHTML = `
+    <div style="margin-bottom: 8px;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+        <input type="checkbox" id="${id}_target_all" checked onchange="updateExitTargetAll('${id}')" />
+        <span style="font-weight: 600;">All Entry Conditions (General Exit)</span>
+      </label>
+    </div>
+    <div id="${id}_specific_targets" style="display: none; padding-left: 20px; border-left: 2px solid var(--accent-blue);">
+  `;
+  
+  entryCards.forEach((card, index) => {
+    const entryId = card.dataset.conditionId;
+    const entryType = card.dataset.conditionType;
+    const entryLabel = CONDITION_TYPES[entryType]?.label || entryType;
+    checkboxesHTML += `
+      <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; cursor: pointer;">
+        <input type="checkbox" class="${id}_target_entry" data-entry-id="${entryId}" onchange="updateExitTargeting('${id}')" />
+        <span>Entry #${index + 1}: ${entryLabel}</span>
+      </label>
+    `;
+  });
+  
+  checkboxesHTML += `</div>`;
+  
+  return `
+    <div class="condition-field-row" style="background: rgba(100, 100, 255, 0.1); padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+      <div class="condition-field">
+        <label style="font-weight: 600; margin-bottom: 8px; display: block;">Exit Targets</label>
+        ${checkboxesHTML}
+        <small style="margin-top: 8px; display: block;">Choose which entry condition(s) this exit applies to</small>
+      </div>
+    </div>
+  `;
+}
+
 // Build timing fields
 function buildTimingFields(id) {
   return `
@@ -8135,6 +8224,13 @@ function buildTimingFields(id) {
 function buildPriceFields(id) {
   return `
     <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Position Type</label>
+        <select id="${id}_position_type">
+          <option value="long" selected>Long</option>
+          <option value="short">Short</option>
+        </select>
+      </div>
       <div class="condition-field">
         <label>Target Type</label>
         <select id="${id}_target_type" onchange="toggleTargetParams('${id}')">
@@ -8158,9 +8254,10 @@ function buildPriceFields(id) {
     <div id="${id}_bb_params" style="display: none;">
       <div class="condition-field-row">
         <div class="condition-field">
-          <label>BB Std Dev(s)</label>
-          <input type="text" id="${id}_bb_std" value="2.0" placeholder="2.0 or 1.5,2.0,2.5" />
-          <small>Single value or comma-separated list for grid</small>
+          <label>BB Std Dev: <span id="${id}_bb_std_value">2.0</span></label>
+          <input type="range" id="${id}_bb_std" min="1" max="3" step="0.1" value="2" class="slider" 
+                 oninput="document.getElementById('${id}_bb_std_value').textContent = this.value" />
+          <small>Bollinger Band standard deviation multiplier</small>
         </div>
       </div>
     </div>
@@ -8209,6 +8306,13 @@ function buildRSIFields(id) {
   return `
     <div class="condition-field-row">
       <div class="condition-field">
+        <label>Position Type</label>
+        <select id="${id}_position_type">
+          <option value="long" selected>Long</option>
+          <option value="short">Short</option>
+        </select>
+      </div>
+      <div class="condition-field">
         <label>RSI Period(s)</label>
         <input type="text" id="${id}_rsi_period" value="14" placeholder="14 or 7,14,21" />
         <small>Single value or comma-separated list for grid</small>
@@ -8236,9 +8340,10 @@ function buildRSIFields(id) {
     <div id="${id}_bb_params" style="display: none;">
       <div class="condition-field-row">
         <div class="condition-field">
-          <label>BB Std Dev(s)</label>
-          <input type="text" id="${id}_bb_std" value="2.0" placeholder="2.0 or 1.5,2.0,2.5" />
-          <small>Single value or comma-separated list for grid</small>
+          <label>BB Std Dev: <span id="${id}_bb_std_value">2.0</span></label>
+          <input type="range" id="${id}_bb_std" min="1" max="3" step="0.1" value="2" class="slider" 
+                 oninput="document.getElementById('${id}_bb_std_value').textContent = this.value" />
+          <small>Bollinger Band standard deviation multiplier</small>
         </div>
       </div>
     </div>
@@ -8287,6 +8392,13 @@ function buildMACrossoverFields(id) {
   const MA_TYPES_NO_VALUE = MA_TYPES.filter(ma => ma !== 'Value');
   return `
     <div class="condition-field-row">
+      <div class="condition-field">
+        <label>Position Type</label>
+        <select id="${id}_position_type">
+          <option value="long" selected>Long</option>
+          <option value="short">Short</option>
+        </select>
+      </div>
       <div class="condition-field">
         <label>Fast MA Type</label>
         <select id="${id}_fast_ma_type" onchange="toggleMAParams('${id}', 'fast')">
@@ -8444,6 +8556,25 @@ function addConditionFromData(conditionGroup, conditionData) {
   
   // Populate fields based on condition type
   setTimeout(() => {
+    // Restore exit targeting if this is an exit condition
+    if (conditionData.target_entries !== undefined) {
+      const allCheckbox = document.getElementById(`${conditionId}_target_all`);
+      if (conditionData.target_entries === 'all') {
+        if (allCheckbox) allCheckbox.checked = true;
+      } else {
+        // Uncheck "all" and check specific entries
+        if (allCheckbox) {
+          allCheckbox.checked = false;
+          document.getElementById(`${conditionId}_specific_targets`).style.display = 'block';
+        }
+        const targetArray = Array.isArray(conditionData.target_entries) ? conditionData.target_entries : [conditionData.target_entries];
+        targetArray.forEach(entryId => {
+          const checkbox = document.querySelector(`.${conditionId}_target_entry[data-entry-id="${entryId}"]`);
+          if (checkbox) checkbox.checked = true;
+        });
+      }
+    }
+    
     switch (conditionData.type) {
       case 'timing':
         if (conditionData.time1) document.getElementById(`${conditionId}_time1`).value = conditionData.time1;
@@ -8451,12 +8582,23 @@ function addConditionFromData(conditionGroup, conditionData) {
         break;
         
       case 'price':
+        if (conditionData.position_type) document.getElementById(`${conditionId}_position_type`).value = conditionData.position_type;
         if (conditionData.target_type) {
           document.getElementById(`${conditionId}_target_type`).value = conditionData.target_type;
           toggleTargetParams(conditionId);
         }
         if (conditionData.target_value) document.getElementById(`${conditionId}_target_value`).value = conditionData.target_value;
         if (conditionData.target_period) document.getElementById(`${conditionId}_target_period`).value = conditionData.target_period;
+        // Restore BB parameters
+        if (conditionData.bb_std !== undefined) {
+          const bbStdField = document.getElementById(`${conditionId}_bb_std`);
+          if (bbStdField) bbStdField.value = conditionData.bb_std;
+        }
+        // Restore KC parameters
+        if (conditionData.kc_mult !== undefined) {
+          const kcMultField = document.getElementById(`${conditionId}_kc_mult`);
+          if (kcMultField) kcMultField.value = conditionData.kc_mult;
+        }
         if (conditionData.interaction) {
           document.getElementById(`${conditionId}_interaction`).value = conditionData.interaction;
           toggleInteractionFields(conditionId);
@@ -8468,6 +8610,7 @@ function addConditionFromData(conditionGroup, conditionData) {
         break;
         
       case 'rsi':
+        if (conditionData.position_type) document.getElementById(`${conditionId}_position_type`).value = conditionData.position_type;
         if (conditionData.rsi_period) document.getElementById(`${conditionId}_rsi_period`).value = conditionData.rsi_period;
         if (conditionData.target_type) {
           document.getElementById(`${conditionId}_target_type`).value = conditionData.target_type;
@@ -8475,6 +8618,16 @@ function addConditionFromData(conditionGroup, conditionData) {
         }
         if (conditionData.target_value) document.getElementById(`${conditionId}_target_value`).value = conditionData.target_value;
         if (conditionData.target_period) document.getElementById(`${conditionId}_target_period`).value = conditionData.target_period;
+        // Restore BB parameters
+        if (conditionData.bb_std !== undefined) {
+          const bbStdField = document.getElementById(`${conditionId}_bb_std`);
+          if (bbStdField) bbStdField.value = conditionData.bb_std;
+        }
+        // Restore KC parameters
+        if (conditionData.kc_mult !== undefined) {
+          const kcMultField = document.getElementById(`${conditionId}_kc_mult`);
+          if (kcMultField) kcMultField.value = conditionData.kc_mult;
+        }
         if (conditionData.interaction) {
           document.getElementById(`${conditionId}_interaction`).value = conditionData.interaction;
           toggleInteractionFields(conditionId);
@@ -8486,10 +8639,31 @@ function addConditionFromData(conditionGroup, conditionData) {
         break;
         
       case 'ma_crossover':
+        if (conditionData.position_type) document.getElementById(`${conditionId}_position_type`).value = conditionData.position_type;
         if (conditionData.fast_ma_type) document.getElementById(`${conditionId}_fast_ma_type`).value = conditionData.fast_ma_type;
         if (conditionData.fast_period) document.getElementById(`${conditionId}_fast_period`).value = conditionData.fast_period;
+        // Restore BB parameters for fast MA
+        if (conditionData.fast_bb_std !== undefined) {
+          const fastBbStdField = document.getElementById(`${conditionId}_fast_bb_std`);
+          if (fastBbStdField) fastBbStdField.value = conditionData.fast_bb_std;
+        }
+        // Restore KC parameters for fast MA
+        if (conditionData.fast_kc_mult !== undefined) {
+          const fastKcMultField = document.getElementById(`${conditionId}_fast_kc_mult`);
+          if (fastKcMultField) fastKcMultField.value = conditionData.fast_kc_mult;
+        }
         if (conditionData.slow_ma_type) document.getElementById(`${conditionId}_slow_ma_type`).value = conditionData.slow_ma_type;
         if (conditionData.slow_period) document.getElementById(`${conditionId}_slow_period`).value = conditionData.slow_period;
+        // Restore BB parameters for slow MA
+        if (conditionData.slow_bb_std !== undefined) {
+          const slowBbStdField = document.getElementById(`${conditionId}_slow_bb_std`);
+          if (slowBbStdField) slowBbStdField.value = conditionData.slow_bb_std;
+        }
+        // Restore KC parameters for slow MA
+        if (conditionData.slow_kc_mult !== undefined) {
+          const slowKcMultField = document.getElementById(`${conditionId}_slow_kc_mult`);
+          if (slowKcMultField) slowKcMultField.value = conditionData.slow_kc_mult;
+        }
         if (conditionData.direction) document.getElementById(`${conditionId}_direction`).value = conditionData.direction;
         if (conditionData.threshold_pct !== undefined) document.getElementById(`${conditionId}_threshold_pct`).value = conditionData.threshold_pct;
         if (conditionData.delay !== undefined) document.getElementById(`${conditionId}_delay`).value = conditionData.delay;
@@ -8498,23 +8672,15 @@ function addConditionFromData(conditionGroup, conditionData) {
   }, 100); // Small delay to ensure DOM is ready
 }
 
-function toggleMirrorEntry() {
-  const mirrorChecked = document.getElementById('mirrorEntry')?.checked;
-  const exitModeSection = document.getElementById('exitModeSection');
-  const exitConditionsList = document.getElementById('exitConditionsList');
-  const addExitBtn = document.querySelector('[onclick="addExitCondition()"]');
-  
-  if (mirrorChecked) {
-    exitModeSection.style.display = 'none';
-    exitConditionsList.style.display = 'none';
-    addExitBtn.style.display = 'none';
-  } else {
-    exitModeSection.style.display = 'block';
-    exitConditionsList.style.display = 'flex';
-    addExitBtn.style.display = 'inline-block';
+// Toggle vice versa settings
+function toggleViceVersa() {
+  const enabled = document.getElementById('viceVersaEnabled')?.checked;
+  const settings = document.getElementById('viceVersaSettings');
+  if (settings) {
+    settings.style.display = enabled ? 'block' : 'none';
   }
   
-  // Refresh preview to show/hide exit charts
+  // Refresh preview to show vice versa arrows
   if (document.getElementById('previewToggle')?.checked) {
     refreshStrategyPreview();
   }
@@ -8578,7 +8744,7 @@ function validateTimeframe() {
   
   if (diffDays > 90) {
     warning.style.display = 'block';
-    warning.style.color = '#ff6b6b';
+    warning.style.color = '#FF1744';
     warning.textContent = `⚠️ Warning: ${timeframe} timeframe is limited to 3 months. Current range: ${Math.round(diffDays)} days.`;
   } else {
     warning.style.display = 'block';
@@ -8601,6 +8767,19 @@ function collectConditions(conditionGroup) {
       type: conditionType
     };
     
+    // For exit conditions, collect the targeting info
+    if (conditionGroup === 'exit') {
+      const allCheckbox = document.getElementById(`${conditionId}_target_all`);
+      if (allCheckbox?.checked) {
+        condition.target_entries = 'all';
+      } else {
+        // Collect checked specific entries
+        const specificCheckboxes = document.querySelectorAll(`.${conditionId}_target_entry:checked`);
+        const targetIds = Array.from(specificCheckboxes).map(cb => cb.dataset.entryId);
+        condition.target_entries = targetIds.length > 0 ? targetIds : 'all';
+      }
+    }
+    
     // Collect fields based on type
     switch (conditionType) {
       case 'timing':
@@ -8609,6 +8788,7 @@ function collectConditions(conditionGroup) {
         break;
         
       case 'price':
+        condition.position_type = document.getElementById(`${conditionId}_position_type`)?.value || 'long';
         condition.target_type = document.getElementById(`${conditionId}_target_type`)?.value;
         if (condition.target_type === 'Value') {
           condition.target_value = document.getElementById(`${conditionId}_target_value`)?.value;
@@ -8628,13 +8808,14 @@ function collectConditions(conditionGroup) {
           condition.direction = document.getElementById(`${conditionId}_direction`)?.value;
         }
         condition.threshold_pct = parseFloat(document.getElementById(`${conditionId}_threshold_pct`)?.value);
-        condition.delay = parseInt(document.getElementById(`${conditionId}_delay`)?.value);
+        condition.delay_bars = parseInt(document.getElementById(`${conditionId}_delay`)?.value);
         if (condition.interaction === 'touch' || condition.interaction === 'recross') {
           condition.touches = parseInt(document.getElementById(`${conditionId}_touches`)?.value);
         }
         break;
         
       case 'rsi':
+        condition.position_type = document.getElementById(`${conditionId}_position_type`)?.value || 'long';
         condition.rsi_period = document.getElementById(`${conditionId}_rsi_period`)?.value;
         condition.target_type = document.getElementById(`${conditionId}_target_type`)?.value;
         if (condition.target_type === 'Value') {
@@ -8655,13 +8836,14 @@ function collectConditions(conditionGroup) {
           condition.direction = document.getElementById(`${conditionId}_direction`)?.value;
         }
         condition.threshold_pct = parseFloat(document.getElementById(`${conditionId}_threshold_pct`)?.value);
-        condition.delay = parseInt(document.getElementById(`${conditionId}_delay`)?.value);
+        condition.delay_bars = parseInt(document.getElementById(`${conditionId}_delay`)?.value);
         if (condition.interaction === 'touch' || condition.interaction === 'recross') {
           condition.touches = parseInt(document.getElementById(`${conditionId}_touches`)?.value);
         }
         break;
         
       case 'ma_crossover':
+        condition.position_type = document.getElementById(`${conditionId}_position_type`)?.value || 'long';
         condition.fast_ma_type = document.getElementById(`${conditionId}_fast_ma_type`)?.value;
         condition.fast_period = document.getElementById(`${conditionId}_fast_period`)?.value;
         // Add BB/KC parameters for fast MA if applicable
@@ -8693,7 +8875,7 @@ function collectConditions(conditionGroup) {
 // Expose functions to window
 window.addCondition = addCondition;
 window.removeCondition = removeCondition;
-window.toggleMirrorEntry = toggleMirrorEntry;
+window.toggleViceVersa = toggleViceVersa;
 window.toggleTakeProfit = toggleTakeProfit;
 window.toggleStopLoss = toggleStopLoss;
 window.toggleTakeProfitType = toggleTakeProfitType;
@@ -8702,6 +8884,44 @@ window.validateTimeframe = validateTimeframe;
 window.toggleInteractionFields = toggleInteractionFields;
 window.toggleMAParams = toggleMAParams;
 window.toggleTargetParams = toggleTargetParams;
+window.updateExitTargeting = updateExitTargeting;
+window.updateExitTargetAll = updateExitTargetAll;
+
+// Update exit target "All" checkbox
+function updateExitTargetAll(exitConditionId) {
+  const allCheckbox = document.getElementById(`${exitConditionId}_target_all`);
+  const specificTargets = document.getElementById(`${exitConditionId}_specific_targets`);
+  const specificCheckboxes = document.querySelectorAll(`.${exitConditionId}_target_entry`);
+  
+  if (allCheckbox.checked) {
+    // Hide specific targets, uncheck all
+    specificTargets.style.display = 'none';
+    specificCheckboxes.forEach(cb => cb.checked = false);
+  } else {
+    // Show specific targets
+    specificTargets.style.display = 'block';
+  }
+  
+  updateExitTargeting(exitConditionId);
+}
+
+// Update exit targeting (for preview refresh)
+function updateExitTargeting(exitConditionId) {
+  // If specific target is checked, uncheck "All"
+  const allCheckbox = document.getElementById(`${exitConditionId}_target_all`);
+  const specificCheckboxes = document.querySelectorAll(`.${exitConditionId}_target_entry`);
+  const anySpecificChecked = Array.from(specificCheckboxes).some(cb => cb.checked);
+  
+  if (anySpecificChecked && allCheckbox) {
+    allCheckbox.checked = false;
+    document.getElementById(`${exitConditionId}_specific_targets`).style.display = 'block';
+  }
+  
+  // Refresh the preview if it's enabled
+  if (document.getElementById('previewToggle')?.checked) {
+    refreshStrategyPreview();
+  }
+}
 
 // ============================================================================
 // STRATEGY PREVIEW VISUALIZATION
@@ -8777,6 +8997,8 @@ function matchEntryExitSignals(entrySignalsByLine, exitSignalsByLine, signalMode
   }
   
   // Positional mode: For each line, alternate between entry and exit
+  // NOTE: This only handles CONDITIONAL exits. TP/SL are calculated separately 
+  // and will be merged in the unified matching function
   const matchedEntries = [];
   const matchedExits = [];
   
@@ -8844,6 +9066,393 @@ function matchEntryExitSignals(entrySignalsByLine, exitSignalsByLine, signalMode
   };
 }
 
+// NEW FUNCTION: Unified exit matching that combines conditional exits, TP, and SL
+// For positional mode, finds THE FIRST exit of any type after each entry
+function matchAllExitsToEntries(entries, conditionalExits, tpExits, slExits, signalMode) {
+  if (signalMode === 'all') {
+    // In 'all' mode, show everything independently
+    return {
+      matched: { entries, exits: conditionalExits },
+      tpExits,
+      slExits
+    };
+  }
+  
+  // POSITIONAL MODE: For each entry, find the FIRST exit (conditional, TP, or SL)
+  console.log('[UNIFIED MATCHING] Starting with entries:', entries, 'conditional:', conditionalExits, 'TP:', tpExits, 'SL:', slExits);
+  
+  const finalMatchedExits = [];
+  const finalTpExits = [];
+  const finalSlExits = [];
+  
+  // Process each entry line
+  entries.forEach(entryLine => {
+    const lineNum = entryLine.lineNumber;
+    
+    // Find all possible exits for this line
+    const conditionalExitLine = conditionalExits.find(e => e.lineNumber === lineNum);
+    const tpExitLines = tpExits.filter(e => e.lineNumber === lineNum);
+    const slExitLines = slExits.filter(e => e.lineNumber === lineNum);
+    
+    const finalConditionalExits = [];
+    const finalTpExitsForLine = [];
+    const finalSlExitsForLine = [];
+    
+    // For each entry in this line, find the first exit of ANY type
+    entryLine.indices.forEach(entryIdx => {
+      let firstExitIdx = Infinity;
+      let firstExitType = null; // 'conditional', 'tp', or 'sl'
+      
+      // Check conditional exits
+      if (conditionalExitLine) {
+        for (const exitIdx of conditionalExitLine.indices) {
+          if (exitIdx > entryIdx && exitIdx < firstExitIdx) {
+            firstExitIdx = exitIdx;
+            firstExitType = 'conditional';
+          }
+        }
+      }
+      
+      // Check TP exits
+      tpExitLines.forEach(tpLine => {
+        tpLine.indices.forEach(exitIdx => {
+          if (exitIdx > entryIdx && exitIdx < firstExitIdx) {
+            firstExitIdx = exitIdx;
+            firstExitType = 'tp';
+          }
+        });
+      });
+      
+      // Check SL exits
+      slExitLines.forEach(slLine => {
+        slLine.indices.forEach(exitIdx => {
+          if (exitIdx > entryIdx && exitIdx < firstExitIdx) {
+            firstExitIdx = exitIdx;
+            firstExitType = 'sl';
+          }
+        });
+      });
+      
+      // Add the first exit found to the appropriate array
+      if (firstExitType === 'conditional') {
+        finalConditionalExits.push(firstExitIdx);
+      } else if (firstExitType === 'tp') {
+        finalTpExitsForLine.push(firstExitIdx);
+      } else if (firstExitType === 'sl') {
+        finalSlExitsForLine.push(firstExitIdx);
+      }
+    });
+    
+    // Add to final results
+    if (finalConditionalExits.length > 0) {
+      finalMatchedExits.push({ lineNumber: lineNum, indices: finalConditionalExits });
+    }
+    if (finalTpExitsForLine.length > 0) {
+      finalTpExits.push({ lineNumber: lineNum, indices: finalTpExitsForLine });
+    }
+    if (finalSlExitsForLine.length > 0) {
+      finalSlExits.push({ lineNumber: lineNum, indices: finalSlExitsForLine });
+    }
+  });
+  
+  console.log('[UNIFIED MATCHING] Results - conditional:', finalMatchedExits, 'TP:', finalTpExits, 'SL:', finalSlExits);
+  
+  return {
+    matched: { entries, exits: finalMatchedExits },
+    tpExits: finalTpExits,
+    slExits: finalSlExits
+  };
+}
+
+// Convert trade number to letter code (0->A, 1->B, 25->Z, 26->AA, 27->AB, etc.)
+function getTradeLabel(tradeNum) {
+  let label = '';
+  let num = tradeNum;
+  
+  while (num >= 0) {
+    label = String.fromCharCode(65 + (num % 26)) + label;
+    num = Math.floor(num / 26) - 1;
+    if (num < 0) break;
+  }
+  
+  return label;
+}
+
+// Calculate Take Profit and Stop Loss exit signals
+// In 'all' mode: Returns all TP and SL signals independently
+// In 'positional' mode: Returns whichever happened first for each entry (TP OR SL OR manual exit, not multiple)
+function calculateTPSLExits(matchedSignals, prices, positionType, tpConfig, slConfig, signalMode = 'positional', manualExits = []) {
+  const tpExits = [];
+  const slExits = [];
+  
+  const hasTp = tpConfig && tpConfig.enabled;
+  const hasSl = slConfig && slConfig.enabled;
+  
+  if (!hasTp && !hasSl) return { tpExits: [], slExits: [] };
+  
+  const isShort = positionType === 'short';
+  const isAllSignalsMode = signalMode === 'all';
+  
+  // Build a map of manual exit indices for quick lookup (positional mode only)
+  const manualExitIndices = new Set();
+  if (!isAllSignalsMode && manualExits.length > 0) {
+    manualExits.forEach(exitLine => {
+      exitLine.indices.forEach(idx => manualExitIndices.add(idx));
+    });
+  }
+  
+  matchedSignals.entries?.forEach(entryLine => {
+    entryLine.indices.forEach(entryIdx => {
+      const entryPrice = prices[entryIdx];
+      
+      // Calculate target prices based on position type
+      let tpPrice = null;
+      let slPrice = null;
+      
+      if (hasTp) {
+        if (tpConfig.type === 'percent') {
+          // For short: TP when price DROPS, for long: TP when price RISES
+          tpPrice = isShort 
+            ? entryPrice * (1 - tpConfig.percent / 100)
+            : entryPrice * (1 + tpConfig.percent / 100);
+        } else {
+          tpPrice = isShort 
+            ? entryPrice - tpConfig.dollar
+            : entryPrice + tpConfig.dollar;
+        }
+      }
+      
+      if (hasSl) {
+        if (slConfig.type === 'percent') {
+          // For short: SL when price RISES, for long: SL when price DROPS
+          slPrice = isShort 
+            ? entryPrice * (1 + slConfig.percent / 100)
+            : entryPrice * (1 - slConfig.percent / 100);
+        } else {
+          slPrice = isShort 
+            ? entryPrice + slConfig.dollar
+            : entryPrice - slConfig.dollar;
+        }
+      }
+      
+      // Find exits based on mode
+      if (isAllSignalsMode) {
+        // ALL SIGNALS MODE: Show both TP and SL if they both trigger (at different times)
+        let tpIdx = null;
+        let slIdx = null;
+        
+        for (let i = entryIdx + 1; i < prices.length; i++) {
+          const currentPrice = prices[i];
+          
+          // Check TP
+          if (hasTp && tpIdx === null) {
+            if (isShort) {
+              if (currentPrice <= tpPrice) tpIdx = i;
+            } else {
+              if (currentPrice >= tpPrice) tpIdx = i;
+            }
+          }
+          
+          // Check SL
+          if (hasSl && slIdx === null) {
+            if (isShort) {
+              if (currentPrice >= slPrice) slIdx = i;
+            } else {
+              if (currentPrice <= slPrice) slIdx = i;
+            }
+          }
+          
+          // In all signals mode, continue until we find both (or end of data)
+          if ((hasTp && tpIdx !== null) && (hasSl && slIdx !== null)) {
+            break;
+          }
+        }
+        
+        // Add each TP/SL as its own entry (one per entry signal)
+        if (tpIdx !== null) {
+          tpExits.push({
+            indices: [tpIdx],
+            lineNumber: entryLine.lineNumber
+          });
+        }
+        if (slIdx !== null) {
+          slExits.push({
+            indices: [slIdx],
+            lineNumber: entryLine.lineNumber
+          });
+        }
+        
+      } else {
+        // POSITIONAL MODE: Whichever happens first (manual exit, TP, or SL - only ONE)
+        let exitIdx = null;
+        let exitType = null; // 'manual', 'tp', or 'sl'
+        
+        for (let i = entryIdx + 1; i < prices.length; i++) {
+          // Check if there's a manual exit at this index
+          if (manualExitIndices.has(i)) {
+            exitIdx = i;
+            exitType = 'manual';
+            break; // Manual exit found, stop searching
+          }
+          
+          const currentPrice = prices[i];
+          
+          // Check TP
+          if (hasTp && exitIdx === null) {
+            if (isShort) {
+              if (currentPrice <= tpPrice) {
+                exitIdx = i;
+                exitType = 'tp';
+              }
+            } else {
+              if (currentPrice >= tpPrice) {
+                exitIdx = i;
+                exitType = 'tp';
+              }
+            }
+          }
+          
+          // Check SL (only if TP hasn't triggered yet)
+          if (hasSl && exitIdx === null) {
+            if (isShort) {
+              if (currentPrice >= slPrice) {
+                exitIdx = i;
+                exitType = 'sl';
+              }
+            } else {
+              if (currentPrice <= slPrice) {
+                exitIdx = i;
+                exitType = 'sl';
+              }
+            }
+          }
+          
+          // Stop as soon as we find ANY exit
+          if (exitIdx !== null) {
+            break;
+          }
+        }
+        
+        // Add the exit that happened first (if not manual)
+        if (exitIdx !== null && exitType === 'tp') {
+          tpExits.push({
+            indices: [exitIdx],
+            lineNumber: entryLine.lineNumber
+          });
+        } else if (exitIdx !== null && exitType === 'sl') {
+          slExits.push({
+            indices: [exitIdx],
+            lineNumber: entryLine.lineNumber
+          });
+        }
+        // If exitType === 'manual', we don't add anything (manual exit takes precedence)
+      }
+    });
+  });
+  
+  return { tpExits, slExits };
+}
+
+// Calculate Vice Versa signals
+// Vice Versa creates a MIRROR strategy:
+// - When ENTRY signal fires → VV EXITS opposite position (if in one)
+// - When EXIT signal fires → VV ENTERS opposite position
+// This creates alternating long/short positions independent of TP/SL
+function calculateViceVersaSignals(entrySignals, exitSignals, vvConfig, signalMode) {
+  if (!vvConfig || !vvConfig.enabled) return { vvEntries: [], vvExits: [] };
+  
+  const delay = vvConfig.delay || 1;
+  const vvEntries = []; // VV enters opposite position on EXIT signals
+  const vvExits = [];   // VV exits opposite position on ENTRY signals
+  
+  console.log('[VV] Calculating Vice Versa signals, delay:', delay, 'mode:', signalMode);
+  
+  if (signalMode === 'all') {
+    // All signals mode: every exit creates a VV entry, every entry creates a VV exit
+    exitSignals.forEach(exitLine => {
+      const lineEntries = [];
+      exitLine.indices.forEach(exitIdx => {
+        const vvEntryIdx = exitIdx + delay;
+        if (vvEntryIdx < cachedSP500Data.dates.length) {
+          lineEntries.push(vvEntryIdx);
+        }
+      });
+      
+      if (lineEntries.length > 0) {
+        vvEntries.push({
+          indices: lineEntries,
+          lineNumber: exitLine.lineNumber
+        });
+      }
+    });
+    
+    entrySignals.forEach(entryLine => {
+      const lineExits = [];
+      entryLine.indices.forEach(entryIdx => {
+        const vvExitIdx = entryIdx + delay;
+        if (vvExitIdx < cachedSP500Data.dates.length) {
+          lineExits.push(vvExitIdx);
+        }
+      });
+      
+      if (lineExits.length > 0) {
+        vvExits.push({
+          indices: lineExits,
+          lineNumber: entryLine.lineNumber
+        });
+      }
+    });
+  } else {
+    // Positional mode: alternate VV positions based on entry/exit pairs
+    entrySignals.forEach(entryLine => {
+      const exitLine = exitSignals.find(el => el.lineNumber === entryLine.lineNumber);
+      
+      if (!exitLine) {
+        console.log('[VV] No exit signals for line', entryLine.lineNumber);
+        return;
+      }
+      
+      const lineVvEntries = [];
+      const lineVvExits = [];
+      
+      // For each exit signal, create a VV entry
+      exitLine.indices.forEach(exitIdx => {
+        const vvEntryIdx = exitIdx + delay;
+        if (vvEntryIdx < cachedSP500Data.dates.length) {
+          lineVvEntries.push(vvEntryIdx);
+        }
+      });
+      
+      // For each entry signal, create a VV exit
+      entryLine.indices.forEach(entryIdx => {
+        const vvExitIdx = entryIdx + delay;
+        if (vvExitIdx < cachedSP500Data.dates.length) {
+          lineVvExits.push(vvExitIdx);
+        }
+      });
+      
+      if (lineVvEntries.length > 0) {
+        vvEntries.push({
+          indices: lineVvEntries,
+          lineNumber: entryLine.lineNumber
+        });
+      }
+      
+      if (lineVvExits.length > 0) {
+        vvExits.push({
+          indices: lineVvExits,
+          lineNumber: entryLine.lineNumber
+        });
+      }
+    });
+  }
+  
+  console.log('[VV] Generated VV entries (opposite position on exit):', vvEntries);
+  console.log('[VV] Generated VV exits (close opposite on entry):', vvExits);
+  
+  return { vvEntries, vvExits };
+}
+
 // Mirror a condition for exit (flip the direction)
 function mirrorConditionForExit(entryCondition) {
   const mirrored = { ...entryCondition };
@@ -8877,11 +9486,9 @@ function refreshStrategyPreview() {
   console.log('[PREVIEW] Signal mode:', signalMode);
   
   const entryConditions = collectConditions('entry');
-  const mirrorEntry = document.getElementById('mirrorEntry').checked;
-  const exitConditions = mirrorEntry ? [] : collectConditions('exit');
+  const exitConditions = collectConditions('exit');
   
   console.log('[PREVIEW] Entry conditions:', entryConditions);
-  console.log('[PREVIEW] Mirror entry mode:', mirrorEntry);
   console.log('[PREVIEW] Exit conditions:', exitConditions);
   
   const chartsContainer = document.getElementById('previewCharts');
@@ -8892,21 +9499,56 @@ function refreshStrategyPreview() {
     return;
   }
   
-  // Prepare exit conditions (either mirrored or custom)
-  const effectiveExitConditions = mirrorEntry
-    ? entryConditions.map(c => mirrorConditionForExit(c)).filter(c => c !== null)
-    : exitConditions;
-  
-  // Create combined charts (one chart per entry condition, showing both entry and exit)
-  entryConditions.forEach((entryCondition, idx) => {
-    const exitCondition = effectiveExitConditions[idx];
-    createCombinedConditionChart(entryCondition, exitCondition, idx + 1, signalMode);
+  // Create combined charts (one chart per entry condition, showing all applicable exits)
+  entryConditions.forEach((entryCondition, entryIdx) => {
+    // Find all exit conditions that target this entry (or target 'all')
+    const applicableExits = exitConditions.filter((exitCond, exitIdx) => {
+      const targetEntries = exitCond.target_entries || 'all';
+      if (targetEntries === 'all') return true;
+      
+      // Check if this exit targets the current entry
+      const entryCards = document.querySelectorAll('#entryConditionsList .condition-card');
+      const targetedEntryCard = entryCards[entryIdx];
+      if (!targetedEntryCard) return false;
+      
+      // Handle array of targets
+      if (Array.isArray(targetEntries)) {
+        return targetEntries.includes(targetedEntryCard.dataset.conditionId);
+      }
+      
+      // Handle single target (backwards compatibility)
+      return targetEntries === targetedEntryCard.dataset.conditionId;
+    });
+    
+    createCombinedConditionChart(entryCondition, applicableExits, entryIdx + 1, signalMode);
+  });
+}
+
+// Add watermark to chart layout
+function addWatermark(layout) {
+  if (!layout.annotations) {
+    layout.annotations = [];
+  }
+  layout.annotations.push({
+    text: 'Alpharhythm',
+    xref: 'paper',
+    yref: 'paper',
+    x: 0.5,
+    y: 0.5,
+    xanchor: 'center',
+    yanchor: 'middle',
+    showarrow: false,
+    font: {
+      size: 40,
+      color: 'rgba(150, 150, 150, 0.1)',
+      family: 'Arial Black, sans-serif'
+    }
   });
 }
 
 // Create a combined chart showing both entry and exit signals
-function createCombinedConditionChart(entryCondition, exitCondition, number, signalMode = 'positional') {
-  console.log('[PREVIEW] Creating combined chart for condition #', number, 'signalMode:', signalMode);
+function createCombinedConditionChart(entryCondition, exitConditions, number, signalMode = 'positional', isEntryCondition = true) {
+  console.log('[PREVIEW] Creating combined chart for condition #', number, 'signalMode:', signalMode, 'isEntry:', isEntryCondition, 'exit count:', exitConditions.length);
   
   const chartsContainer = document.getElementById('previewCharts');
   const chartId = `preview_combined_${number}`;
@@ -8915,8 +9557,9 @@ function createCombinedConditionChart(entryCondition, exitCondition, number, sig
   const chartDiv = document.createElement('div');
   chartDiv.style.marginBottom = '20px';
   chartDiv.innerHTML = `
-    <h5 style="color: var(--accent-blue);">
-      Strategy Condition #${number}: ${entryCondition.type}
+    <h5 style="color: ${isEntryCondition ? 'var(--accent-blue)' : 'var(--accent-orange)'};">
+      ${isEntryCondition ? 'Entry' : 'Exit'} Condition #${number}: ${entryCondition.type}
+      ${exitConditions.length > 0 ? `<span style="color: var(--text-secondary); font-size: 0.9em;"> (${exitConditions.length} exit${exitConditions.length > 1 ? 's' : ''})</span>` : ''}
     </h5>
     <div id="${chartId}" style="width: 100%; height: 400px;"></div>
   `;
@@ -8924,11 +9567,11 @@ function createCombinedConditionChart(entryCondition, exitCondition, number, sig
   
   // Determine chart type based on condition
   if (entryCondition.type === 'rsi') {
-    createCombinedRSIChart(chartId, entryCondition, exitCondition, signalMode);
+    createCombinedRSIChart(chartId, entryCondition, exitConditions, signalMode, isEntryCondition);
   } else if (entryCondition.type === 'ma_crossover') {
-    createCombinedMACrossoverChart(chartId, entryCondition, exitCondition, signalMode);
+    createCombinedMACrossoverChart(chartId, entryCondition, exitConditions, signalMode, isEntryCondition);
   } else {
-    createCombinedPriceChart(chartId, entryCondition, exitCondition, signalMode);
+    createCombinedPriceChart(chartId, entryCondition, exitConditions, signalMode, isEntryCondition);
   }
 }
 
@@ -8967,13 +9610,160 @@ function createConditionChart(group, condition, number, signalMode = 'first') {
 }
 
 // Create combined price chart with entry and exit signals
-function createCombinedPriceChart(chartId, entryCondition, exitCondition, signalMode) {
-  // Calculate entry and exit signals
+function createCombinedPriceChart(chartId, entryCondition, exitConditions, signalMode, isEntryCondition = true) {
+  // Calculate entry signals
   const entrySignals = calculateConditionSignals(entryCondition, 'all'); // Get all signals first
-  const exitSignals = exitCondition ? calculateConditionSignals(exitCondition, 'all') : [];
+  
+  // Calculate and combine exit signals from all applicable exit conditions
+  let allExitSignals = [];
+  if (Array.isArray(exitConditions)) {
+    exitConditions.forEach(exitCond => {
+      const exitSigs = calculateConditionSignals(exitCond, 'all');
+      allExitSignals = allExitSignals.concat(exitSigs);
+    });
+  } else if (exitConditions) {
+    // Backwards compatibility - single exit condition
+    allExitSignals = calculateConditionSignals(exitConditions, 'all');
+  }
   
   // Match signals based on mode
-  const matched = matchEntryExitSignals(entrySignals, exitSignals, signalMode);
+  const matched = matchEntryExitSignals(entrySignals, allExitSignals, signalMode);
+  
+  // TP/SL/VV ONLY apply to ENTRY conditions, NOT exit conditions
+  let tpExits = [];
+  let slExits = [];
+  let vvEntries = [];
+  
+  if (isEntryCondition) {
+    // Get TP/SL/VV configs
+    const tpEnabled = document.getElementById('takeProfitEnabled')?.checked || false;
+    const slEnabled = document.getElementById('stopLossEnabled')?.checked || false;
+    const vvEnabled = document.getElementById('viceVersaEnabled')?.checked || false;
+    
+    const tpConfig = tpEnabled ? {
+      enabled: true,
+      type: document.getElementById('takeProfitType')?.value,
+      percent: parseFloat(document.getElementById('takeProfitPercentValue')?.value || 10),
+      dollar: parseFloat(document.getElementById('takeProfitDollarValue')?.value || 100)
+    } : null;
+    
+    const slConfig = slEnabled ? {
+      enabled: true,
+      type: document.getElementById('stopLossType')?.value,
+      percent: parseFloat(document.getElementById('stopLossPercentValue')?.value || 5),
+      dollar: parseFloat(document.getElementById('stopLossDollarValue')?.value || 100)
+    } : null;
+    
+    const vvConfig = vvEnabled ? {
+      enabled: true,
+      delay: parseInt(document.getElementById('viceVersaDelay')?.value || 1)
+    } : null;
+    
+    // Calculate TP/SL exits for main entries (gets ALL possible TP/SL exits)
+    const tpslResult = calculateTPSLExits(matched, cachedSP500Data.close, entryCondition.position_type, tpConfig, slConfig, 'all'); // Always use 'all' mode to get all possibilities
+    let rawTpExits = tpslResult.tpExits;
+    let rawSlExits = tpslResult.slExits;
+    
+    // UNIFIED MATCHING: In positional mode, find the FIRST exit of any type (conditional, TP, or SL) for each entry
+    if (signalMode === 'positional') {
+      const unified = matchAllExitsToEntries(matched.entries, matched.exits, rawTpExits, rawSlExits, signalMode);
+      // Replace with unified results
+      matched.exits = unified.matched.exits;
+      tpExits = unified.tpExits;
+      slExits = unified.slExits;
+    } else {
+      // In 'all' mode, show everything
+      tpExits = rawTpExits;
+      slExits = rawSlExits;
+    }
+    
+    // CRITICAL: Merge TP/SL exits into matched.exits so they get trade letter annotations
+    // This ensures TP and SL exits appear with matching letter labels (A, B, C, etc.)
+    tpExits.forEach(tpLine => {
+      const existingLine = matched.exits.find(l => l.lineNumber === tpLine.lineNumber);
+      if (existingLine) {
+        // Merge indices, keeping them sorted
+        existingLine.indices = [...new Set([...existingLine.indices, ...tpLine.indices])].sort((a, b) => a - b);
+      } else {
+        // Add as new line
+        matched.exits.push({...tpLine});
+      }
+    });
+    
+    slExits.forEach(slLine => {
+      const existingLine = matched.exits.find(l => l.lineNumber === slLine.lineNumber);
+      if (existingLine) {
+        // Merge indices, keeping them sorted
+        existingLine.indices = [...new Set([...existingLine.indices, ...slLine.indices])].sort((a, b) => a - b);
+      } else {
+        // Add as new line
+        matched.exits.push({...slLine});
+      }
+    });
+    
+    // For Vice Versa, combine manual exits with TP/SL exits
+    // VV should trigger on ANY exit (manual OR TP/SL)
+    const allExitSignals = [...matched.exits];
+    
+    // Add TP exits to the combined exit signals
+    tpExits.forEach(tpLine => {
+      const existingLine = allExitSignals.find(l => l.lineNumber === tpLine.lineNumber);
+      if (existingLine) {
+        existingLine.indices = [...new Set([...existingLine.indices, ...tpLine.indices])].sort((a, b) => a - b);
+      } else {
+        allExitSignals.push({...tpLine});
+      }
+    });
+    
+    // Add SL exits to the combined exit signals
+    slExits.forEach(slLine => {
+      const existingLine = allExitSignals.find(l => l.lineNumber === slLine.lineNumber);
+      if (existingLine) {
+        existingLine.indices = [...new Set([...existingLine.indices, ...slLine.indices])].sort((a, b) => a - b);
+      } else {
+        allExitSignals.push({...slLine});
+      }
+    });
+    
+    console.log('[VV] Combined exits for VV (manual + TP + SL):', allExitSignals);
+    
+    // Calculate Vice Versa signals using ALL exits (manual + TP + SL)
+    // VV enters opposite position on EXIT, exits opposite position on ENTRY
+    const vvResult = calculateViceVersaSignals(matched.entries, allExitSignals, vvConfig, signalMode);
+    vvEntries = vvResult.vvEntries;
+    const vvExits = vvResult.vvExits;
+    
+    // Calculate TP/SL for Vice Versa entries (they are opposite position type)
+    if (vvEntries.length > 0 && (tpConfig || slConfig)) {
+      const oppositePositionType = entryCondition.position_type === 'long' ? 'short' : 'long';
+      const vvMatchedSignals = { entries: vvEntries, exits: vvExits };
+      const vvTpSlResult = calculateTPSLExits(vvMatchedSignals, cachedSP500Data.close, oppositePositionType, tpConfig, slConfig, signalMode, vvExits);
+      
+      console.log('[VV] Calculated TP/SL for VV positions (opposite position:', oppositePositionType, ')');
+      console.log('[VV] VV TP exits:', vvTpSlResult.tpExits);
+      console.log('[VV] VV SL exits:', vvTpSlResult.slExits);
+      
+      // Store VV TP/SL separately (will be visualized with special markers)
+      var vvTpExits = vvTpSlResult.tpExits;
+      var vvSlExits = vvTpSlResult.slExits;
+    } else {
+      var vvTpExits = [];
+      var vvSlExits = [];
+    }
+  } else {
+    var vvExits = [];
+    var vvTpExits = [];
+    var vvSlExits = [];
+  }
+  
+  console.log('[PREVIEW PRICE] Matched entries:', matched.entries);
+  console.log('[PREVIEW PRICE] Matched exits:', matched.exits);
+  console.log('[PREVIEW PRICE] Main TP exits:', tpExits);
+  console.log('[PREVIEW PRICE] Main SL exits:', slExits);
+  console.log('[PREVIEW PRICE] VV entries:', vvEntries);
+  console.log('[PREVIEW PRICE] VV exits:', vvExits);
+  console.log('[PREVIEW PRICE] VV TP exits:', vvTpExits);
+  console.log('[PREVIEW PRICE] VV SL exits:', vvSlExits);
   
   // Create base price trace
   const priceTrace = {
@@ -8987,61 +9777,263 @@ function createCombinedPriceChart(chartId, entryCondition, exitCondition, signal
   
   const traces = [priceTrace];
   
-  // Add indicator traces
+  // Add indicator traces for entry condition
   const indicatorTraces = createIndicatorTraces(entryCondition);
   traces.push(...indicatorTraces);
   
-  // Create scatter traces for each line number (for legend toggling)
-  // Group entries and exits by line number
-  const entryLineNumbers = matched.entries ? [...new Set(matched.entries.map(l => l.lineNumber))].sort() : [];
-  const exitLineNumbers = matched.exits ? [...new Set(matched.exits.map(l => l.lineNumber))].sort() : [];
-  const allLineNumbers = [...new Set([...entryLineNumbers, ...exitLineNumbers])].sort();
+  // Add ALL exit condition overlays with opacity (regardless of type)
+  console.log('[PREVIEW PRICE] Adding exit condition overlays, exitConditions:', exitConditions);
+  if (exitConditions && Array.isArray(exitConditions)) {
+    exitConditions.forEach(exitCond => {
+      console.log('[PREVIEW PRICE] Processing exit condition:', exitCond.type, exitCond);
+      // Add price/MA indicators for price-based exit conditions
+      if (exitCond.type === 'price') {
+        const exitIndicatorTraces = createIndicatorTraces(exitCond);
+        // Modify traces to have opacity and "(Exit)" in the name
+        exitIndicatorTraces.forEach(trace => {
+          trace.name = `${trace.name} (Exit)`;
+          trace.opacity = 0.4;
+          if (trace.line) {
+            const originalColor = trace.line.color;
+            // Add opacity to the color if it doesn't have it
+            if (originalColor && !originalColor.includes('rgba')) {
+              trace.line.color = originalColor.replace('rgb', 'rgba').replace(')', ', 0.4)');
+            } else if (originalColor && originalColor.includes('rgba')) {
+              // Replace the alpha value
+              trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.4)');
+            }
+          }
+        });
+        traces.push(...exitIndicatorTraces);
+      }
+      // Add MA crossover lines for MA exit conditions
+      else if (exitCond.type === 'ma_crossover') {
+        const maTraces = createMACrossoverTraces(exitCond);
+        maTraces.forEach(trace => {
+          trace.name = `${trace.name} (Exit)`;
+          trace.opacity = 0.4;
+          if (trace.line && trace.line.color) {
+            trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.4)');
+          }
+        });
+        traces.push(...maTraces);
+      }
+      // Add RSI exit conditions on secondary y-axis
+      else if (exitCond.type === 'rsi') {
+        const exitPeriodString = exitCond.rsi_period || '14';
+        const exitPeriods = exitPeriodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+        
+        const rsiColors = [
+          'rgba(255, 0, 255, 0.9)',
+          'rgba(200, 0, 255, 0.9)',
+          'rgba(255, 50, 200, 0.9)'
+        ];
+        
+        exitPeriods.forEach((exitRsiPeriod, idx) => {
+          const exitRsiValues = calculateRSI(cachedSP500Data.close, exitRsiPeriod);
+          traces.push({
+            x: cachedSP500Data.dates,
+            y: exitRsiValues,
+            type: 'scatter',
+            mode: 'lines',
+            name: `RSI(${exitRsiPeriod}) (Exit)`,
+            line: { color: rsiColors[idx % rsiColors.length].replace(/,\s*[\d.]+\)/, ', 0.3)'), width: 2, dash: 'dot' },
+            opacity: 0.3,
+            yaxis: 'y2'
+          });
+        });
+        
+        const exitTargetTraces = createRSITargetTraces(exitCond);
+        exitTargetTraces.forEach(trace => {
+          trace.name = `${trace.name} (Exit)`;
+          trace.opacity = 0.3;
+          trace.yaxis = 'y2';
+          trace.line = { ...trace.line, dash: 'dot' };
+          if (trace.line && trace.line.color) {
+            trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.3)');
+          }
+        });
+        traces.push(...exitTargetTraces);
+      }
+    });
+  }
   
-  // Add a scatter trace for each line number's entries
-  allLineNumbers.forEach(lineNum => {
-    const entryLine = matched.entries?.find(l => l.lineNumber === lineNum);
-    if (entryLine) {
-      const x = entryLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = entryLine.indices.map(idx => cachedSP500Data.close[idx]);
-      
-      traces.push({
-        x: x,
-        y: y,
-        type: 'scatter',
-        mode: 'markers+text',
-        name: `Entry ${lineNum}`,
-        text: x.map(() => '▲'),
-        textposition: 'top center',
-        textfont: { size: 16, color: '#00ff00', family: 'Arial Black' },
-        marker: { size: 10, color: '#00ff00', symbol: 'triangle-up' },
-        legendgroup: `line${lineNum}`,
-        showlegend: true
+  // Create scatter traces for individual trades with letter labels
+  // Track all entries and their corresponding exits
+  const isShort = entryCondition.position_type === 'short';
+  const entryColor = isShort ? '#8B0000' : '#00ff00';
+  const exitColor = isShort ? '#006400' : '#ff0000';
+  const entrySymbol = isShort ? 'triangle-down' : 'triangle-up';
+  const exitSymbol = isShort ? 'triangle-up' : 'triangle-down';
+  
+  // Collect all entries and assign trade letters PER STRATEGY
+  const tradeEntries = [];
+  const tradeExits = [];
+  
+  if (matched.entries) {
+    matched.entries.forEach(entryLine => {
+      let tradeNumForThisLine = 0; // Reset counter for each strategy line
+      entryLine.indices.forEach(entryIdx => {
+        const tradeLetter = getTradeLabel(tradeNumForThisLine);
+        tradeEntries.push({
+          idx: entryIdx,
+          letter: tradeLetter,
+          lineNum: entryLine.lineNumber
+        });
+        tradeNumForThisLine++;
       });
-    }
+    });
+  }
+  
+  // Match exits to entries - also count per strategy line
+  if (matched.exits) {
+    matched.exits.forEach(exitLine => {
+      let exitTradeNumForThisLine = 0; // Reset counter for each strategy line
+      exitLine.indices.forEach(exitIdx => {
+        const tradeLetter = getTradeLabel(exitTradeNumForThisLine);
+        tradeExits.push({
+          idx: exitIdx,
+          letter: tradeLetter,
+          lineNum: exitLine.lineNumber
+        });
+        exitTradeNumForThisLine++;
+      });
+    });
+  }
+  
+  // Add entry traces - one trace per trade
+  tradeEntries.forEach((trade, idx) => {
+    traces.push({
+      x: [cachedSP500Data.dates[trade.idx]],
+      y: [cachedSP500Data.close[trade.idx]],
+      type: 'scatter',
+      mode: 'markers+text',
+      name: `Strategy${trade.lineNum} Trade${trade.letter}`,
+      text: [trade.letter],
+      textposition: isShort ? 'bottom center' : 'top center',
+      textfont: { size: 14, color: entryColor, family: 'Arial Black' },
+      marker: { size: 12, color: entryColor, symbol: entrySymbol },
+      legendgroup: `strategy${trade.lineNum}`,
+      showlegend: idx === 0 || tradeEntries[idx-1].lineNum !== trade.lineNum
+    });
   });
   
-  // Add a scatter trace for each line number's exits
-  allLineNumbers.forEach(lineNum => {
-    const exitLine = matched.exits?.find(l => l.lineNumber === lineNum);
-    if (exitLine) {
-      const x = exitLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = exitLine.indices.map(idx => cachedSP500Data.close[idx]);
+  // Add exit traces - one trace per trade
+  tradeExits.forEach((trade, idx) => {
+    traces.push({
+      x: [cachedSP500Data.dates[trade.idx]],
+      y: [cachedSP500Data.close[trade.idx]],
+      type: 'scatter',
+      mode: 'markers+text',
+      name: `Strategy${trade.lineNum} Exit${trade.letter}`,
+      text: [trade.letter],
+      textposition: isShort ? 'top center' : 'bottom center',
+      textfont: { size: 14, color: exitColor, family: 'Arial Black' },
+      marker: { size: 12, color: exitColor, symbol: exitSymbol },
+      legendgroup: `strategy${trade.lineNum}`,
+      showlegend: false
+    });
+  });
+  
+  // NOTE: TP and SL exits are now merged into matched.exits above and will appear with trade letters
+  // No need for separate TP/SL marker traces anymore
+  
+  // Add Vice Versa entry traces (opposite position enters on EXIT signal)
+  if (vvEntries && vvEntries.length > 0) {
+    vvEntries.forEach(vvLine => {
+      const x = vvLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = vvLine.indices.map(idx => cachedSP500Data.close[idx]);
+      
+      // Vice versa is opposite position
+      const isShort = entryCondition.position_type === 'short';
+      const vvColor = isShort ? '#00ff00' : '#8B0000';
+      const vvSymbol = isShort ? 'triangle-up' : 'triangle-down';
+      const vvText = isShort ? '▲' : '▼';
+      const vvTextPosition = isShort ? 'top center' : 'bottom center';
       
       traces.push({
-        x: x,
-        y: y,
+        x, y,
         type: 'scatter',
         mode: 'markers+text',
-        name: `Exit ${lineNum}`,
-        text: x.map(() => '▼'),
-        textposition: 'bottom center',
-        textfont: { size: 16, color: '#ff0000', family: 'Arial Black' },
-        marker: { size: 10, color: '#ff0000', symbol: 'triangle-down' },
-        legendgroup: `line${lineNum}`,
+        name: `VV Entry ${vvLine.lineNumber}`,
+        text: x.map(() => vvText),
+        textposition: vvTextPosition,
+        textfont: { size: 14, color: vvColor, family: 'Arial Black' },
+        marker: { size: 9, color: vvColor, symbol: vvSymbol, line: { width: 2, color: '#FFFFFF' } },
+        legendgroup: `vvline${vvLine.lineNumber}`,
         showlegend: true
       });
-    }
-  });
+    });
+  }
+  
+  // Add Vice Versa exit traces (opposite position exits on ENTRY signal)
+  if (typeof vvExits !== 'undefined' && vvExits && vvExits.length > 0) {
+    vvExits.forEach(vvLine => {
+      const x = vvLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = vvLine.indices.map(idx => cachedSP500Data.close[idx]);
+      
+      const isShort = entryCondition.position_type === 'short';
+      const vvExitColor = isShort ? '#8B0000' : '#00ff00';
+      const vvExitSymbol = isShort ? 'triangle-down' : 'triangle-up';
+      const vvExitText = isShort ? '▼' : '▲';
+      const vvExitTextPosition = isShort ? 'bottom center' : 'top center';
+      
+      traces.push({
+        x, y,
+        type: 'scatter',
+        mode: 'markers+text',
+        name: `VV Exit ${vvLine.lineNumber}`,
+        text: x.map(() => vvExitText),
+        textposition: vvExitTextPosition,
+        textfont: { size: 14, color: vvExitColor, family: 'Arial Black' },
+        marker: { size: 9, color: vvExitColor, symbol: vvExitSymbol, line: { width: 2, color: '#FFFFFF' } },
+        legendgroup: `vvline${vvLine.lineNumber}`,
+        showlegend: true
+      });
+    });
+  }
+  
+  // Add VV Take Profit traces
+  if (typeof vvTpExits !== 'undefined' && vvTpExits && vvTpExits.length > 0) {
+    vvTpExits.forEach(tpLine => {
+      const x = tpLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = tpLine.indices.map(idx => cachedSP500Data.close[idx]);
+      
+      traces.push({
+        x, y,
+        type: 'scatter',
+        mode: 'markers+text',
+        name: `VV TP ${tpLine.lineNumber}`,
+        text: x.map(() => '◇'),
+        textposition: 'middle center',
+        textfont: { size: 14, color: '#00FFFF', family: 'Arial Black' },
+        marker: { size: 12, color: '#00FFFF', symbol: 'diamond-open' },
+        legendgroup: `vvline${tpLine.lineNumber}`,
+        showlegend: true
+      });
+    });
+  }
+  
+  // Add VV Stop Loss traces
+  if (typeof vvSlExits !== 'undefined' && vvSlExits && vvSlExits.length > 0) {
+    vvSlExits.forEach(slLine => {
+      const x = slLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = slLine.indices.map(idx => cachedSP500Data.close[idx]);
+      
+      traces.push({
+        x, y,
+        type: 'scatter',
+        mode: 'markers+text',
+        name: `VV SL ${slLine.lineNumber}`,
+        text: x.map(() => '✖'),
+        textposition: 'middle center',
+        textfont: { size: 14, color: '#FF1744', family: 'Arial Black' },
+        marker: { size: 12, color: '#FF1744', symbol: 'x-open' },
+        legendgroup: `vvline${slLine.lineNumber}`,
+        showlegend: true
+      });
+    });
+  }
   
   const layout = {
     title: '',
@@ -9057,31 +10049,162 @@ function createCombinedPriceChart(chartId, entryCondition, exitCondition, signal
       gridwidth: 1,
       griddash: 'dash'
     },
+    yaxis2: {
+      title: 'RSI',
+      overlaying: 'y',
+      side: 'right',
+      range: [0, 100],
+      gridcolor: 'rgba(128, 128, 128, 0.05)',
+      showgrid: false
+    },
     showlegend: true,
-    legend: { x: 0, y: 1 },
+    legend: { 
+      x: 0, 
+      y: 1,
+      xanchor: 'left',
+      yanchor: 'top',
+      tracegroupgap: 15
+    },
     margin: { l: 50, r: 50, t: 30, b: 50 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
     hovermode: 'closest'
   };
   
+  addWatermark(layout);
+  
   const config = { 
     responsive: true, 
     displayModeBar: true,
-    scrollZoom: true
+    scrollZoom: false  // Disable scroll zoom on preview charts
   };
   
   Plotly.newPlot(chartId, traces, layout, config);
 }
 
 // Create combined RSI chart with entry and exit signals
-function createCombinedRSIChart(chartId, entryCondition, exitCondition, signalMode) {
-  // Calculate entry and exit signals
+function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalMode, isEntryCondition = true) {
+  // Calculate entry signals
   const entrySignals = calculateConditionSignals(entryCondition, 'all');
-  const exitSignals = exitCondition ? calculateConditionSignals(exitCondition, 'all') : [];
+  
+  // Calculate and combine exit signals from all applicable exit conditions
+  let allExitSignals = [];
+  if (Array.isArray(exitConditions)) {
+    exitConditions.forEach(exitCond => {
+      const exitSigs = calculateConditionSignals(exitCond, 'all');
+      allExitSignals = allExitSignals.concat(exitSigs);
+    });
+  } else if (exitConditions) {
+    // Backwards compatibility - single exit condition
+    allExitSignals = calculateConditionSignals(exitConditions, 'all');
+  }
   
   // Match signals based on mode
-  const matched = matchEntryExitSignals(entrySignals, exitSignals, signalMode);
+  const matched = matchEntryExitSignals(entrySignals, allExitSignals, signalMode);
+  
+  // TP/SL/VV ONLY apply to ENTRY conditions, NOT exit conditions
+  let tpExits = [];
+  let slExits = [];
+  let vvEntries = [];
+  
+  if (isEntryCondition) {
+    // Collect TP/SL/VV configurations
+    const tpEnabled = document.getElementById('takeProfitEnabled')?.checked || false;
+    const tpConfig = tpEnabled ? {
+      enabled: true,
+      type: document.getElementById('takeProfitType')?.value || 'percent',
+      percent: parseFloat(document.getElementById('takeProfitPercentValue')?.value || 10),
+      dollar: parseFloat(document.getElementById('takeProfitDollarValue')?.value || 100)
+    } : null;
+    
+    const slEnabled = document.getElementById('stopLossEnabled')?.checked || false;
+    const slConfig = slEnabled ? {
+      enabled: true,
+      type: document.getElementById('stopLossType')?.value || 'percent',
+      percent: parseFloat(document.getElementById('stopLossPercentValue')?.value || 5),
+      dollar: parseFloat(document.getElementById('stopLossDollarValue')?.value || 100)
+    } : null;
+    
+    const vvEnabled = document.getElementById('viceVersaEnabled')?.checked || false;
+    const vvConfig = vvEnabled ? {
+      enabled: true,
+      delay: parseInt(document.getElementById('viceVersaDelay')?.value || 1)
+    } : null;
+    
+    // Calculate TP/SL exits (get ALL possibilities first)
+    const tpslResult = calculateTPSLExits(matched, cachedSP500Data.close, entryCondition.position_type, tpConfig, slConfig, 'all');
+    let rawTpExits = tpslResult.tpExits;
+    let rawSlExits = tpslResult.slExits;
+    
+    // UNIFIED MATCHING: In positional mode, find FIRST exit of any type for each entry
+    if (signalMode === 'positional') {
+      const unified = matchAllExitsToEntries(matched.entries, matched.exits, rawTpExits, rawSlExits, signalMode);
+      matched.exits = unified.matched.exits;
+      tpExits = unified.tpExits;
+      slExits = unified.slExits;
+    } else {
+      tpExits = rawTpExits;
+      slExits = rawSlExits;
+    }
+    
+    // CRITICAL: Merge TP/SL exits into matched.exits so they get trade letter annotations (RSI chart)
+    tpExits.forEach(tpLine => {
+      const existingLine = matched.exits.find(l => l.lineNumber === tpLine.lineNumber);
+      if (existingLine) {
+        existingLine.indices = [...new Set([...existingLine.indices, ...tpLine.indices])].sort((a, b) => a - b);
+      } else {
+        matched.exits.push({...tpLine});
+      }
+    });
+    slExits.forEach(slLine => {
+      const existingLine = matched.exits.find(l => l.lineNumber === slLine.lineNumber);
+      if (existingLine) {
+        existingLine.indices = [...new Set([...existingLine.indices, ...slLine.indices])].sort((a, b) => a - b);
+      } else {
+        matched.exits.push({...slLine});
+      }
+    });
+    
+    // For Vice Versa, combine manual exits with TP/SL exits
+    const allExitSignals = [...matched.exits];
+    tpExits.forEach(tpLine => {
+      const existingLine = allExitSignals.find(l => l.lineNumber === tpLine.lineNumber);
+      if (existingLine) {
+        existingLine.indices = [...new Set([...existingLine.indices, ...tpLine.indices])].sort((a, b) => a - b);
+      } else {
+        allExitSignals.push({...tpLine});
+      }
+    });
+    slExits.forEach(slLine => {
+      const existingLine = allExitSignals.find(l => l.lineNumber === slLine.lineNumber);
+      if (existingLine) {
+        existingLine.indices = [...new Set([...existingLine.indices, ...slLine.indices])].sort((a, b) => a - b);
+      } else {
+        allExitSignals.push({...slLine});
+      }
+    });
+    
+    // Calculate Vice Versa signals using ALL exits (manual + TP + SL)
+    const vvResult = calculateViceVersaSignals(matched.entries, allExitSignals, vvConfig, signalMode);
+    vvEntries = vvResult.vvEntries;
+    var vvExits = vvResult.vvExits;
+    
+    // Calculate TP/SL for VV positions
+    if (vvEntries.length > 0 && (tpConfig || slConfig)) {
+      const oppositePositionType = entryCondition.position_type === 'long' ? 'short' : 'long';
+      const vvMatchedSignals = { entries: vvEntries, exits: vvExits };
+      const vvTpSlResult = calculateTPSLExits(vvMatchedSignals, cachedSP500Data.close, oppositePositionType, tpConfig, slConfig, signalMode, vvExits);
+      var vvTpExits = vvTpSlResult.tpExits;
+      var vvSlExits = vvTpSlResult.slExits;
+    } else {
+      var vvTpExits = [];
+      var vvSlExits = [];
+    }
+  } else {
+    var vvExits = [];
+    var vvTpExits = [];
+    var vvSlExits = [];
+  }
   
   // Create RSI traces
   const periodString = entryCondition.rsi_period || '14';
@@ -9110,60 +10233,189 @@ function createCombinedRSIChart(chartId, entryCondition, exitCondition, signalMo
     });
   });
   
-  // Add target traces
+  // Add target traces for entry condition
   const targetTraces = createRSITargetTraces(entryCondition);
   traces.push(...targetTraces);
   
-  // Create scatter traces for each line number (for legend toggling)
-  const entryLineNumbers = matched.entries ? [...new Set(matched.entries.map(l => l.lineNumber))].sort() : [];
-  const exitLineNumbers = matched.exits ? [...new Set(matched.exits.map(l => l.lineNumber))].sort() : [];
-  const allLineNumbers = [...new Set([...entryLineNumbers, ...exitLineNumbers])].sort();
+  // Add ALL exit condition overlays with opacity (regardless of type)
+  console.log('[PREVIEW RSI] Adding exit condition overlays, exitConditions:', exitConditions);
+  if (exitConditions && Array.isArray(exitConditions)) {
+    exitConditions.forEach(exitCond => {
+      console.log('[PREVIEW RSI] Processing exit condition:', exitCond.type, exitCond);
+      // Add RSI traces for RSI exit conditions
+      if (exitCond.type === 'rsi') {
+        const exitPeriodString = exitCond.rsi_period || '14';
+        const exitPeriods = exitPeriodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+        
+        exitPeriods.forEach((exitRsiPeriod, idx) => {
+          const exitRsiValues = calculateRSI(cachedSP500Data.close, exitRsiPeriod);
+          traces.push({
+            x: cachedSP500Data.dates,
+            y: exitRsiValues,
+            type: 'scatter',
+            mode: 'lines',
+            name: `RSI(${exitRsiPeriod}) (Exit)`,
+            line: { color: rsiColors[idx % rsiColors.length].replace(/,\s*[\d.]+\)/, ', 0.4)'), width: 2 },
+            opacity: 0.4,
+            legendgroup: 'exits',
+            legendgrouptitle: { text: 'Exit Conditions' }
+          });
+        });
+        
+        const exitTargetTraces = createRSITargetTraces(exitCond);
+        exitTargetTraces.forEach(trace => {
+          trace.name = `${trace.name} (Exit)`;
+          trace.opacity = 0.4;
+          trace.legendgroup = 'exits';
+          trace.legendgrouptitle = { text: 'Exit Conditions' };
+          if (trace.line && trace.line.color) {
+            trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.4)');
+          }
+        });
+        traces.push(...exitTargetTraces);
+      }
+      // Add price indicators for price-based exit conditions - show on secondary y-axis
+      else if (exitCond.type === 'price') {
+        const priceIndicatorTraces = createIndicatorTraces(exitCond);
+        priceIndicatorTraces.forEach(trace => {
+          trace.name = `${trace.name} (Exit - Price Scale)`;
+          trace.opacity = 0.3;
+          trace.yaxis = 'y2'; // Use secondary y-axis for price scale
+          trace.legendgroup = 'exits';
+          trace.legendgrouptitle = { text: 'Exit Conditions' };
+          trace.line = { ...trace.line, dash: 'dot' }; // Make it dotted to distinguish
+          if (trace.line && trace.line.color) {
+            trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.3)');
+          }
+        });
+        traces.push(...priceIndicatorTraces);
+      }
+      // Add MA crossover lines for MA exit conditions on secondary y-axis
+      else if (exitCond.type === 'ma_crossover') {
+        const maTraces = createMACrossoverTraces(exitCond);
+        maTraces.forEach(trace => {
+          trace.name = `${trace.name} (Exit - Price Scale)`;
+          trace.opacity = 0.3;
+          trace.yaxis = 'y2'; // Use secondary y-axis for price scale
+          trace.legendgroup = 'exits';
+          trace.legendgrouptitle = { text: 'Exit Conditions' };
+          trace.line = { ...trace.line, dash: 'dot' }; // Make it dotted
+          if (trace.line && trace.line.color) {
+            trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.3)');
+          }
+        });
+        traces.push(...maTraces);
+      }
+    });
+  }
   
-  // Add entry traces
-  allLineNumbers.forEach(lineNum => {
-    const entryLine = matched.entries?.find(l => l.lineNumber === lineNum);
-    if (entryLine) {
-      const x = entryLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = entryLine.indices.map(idx => firstRsiValues[idx]);
+  // Create scatter traces for individual trades with letter labels
+  const isShort = entryCondition.position_type === 'short';
+  const entryColor = isShort ? '#8B0000' : '#00ff00';
+  const exitColor = isShort ? '#006400' : '#ff0000';
+  const entrySymbol = isShort ? 'triangle-down' : 'triangle-up';
+  const exitSymbol = isShort ? 'triangle-up' : 'triangle-down';
+  
+  // Collect all entries and assign trade letters PER STRATEGY
+  const tradeEntries = [];
+  const tradeExits = [];
+  
+  if (matched.entries) {
+    matched.entries.forEach(entryLine => {
+      let tradeNumForThisLine = 0; // Reset counter for each strategy line
+      entryLine.indices.forEach(entryIdx => {
+        const tradeLetter = getTradeLabel(tradeNumForThisLine);
+        tradeEntries.push({
+          idx: entryIdx,
+          letter: tradeLetter,
+          lineNum: entryLine.lineNumber
+        });
+        tradeNumForThisLine++;
+      });
+    });
+  }
+  
+  // Match exits to entries - also count per strategy line
+  if (matched.exits) {
+    matched.exits.forEach(exitLine => {
+      let exitTradeNumForThisLine = 0; // Reset counter for each strategy line
+      exitLine.indices.forEach(exitIdx => {
+        const tradeLetter = getTradeLabel(exitTradeNumForThisLine);
+        tradeExits.push({
+          idx: exitIdx,
+          letter: tradeLetter,
+          lineNum: exitLine.lineNumber
+        });
+        exitTradeNumForThisLine++;
+      });
+    });
+  }
+  
+  // Add entry traces on RSI
+  tradeEntries.forEach((trade, idx) => {
+    traces.push({
+      x: [cachedSP500Data.dates[trade.idx]],
+      y: [firstRsiValues[trade.idx]],
+      type: 'scatter',
+      mode: 'markers+text',
+      name: `Strategy${trade.lineNum} Trade${trade.letter}`,
+      text: [trade.letter],
+      textposition: isShort ? 'bottom center' : 'top center',
+      textfont: { size: 14, color: entryColor, family: 'Arial Black' },
+      marker: { size: 12, color: entryColor, symbol: entrySymbol },
+      legendgroup: `strategy${trade.lineNum}`,
+      showlegend: idx === 0 || tradeEntries[idx-1].lineNum !== trade.lineNum
+    });
+  });
+  
+  // Add exit traces on RSI
+  tradeExits.forEach((trade, idx) => {
+    traces.push({
+      x: [cachedSP500Data.dates[trade.idx]],
+      y: [firstRsiValues[trade.idx]],
+      type: 'scatter',
+      mode: 'markers+text',
+      name: `Strategy${trade.lineNum} Exit${trade.letter}`,
+      text: [trade.letter],
+      textposition: isShort ? 'top center' : 'bottom center',
+      textfont: { size: 14, color: exitColor, family: 'Arial Black' },
+      marker: { size: 12, color: exitColor, symbol: exitSymbol },
+      legendgroup: `strategy${trade.lineNum}`,
+      showlegend: false
+    });
+  });
+  
+  // NOTE: TP and SL exits are now merged into matched.exits above and will appear with trade letters (RSI chart)
+  // No need for separate TP/SL marker traces anymore
+  
+  // Add Vice Versa entry traces
+  if (vvEntries && vvEntries.length > 0) {
+    vvEntries.forEach(vvLine => {
+      const x = vvLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = vvLine.indices.map(idx => firstRsiValues[idx]);
+      
+      // Vice versa is opposite position, so flip colors
+      const isShort = entryCondition.position_type === 'short';
+      const vvColor = isShort ? '#00ff00' : '#8B0000'; // Opposite of entry
+      const vvSymbol = isShort ? 'triangle-up' : 'triangle-down';
+      const vvText = isShort ? '▲' : '▼';
+      const vvTextPosition = isShort ? 'top center' : 'bottom center';
       
       traces.push({
         x: x,
         y: y,
         type: 'scatter',
         mode: 'markers+text',
-        name: `Entry ${lineNum}`,
-        text: x.map(() => '▲'),
-        textposition: 'top center',
-        textfont: { size: 16, color: '#00ff00', family: 'Arial Black' },
-        marker: { size: 10, color: '#00ff00', symbol: 'triangle-up' },
-        legendgroup: `line${lineNum}`,
+        name: `VV Entry ${vvLine.lineNumber}`,
+        text: x.map(() => vvText),
+        textposition: vvTextPosition,
+        textfont: { size: 14, color: vvColor, family: 'Arial Black' },
+        marker: { size: 9, color: vvColor, symbol: vvSymbol, line: { width: 2, color: '#FFFFFF' } },
+        legendgroup: `line${vvLine.lineNumber}`,
         showlegend: true
       });
-    }
-  });
-  
-  // Add exit traces
-  allLineNumbers.forEach(lineNum => {
-    const exitLine = matched.exits?.find(l => l.lineNumber === lineNum);
-    if (exitLine) {
-      const x = exitLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = exitLine.indices.map(idx => firstRsiValues[idx]);
-      
-      traces.push({
-        x: x,
-        y: y,
-        type: 'scatter',
-        mode: 'markers+text',
-        name: `Exit ${lineNum}`,
-        text: x.map(() => '▼'),
-        textposition: 'bottom center',
-        textfont: { size: 16, color: '#ff0000', family: 'Arial Black' },
-        marker: { size: 10, color: '#ff0000', symbol: 'triangle-down' },
-        legendgroup: `line${lineNum}`,
-        showlegend: true
-      });
-    }
-  });
+    });
+  }
   
   const layout = {
     title: '',
@@ -9177,33 +10429,166 @@ function createCombinedRSIChart(chartId, entryCondition, exitCondition, signalMo
       title: 'RSI',
       gridcolor: 'rgba(128, 128, 128, 0.15)',
       gridwidth: 1,
-      griddash: 'dash'
+      griddash: 'dash',
+      side: 'left'
+    },
+    yaxis2: {
+      title: 'Price',
+      overlaying: 'y',
+      side: 'right',
+      gridcolor: 'rgba(128, 128, 128, 0.05)',
+      gridwidth: 1,
+      griddash: 'dot',
+      showgrid: false
     },
     showlegend: true,
-    legend: { x: 0, y: 1 },
+    legend: { 
+      x: 0, 
+      y: 1,
+      xanchor: 'left',
+      yanchor: 'top',
+      tracegroupgap: 15
+    },
     margin: { l: 50, r: 50, t: 30, b: 50 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
     hovermode: 'closest'
   };
   
+  addWatermark(layout);
+  
   const config = { 
     responsive: true, 
     displayModeBar: true,
-    scrollZoom: true
+    scrollZoom: false  // Disable scroll zoom on preview charts
   };
   
   Plotly.newPlot(chartId, traces, layout, config);
 }
 
 // Create combined MA crossover chart with entry and exit signals
-function createCombinedMACrossoverChart(chartId, entryCondition, exitCondition, signalMode) {
-  // Calculate entry and exit signals
+function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions, signalMode, isEntryCondition = true) {
+  // Calculate entry signals
   const entrySignals = calculateConditionSignals(entryCondition, 'all');
-  const exitSignals = exitCondition ? calculateConditionSignals(exitCondition, 'all') : [];
+  
+  // Calculate and combine exit signals from all applicable exit conditions
+  let allExitSignals = [];
+  if (Array.isArray(exitConditions)) {
+    exitConditions.forEach(exitCond => {
+      const exitSigs = calculateConditionSignals(exitCond, 'all');
+      allExitSignals = allExitSignals.concat(exitSigs);
+    });
+  } else if (exitConditions) {
+    // Backwards compatibility - single exit condition
+    allExitSignals = calculateConditionSignals(exitConditions, 'all');
+  }
   
   // Match signals based on mode
-  const matched = matchEntryExitSignals(entrySignals, exitSignals, signalMode);
+  const matched = matchEntryExitSignals(entrySignals, allExitSignals, signalMode);
+  
+  // TP/SL/VV ONLY apply to ENTRY conditions, NOT exit conditions
+  let tpExits = [];
+  let slExits = [];
+  let vvEntries = [];
+  
+  if (isEntryCondition) {
+    // Collect TP/SL/VV configurations
+    const tpEnabled = document.getElementById('takeProfitEnabled')?.checked || false;
+    const tpConfig = tpEnabled ? {
+      enabled: true,
+      type: document.getElementById('takeProfitType')?.value || 'percent',
+      percent: parseFloat(document.getElementById('takeProfitPercentValue')?.value || 10),
+      dollar: parseFloat(document.getElementById('takeProfitDollarValue')?.value || 100)
+    } : null;
+    
+    const slEnabled = document.getElementById('stopLossEnabled')?.checked || false;
+    const slConfig = slEnabled ? {
+      enabled: true,
+      type: document.getElementById('stopLossType')?.value || 'percent',
+      percent: parseFloat(document.getElementById('stopLossPercentValue')?.value || 5),
+      dollar: parseFloat(document.getElementById('stopLossDollarValue')?.value || 100)
+    } : null;
+    
+    const vvEnabled = document.getElementById('viceVersaEnabled')?.checked || false;
+    const vvConfig = vvEnabled ? {
+      enabled: true,
+      delay: parseInt(document.getElementById('viceVersaDelay')?.value || 1)
+    } : null;
+    
+    // Calculate TP/SL exits (get ALL possibilities first)
+    const tpslResult = calculateTPSLExits(matched, cachedSP500Data.close, entryCondition.position_type, tpConfig, slConfig, 'all');
+    let rawTpExits = tpslResult.tpExits;
+    let rawSlExits = tpslResult.slExits;
+    
+    // UNIFIED MATCHING: In positional mode, find FIRST exit of any type for each entry
+    if (signalMode === 'positional') {
+      const unified = matchAllExitsToEntries(matched.entries, matched.exits, rawTpExits, rawSlExits, signalMode);
+      matched.exits = unified.matched.exits;
+      tpExits = unified.tpExits;
+      slExits = unified.slExits;
+    } else {
+      tpExits = rawTpExits;
+      slExits = rawSlExits;
+    }
+    
+    // CRITICAL: Merge TP/SL exits into matched.exits so they get trade letter annotations (MA chart)
+    tpExits.forEach(tpLine => {
+      const existingLine = matched.exits.find(l => l.lineNumber === tpLine.lineNumber);
+      if (existingLine) {
+        existingLine.indices = [...new Set([...existingLine.indices, ...tpLine.indices])].sort((a, b) => a - b);
+      } else {
+        matched.exits.push({...tpLine});
+      }
+    });
+    slExits.forEach(slLine => {
+      const existingLine = matched.exits.find(l => l.lineNumber === slLine.lineNumber);
+      if (existingLine) {
+        existingLine.indices = [...new Set([...existingLine.indices, ...slLine.indices])].sort((a, b) => a - b);
+      } else {
+        matched.exits.push({...slLine});
+      }
+    });
+    
+    // For Vice Versa, combine manual exits with TP/SL exits
+    const allExitSignals = [...matched.exits];
+    tpExits.forEach(tpLine => {
+      const existingLine = allExitSignals.find(l => l.lineNumber === tpLine.lineNumber);
+      if (existingLine) {
+        existingLine.indices = [...new Set([...existingLine.indices, ...tpLine.indices])].sort((a, b) => a - b);
+      } else {
+        allExitSignals.push({...tpLine});
+      }
+    });
+    slExits.forEach(slLine => {
+      const existingLine = allExitSignals.find(l => l.lineNumber === slLine.lineNumber);
+      if (existingLine) {
+        existingLine.indices = [...new Set([...existingLine.indices, ...slLine.indices])].sort((a, b) => a - b);
+      } else {
+        allExitSignals.push({...slLine});
+      }
+    });
+    
+    // Calculate Vice Versa signals using ALL exits (manual + TP + SL)
+    const vvResult = calculateViceVersaSignals(matched.entries, allExitSignals, vvConfig, signalMode);
+    vvEntries = vvResult.vvEntries;
+    var vvExits = vvResult.vvExits;
+    
+    // Calculate TP/SL for VV positions
+    if (vvEntries.length > 0 && (tpConfig || slConfig)) {
+      const oppositePositionType = entryCondition.position_type === 'long' ? 'short' : 'long';
+      const vvMatchedSignals = { entries: vvEntries, exits: vvExits };
+      const vvTpSlResult = calculateTPSLExits(vvMatchedSignals, cachedSP500Data.close, oppositePositionType, tpConfig, slConfig, signalMode, vvExits);
+      var vvTpExits = vvTpSlResult.tpExits;
+      var vvSlExits = vvTpSlResult.slExits;
+    } else {
+      var vvTpExits = [];
+      var vvSlExits = [];
+    }
+  } else {
+    var vvExits = [];
+    var vvTpExits = [];
+    var vvSlExits = [];
+  }
   
   // Create price trace
   const priceTrace = {
@@ -9217,60 +10602,189 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitCondition, 
   
   const traces = [priceTrace];
   
-  // Add MA crossover traces
+  // Add MA crossover traces for entry condition
   const maTraces = createMACrossoverTraces(entryCondition);
   traces.push(...maTraces);
   
-  // Create scatter traces for each line number (for legend toggling)
-  const entryLineNumbers = matched.entries ? [...new Set(matched.entries.map(l => l.lineNumber))].sort() : [];
-  const exitLineNumbers = matched.exits ? [...new Set(matched.exits.map(l => l.lineNumber))].sort() : [];
-  const allLineNumbers = [...new Set([...entryLineNumbers, ...exitLineNumbers])].sort();
+  // Add ALL exit condition overlays with opacity (regardless of type)
+  if (exitConditions && Array.isArray(exitConditions)) {
+    exitConditions.forEach(exitCond => {
+      if (exitCond.type === 'ma_crossover') {
+        const exitMaTraces = createMACrossoverTraces(exitCond);
+        exitMaTraces.forEach(trace => {
+          trace.name = `${trace.name} (Exit)`;
+          trace.opacity = 0.4;
+          trace.legendgroup = 'exits';
+          trace.legendgrouptitle = { text: 'Exit Conditions' };
+          if (trace.line && trace.line.color) {
+            trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.4)');
+          }
+        });
+        traces.push(...exitMaTraces);
+      } else if (exitCond.type === 'price') {
+        // Add price indicator overlays for exit conditions
+        const exitIndicatorTraces = createIndicatorTraces(exitCond);
+        exitIndicatorTraces.forEach(trace => {
+          trace.name = `${trace.name} (Exit)`;
+          trace.opacity = 0.4;
+          trace.legendgroup = 'exits';
+          trace.legendgrouptitle = { text: 'Exit Conditions' };
+          if (trace.line && trace.line.color) {
+            trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.4)');
+          }
+        });
+        traces.push(...exitIndicatorTraces);
+      } else if (exitCond.type === 'rsi') {
+        // Add RSI exit conditions on secondary y-axis
+        const exitPeriodString = exitCond.rsi_period || '14';
+        const exitPeriods = exitPeriodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+        
+        const rsiColors = [
+          'rgba(255, 0, 255, 0.9)',
+          'rgba(200, 0, 255, 0.9)',
+          'rgba(255, 50, 200, 0.9)'
+        ];
+        
+        exitPeriods.forEach((exitRsiPeriod, idx) => {
+          const exitRsiValues = calculateRSI(cachedSP500Data.close, exitRsiPeriod);
+          traces.push({
+            x: cachedSP500Data.dates,
+            y: exitRsiValues,
+            type: 'scatter',
+            mode: 'lines',
+            name: `RSI(${exitRsiPeriod}) (Exit - RSI Scale)`,
+            line: { color: rsiColors[idx % rsiColors.length].replace(/,\s*[\d.]+\)/, ', 0.3)'), width: 2, dash: 'dot' },
+            opacity: 0.3,
+            yaxis: 'y2',
+            legendgroup: 'exits',
+            legendgrouptitle: { text: 'Exit Conditions' }
+          });
+        });
+        
+        const exitTargetTraces = createRSITargetTraces(exitCond);
+        exitTargetTraces.forEach(trace => {
+          trace.name = `${trace.name} (Exit - RSI Scale)`;
+          trace.opacity = 0.3;
+          trace.yaxis = 'y2';
+          trace.legendgroup = 'exits';
+          trace.legendgrouptitle = { text: 'Exit Conditions' };
+          trace.line = { ...trace.line, dash: 'dot' };
+          if (trace.line && trace.line.color) {
+            trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.3)');
+          }
+        });
+        traces.push(...exitTargetTraces);
+      }
+    });
+  }
+  
+  // Create scatter traces for individual trades with letter labels
+  const isShort = entryCondition.position_type === 'short';
+  const entryColor = isShort ? '#8B0000' : '#00ff00';
+  const exitColor = isShort ? '#006400' : '#ff0000';
+  const entrySymbol = isShort ? 'triangle-down' : 'triangle-up';
+  const exitSymbol = isShort ? 'triangle-up' : 'triangle-down';
+  
+  // Collect all entries and assign trade letters PER STRATEGY
+  const tradeEntries = [];
+  const tradeExits = [];
+  
+  if (matched.entries) {
+    matched.entries.forEach(entryLine => {
+      let tradeNumForThisLine = 0; // Reset counter for each strategy line
+      entryLine.indices.forEach(entryIdx => {
+        const tradeLetter = getTradeLabel(tradeNumForThisLine);
+        tradeEntries.push({
+          idx: entryIdx,
+          letter: tradeLetter,
+          lineNum: entryLine.lineNumber
+        });
+        tradeNumForThisLine++;
+      });
+    });
+  }
+  
+  // Match exits to entries - also count per strategy line
+  if (matched.exits) {
+    matched.exits.forEach(exitLine => {
+      let exitTradeNumForThisLine = 0; // Reset counter for each strategy line
+      exitLine.indices.forEach(exitIdx => {
+        const tradeLetter = getTradeLabel(exitTradeNumForThisLine);
+        tradeExits.push({
+          idx: exitIdx,
+          letter: tradeLetter,
+          lineNum: exitLine.lineNumber
+        });
+        exitTradeNumForThisLine++;
+      });
+    });
+  }
   
   // Add entry traces
-  allLineNumbers.forEach(lineNum => {
-    const entryLine = matched.entries?.find(l => l.lineNumber === lineNum);
-    if (entryLine) {
-      const x = entryLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = entryLine.indices.map(idx => cachedSP500Data.close[idx]);
-      
-      traces.push({
-        x: x,
-        y: y,
-        type: 'scatter',
-        mode: 'markers+text',
-        name: `Entry ${lineNum}`,
-        text: x.map(() => '▲'),
-        textposition: 'top center',
-        textfont: { size: 16, color: '#00ff00', family: 'Arial Black' },
-        marker: { size: 10, color: '#00ff00', symbol: 'triangle-up' },
-        legendgroup: `line${lineNum}`,
-        showlegend: true
-      });
-    }
+  tradeEntries.forEach((trade, idx) => {
+    traces.push({
+      x: [cachedSP500Data.dates[trade.idx]],
+      y: [cachedSP500Data.close[trade.idx]],
+      type: 'scatter',
+      mode: 'markers+text',
+      name: `Strategy${trade.lineNum} Trade${trade.letter}`,
+      text: [trade.letter],
+      textposition: isShort ? 'bottom center' : 'top center',
+      textfont: { size: 14, color: entryColor, family: 'Arial Black' },
+      marker: { size: 12, color: entryColor, symbol: entrySymbol },
+      legendgroup: `strategy${trade.lineNum}`,
+      showlegend: idx === 0 || tradeEntries[idx-1].lineNum !== trade.lineNum
+    });
   });
   
   // Add exit traces
-  allLineNumbers.forEach(lineNum => {
-    const exitLine = matched.exits?.find(l => l.lineNumber === lineNum);
-    if (exitLine) {
-      const x = exitLine.indices.map(idx => cachedSP500Data.dates[idx]);
-      const y = exitLine.indices.map(idx => cachedSP500Data.close[idx]);
+  tradeExits.forEach((trade, idx) => {
+    traces.push({
+      x: [cachedSP500Data.dates[trade.idx]],
+      y: [cachedSP500Data.close[trade.idx]],
+      type: 'scatter',
+      mode: 'markers+text',
+      name: `Strategy${trade.lineNum} Exit${trade.letter}`,
+      text: [trade.letter],
+      textposition: isShort ? 'top center' : 'bottom center',
+      textfont: { size: 14, color: exitColor, family: 'Arial Black' },
+      marker: { size: 12, color: exitColor, symbol: exitSymbol },
+      legendgroup: `strategy${trade.lineNum}`,
+      showlegend: false
+    });
+  });
+  
+  // NOTE: TP and SL exits are now merged into matched.exits above and will appear with trade letters (MA chart)
+  // No need for separate TP/SL marker traces anymore
+  
+  // Add Vice Versa entry traces
+  if (vvEntries && vvEntries.length > 0) {
+    vvEntries.forEach(vvLine => {
+      const x = vvLine.indices.map(idx => cachedSP500Data.dates[idx]);
+      const y = vvLine.indices.map(idx => cachedSP500Data.close[idx]);
+      
+      // Vice versa is opposite position, so flip colors
+      const isShort = entryCondition.position_type === 'short';
+      const vvColor = isShort ? '#00ff00' : '#8B0000'; // Opposite of entry
+      const vvSymbol = isShort ? 'triangle-up' : 'triangle-down';
+      const vvText = isShort ? '▲' : '▼';
+      const vvTextPosition = isShort ? 'top center' : 'bottom center';
       
       traces.push({
         x: x,
         y: y,
         type: 'scatter',
         mode: 'markers+text',
-        name: `Exit ${lineNum}`,
-        text: x.map(() => '▼'),
-        textposition: 'bottom center',
-        textfont: { size: 16, color: '#ff0000', family: 'Arial Black' },
-        marker: { size: 10, color: '#ff0000', symbol: 'triangle-down' },
-        legendgroup: `line${lineNum}`,
+        name: `VV Entry ${vvLine.lineNumber}`,
+        text: x.map(() => vvText),
+        textposition: vvTextPosition,
+        textfont: { size: 14, color: vvColor, family: 'Arial Black' },
+        marker: { size: 9, color: vvColor, symbol: vvSymbol, line: { width: 2, color: '#FFFFFF' } },
+        legendgroup: `line${vvLine.lineNumber}`,
         showlegend: true
       });
-    }
-  });
+    });
+  }
   
   const layout = {
     title: '',
@@ -9284,20 +10798,39 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitCondition, 
       title: 'Price ($)',
       gridcolor: 'rgba(128, 128, 128, 0.15)',
       gridwidth: 1,
-      griddash: 'dash'
+      griddash: 'dash',
+      side: 'left'
+    },
+    yaxis2: {
+      title: 'RSI',
+      overlaying: 'y',
+      side: 'right',
+      range: [0, 100],
+      gridcolor: 'rgba(128, 128, 128, 0.05)',
+      gridwidth: 1,
+      griddash: 'dot',
+      showgrid: false
     },
     showlegend: true,
-    legend: { x: 0, y: 1 },
+    legend: { 
+      x: 0, 
+      y: 1,
+      xanchor: 'left',
+      yanchor: 'top',
+      tracegroupgap: 15
+    },
     margin: { l: 50, r: 50, t: 30, b: 50 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
     hovermode: 'closest'
   };
   
+  addWatermark(layout);
+  
   const config = { 
     responsive: true, 
     displayModeBar: true,
-    scrollZoom: true
+    scrollZoom: false  // Disable scroll zoom on preview charts
   };
   
   Plotly.newPlot(chartId, traces, layout, config);
@@ -9349,6 +10882,8 @@ function createPriceChart(chartId, condition, group, signalMode = 'first') {
     annotations: annotations,
     hovermode: 'closest'
   };
+  
+  addWatermark(layout);
   
   const config = { 
     responsive: true, 
@@ -9423,6 +10958,8 @@ function createRSIChart(chartId, condition, group, signalMode = 'first') {
     hovermode: 'closest'
   };
   
+  addWatermark(layout);
+  
   const config = { 
     responsive: true, 
     displayModeBar: true,
@@ -9476,6 +11013,8 @@ function createMACrossoverChart(chartId, condition, group, signalMode = 'first')
     annotations: annotations,
     hovermode: 'closest'
   };
+  
+  addWatermark(layout);
   
   const config = { 
     responsive: true, 
@@ -9630,40 +11169,87 @@ function calculateConditionSignals(condition, signalMode = 'first') {
         }
       });
     } else {
-      // Price crossing MA - parse comma-separated periods
+      // Price crossing target (MA or Bollinger Band) - parse comma-separated periods
       const periodString = condition.target_period || '20';
       const periods = periodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+      const isBB = targetType && targetType.startsWith('BB_');
+      const bbStdDev = isBB ? parseFloat(condition.bb_std || '2.0') : 0;
       
       periods.forEach((period, lineIdx) => {
         const lineSignals = [];
-        const ma = calculateSimpleMA(prices, period);
+        
+        // Calculate target line (either MA or specific BB band)
+        let targetLine;
+        if (isBB) {
+          // Calculate Bollinger Bands around price
+          const smaOfPrice = calculateSimpleMA(prices, period);
+          
+          // Calculate standard deviation of price
+          const stdDev = prices.map((val, i) => {
+            if (i < period - 1) return NaN;
+            const slice = prices.slice(i - period + 1, i + 1);
+            const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+            const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / slice.length;
+            return Math.sqrt(variance);
+          });
+          
+          // Select the appropriate band
+          if (targetType === 'BB_TOP') {
+            targetLine = smaOfPrice.map((sma, i) => sma + (stdDev[i] * bbStdDev));
+          } else if (targetType === 'BB_MID') {
+            targetLine = smaOfPrice;
+          } else if (targetType === 'BB_BOTTOM') {
+            targetLine = smaOfPrice.map((sma, i) => sma - (stdDev[i] * bbStdDev));
+          }
+        } else {
+          // Regular MA
+          targetLine = calculateSimpleMA(prices, period);
+        }
         
         const direction = condition.direction || 'above';
-        console.log(`[PREVIEW] Checking Price vs ${condition.target_type}(${period}), interaction: ${interaction}, direction: ${direction}`);
+        console.log(`[PREVIEW] Checking Price vs ${condition.target_type}(${period}${isBB ? ', std=' + bbStdDev : ''}), interaction: ${interaction}, direction: ${direction}`);
         
         let crossUpCount = 0;
         let crossDownCount = 0;
         
+        // Get threshold and delay bars from condition
+        const thresholdPct = parseFloat(condition.threshold_pct || '0') / 100; // Convert percentage to decimal
+        const delayBars = parseInt(condition.delay_bars || '0');
+        
         for (let i = period; i < prices.length; i++) {
-          if (!ma[i] || !ma[i-1]) continue;
+          if (!targetLine[i] || !targetLine[i-1]) continue;
           
           if (interaction === 'cross') {
-            // Price crosses MA
-            const crossedUp = prices[i-1] < ma[i-1] && prices[i] > ma[i];
-            const crossedDown = prices[i-1] > ma[i-1] && prices[i] < ma[i];
+            // Price crosses target line
+            const crossedUp = prices[i-1] < targetLine[i-1] && prices[i] > targetLine[i];
+            const crossedDown = prices[i-1] > targetLine[i-1] && prices[i] < targetLine[i];
             
             if (direction === 'above' && crossedUp) {
-              lineSignals.push(i);
-              crossUpCount++;
-              if (crossUpCount <= 3) {
-                console.log(`[PREVIEW] Price cross UP at bar ${i}: Price ${prices[i-1].toFixed(2)} -> ${prices[i].toFixed(2)}, MA ${ma[i-1].toFixed(2)} -> ${ma[i].toFixed(2)}`);
+              // Check threshold: price must move threshold_pct beyond target
+              const moveAmount = prices[i] - targetLine[i];
+              const thresholdAmount = targetLine[i] * thresholdPct;
+              if (moveAmount >= thresholdAmount) {
+                // Apply delay bars
+                const signalIndex = Math.min(i + delayBars, prices.length - 1);
+                lineSignals.push(signalIndex);
+                crossUpCount++;
+                if (crossUpCount <= 3) {
+                  console.log(`[PREVIEW] Price cross UP at bar ${i} (signal at ${signalIndex}): Price ${prices[i-1].toFixed(2)} -> ${prices[i].toFixed(2)}, Target ${targetLine[i-1].toFixed(2)} -> ${targetLine[i].toFixed(2)}, threshold=${thresholdPct*100}%, delay=${delayBars}`);
+                }
               }
             }
             if (direction === 'below' && crossedDown) {
-              lineSignals.push(i);
-              crossDownCount++;
-              if (crossDownCount <= 3) {
-                console.log(`[PREVIEW] Price cross DOWN at bar ${i}: Price ${prices[i-1].toFixed(2)} -> ${prices[i].toFixed(2)}, MA ${ma[i-1].toFixed(2)} -> ${ma[i].toFixed(2)}`);
+              // Check threshold: price must move threshold_pct beyond target
+              const moveAmount = targetLine[i] - prices[i];
+              const thresholdAmount = targetLine[i] * thresholdPct;
+              if (moveAmount >= thresholdAmount) {
+                // Apply delay bars
+                const signalIndex = Math.min(i + delayBars, prices.length - 1);
+                lineSignals.push(signalIndex);
+                crossDownCount++;
+                if (crossDownCount <= 3) {
+                  console.log(`[PREVIEW] Price cross DOWN at bar ${i} (signal at ${signalIndex}): Price ${prices[i-1].toFixed(2)} -> ${prices[i].toFixed(2)}, Target ${targetLine[i-1].toFixed(2)} -> ${targetLine[i].toFixed(2)}, threshold=${thresholdPct*100}%, delay=${delayBars}`);
+                }
               }
             }
           }
@@ -9778,56 +11364,104 @@ function calculateConditionSignals(condition, signalMode = 'first') {
         });
       });
     } else {
-      // RSI crossing/touching a moving average OF THE RSI - create all combinations
+      // RSI crossing/touching a target (MA or Bollinger Band OF THE RSI) - create all combinations
       const targetPeriodString = condition.target_period || '14';
       const targetPeriods = targetPeriodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+      const targetType = condition.target_type;
+      const isBB = targetType && targetType.startsWith('BB_');
+      const bbStdDev = isBB ? parseFloat(condition.bb_std || '2.0') : 0;
       
-      // For each RSI period and each MA period, create a separate line
+      // For each RSI period and each target period, create a separate line
       rsiPeriods.forEach(rsiPeriod => {
         targetPeriods.forEach(targetPeriod => {
           lineNumber++;
           const lineSignals = [];
           const rsiValues = calculateRSI(prices, rsiPeriod);
-          const maOfRSI = calculateSimpleMA(rsiValues, targetPeriod);
           const maxPeriod = Math.max(rsiPeriod, targetPeriod);
           
-          console.log(`[PREVIEW] Checking RSI(${rsiPeriod}) vs ${condition.target_type}(${targetPeriod}) of RSI, interaction: ${interaction}`);
+          // Calculate target line (either MA or specific BB band)
+          let targetLine;
+          if (isBB) {
+            // Calculate Bollinger Bands around RSI
+            const smaOfRSI = calculateSimpleMA(rsiValues, targetPeriod);
+            
+            // Calculate standard deviation of RSI
+            const stdDev = rsiValues.map((val, i) => {
+              if (i < targetPeriod - 1) return NaN;
+              const slice = rsiValues.slice(i - targetPeriod + 1, i + 1);
+              const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+              const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / slice.length;
+              return Math.sqrt(variance);
+            });
+            
+            // Select the appropriate band
+            if (targetType === 'BB_TOP') {
+              targetLine = smaOfRSI.map((sma, i) => sma + (stdDev[i] * bbStdDev));
+            } else if (targetType === 'BB_MID') {
+              targetLine = smaOfRSI;
+            } else if (targetType === 'BB_BOTTOM') {
+              targetLine = smaOfRSI.map((sma, i) => sma - (stdDev[i] * bbStdDev));
+            }
+            console.log(`[PREVIEW] Checking RSI(${rsiPeriod}) vs ${targetType}(${targetPeriod}, std=${bbStdDev}) of RSI, interaction: ${interaction}`);
+          } else {
+            // Regular MA of RSI
+            targetLine = calculateSimpleMA(rsiValues, targetPeriod);
+            console.log(`[PREVIEW] Checking RSI(${rsiPeriod}) vs ${targetType}(${targetPeriod}) of RSI, interaction: ${interaction}`);
+          }
           
           let crossUpCount = 0;
           let crossDownCount = 0;
           let touchCount = 0;
           
+          // Get threshold and delay bars from condition
+          const thresholdPct = parseFloat(condition.threshold_pct || '0') / 100; // Convert percentage to decimal
+          const delayBars = parseInt(condition.delay_bars || '0');
+          
           for (let i = maxPeriod + 1; i < rsiValues.length; i++) {
-            if (!rsiValues[i] || !rsiValues[i-1] || !maOfRSI[i] || !maOfRSI[i-1]) continue;
+            if (!rsiValues[i] || !rsiValues[i-1] || !targetLine[i] || !targetLine[i-1]) continue;
             
             if (interaction === 'cross') {
-              // RSI crosses its moving average
-              const crossedUp = rsiValues[i-1] < maOfRSI[i-1] && rsiValues[i] > maOfRSI[i];
-              const crossedDown = rsiValues[i-1] > maOfRSI[i-1] && rsiValues[i] < maOfRSI[i];
+              // RSI crosses the target line
+              const crossedUp = rsiValues[i-1] < targetLine[i-1] && rsiValues[i] > targetLine[i];
+              const crossedDown = rsiValues[i-1] > targetLine[i-1] && rsiValues[i] < targetLine[i];
               
               const direction = condition.direction || 'above';
               
               if (direction === 'above' && crossedUp) {
-                lineSignals.push(i);
-                crossUpCount++;
-                if (crossUpCount <= 3) {
-                  console.log(`[PREVIEW] RSI cross UP at bar ${i}: RSI ${rsiValues[i-1].toFixed(2)} -> ${rsiValues[i].toFixed(2)}, MA ${maOfRSI[i-1].toFixed(2)} -> ${maOfRSI[i].toFixed(2)}`);
+                // Check threshold: RSI must move threshold_pct beyond target
+                const moveAmount = rsiValues[i] - targetLine[i];
+                const thresholdAmount = targetLine[i] * thresholdPct;
+                if (moveAmount >= thresholdAmount) {
+                  // Apply delay bars
+                  const signalIndex = Math.min(i + delayBars, rsiValues.length - 1);
+                  lineSignals.push(signalIndex);
+                  crossUpCount++;
+                  if (crossUpCount <= 3) {
+                    console.log(`[PREVIEW] RSI cross UP at bar ${i} (signal at ${signalIndex}): RSI ${rsiValues[i-1].toFixed(2)} -> ${rsiValues[i].toFixed(2)}, Target ${targetLine[i-1].toFixed(2)} -> ${targetLine[i].toFixed(2)}, threshold=${thresholdPct*100}%, delay=${delayBars}`);
+                  }
                 }
               }
               if (direction === 'below' && crossedDown) {
-                lineSignals.push(i);
-                crossDownCount++;
-                if (crossDownCount <= 3) {
-                  console.log(`[PREVIEW] RSI cross DOWN at bar ${i}: RSI ${rsiValues[i-1].toFixed(2)} -> ${rsiValues[i].toFixed(2)}, MA ${maOfRSI[i-1].toFixed(2)} -> ${maOfRSI[i].toFixed(2)}`);
+                // Check threshold: RSI must move threshold_pct beyond target
+                const moveAmount = targetLine[i] - rsiValues[i];
+                const thresholdAmount = targetLine[i] * thresholdPct;
+                if (moveAmount >= thresholdAmount) {
+                  // Apply delay bars
+                  const signalIndex = Math.min(i + delayBars, rsiValues.length - 1);
+                  lineSignals.push(signalIndex);
+                  crossDownCount++;
+                  if (crossDownCount <= 3) {
+                    console.log(`[PREVIEW] RSI cross DOWN at bar ${i} (signal at ${signalIndex}): RSI ${rsiValues[i-1].toFixed(2)} -> ${rsiValues[i].toFixed(2)}, Target ${targetLine[i-1].toFixed(2)} -> ${targetLine[i].toFixed(2)}, threshold=${thresholdPct*100}%, delay=${delayBars}`);
+                  }
                 }
               }
             }
           }
           
           if (interaction === 'cross') {
-            console.log(`[PREVIEW] RSI(${rsiPeriod}) vs MA(${targetPeriod}): ${crossUpCount} up, ${crossDownCount} down, ${crossUpCount + crossDownCount} total crosses`);
+            console.log(`[PREVIEW] RSI(${rsiPeriod}) vs ${targetType}(${targetPeriod}): ${crossUpCount} up, ${crossDownCount} down, ${crossUpCount + crossDownCount} total crosses`);
           } else if (interaction === 'touch') {
-            console.log(`[PREVIEW] RSI(${rsiPeriod}) vs MA(${targetPeriod}): ${touchCount} touches`);
+            console.log(`[PREVIEW] RSI(${rsiPeriod}) vs ${targetType}(${targetPeriod}): ${touchCount} touches`);
           }
           
           if (lineSignals.length > 0) {
@@ -9858,18 +11492,36 @@ function calculateConditionSignals(condition, signalMode = 'first') {
         const slowMA = calculateSimpleMA(prices, slowPeriod);
         const maxPeriod = Math.max(fastPeriod, slowPeriod);
         
+        // Get threshold and delay bars from condition
+        const thresholdPct = parseFloat(condition.threshold_pct || '0') / 100; // Convert percentage to decimal
+        const delayBars = parseInt(condition.delay_bars || '0');
+        
         for (let i = maxPeriod; i < prices.length; i++) {
           if (!fastMA[i] || !slowMA[i] || !fastMA[i-1] || !slowMA[i-1]) continue;
           
           if (direction === 'bullish') {
             // Fast crosses above slow
             if (fastMA[i-1] < slowMA[i-1] && fastMA[i] > slowMA[i]) {
-              lineSignals.push(i);
+              // Check threshold: fast must move threshold_pct beyond slow
+              const moveAmount = fastMA[i] - slowMA[i];
+              const thresholdAmount = slowMA[i] * thresholdPct;
+              if (moveAmount >= thresholdAmount) {
+                // Apply delay bars
+                const signalIndex = Math.min(i + delayBars, prices.length - 1);
+                lineSignals.push(signalIndex);
+              }
             }
           } else {
             // Fast crosses below slow
             if (fastMA[i-1] > slowMA[i-1] && fastMA[i] < slowMA[i]) {
-              lineSignals.push(i);
+              // Check threshold: fast must move threshold_pct beyond slow
+              const moveAmount = slowMA[i] - fastMA[i];
+              const thresholdAmount = slowMA[i] * thresholdPct;
+              if (moveAmount >= thresholdAmount) {
+                // Apply delay bars
+                const signalIndex = Math.min(i + delayBars, prices.length - 1);
+                lineSignals.push(signalIndex);
+              }
             }
           }
         }
@@ -9924,6 +11576,70 @@ function createRSITargetTraces(condition) {
         line: { color: targetColors[idx % targetColors.length], width: 2, dash: 'dot' }
       });
     });
+  } else if (condition.target_type && condition.target_type.startsWith('BB_')) {
+    // Bollinger Bands around RSI
+    const rsiPeriodString = condition.rsi_period || '14';
+    const rsiPeriods = rsiPeriodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+    
+    const periodString = condition.target_period || '20';
+    const bbPeriods = periodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+    
+    const bbStdDev = parseFloat(condition.bb_std || '2.0');
+    
+    let colorIdx = 0;
+    rsiPeriods.forEach(rsiPeriod => {
+      const rsiValues = calculateRSI(cachedSP500Data.close, rsiPeriod);
+      
+      bbPeriods.forEach(bbPeriod => {
+        // Calculate SMA of RSI (middle band)
+        const smaOfRSI = calculateSimpleMA(rsiValues, bbPeriod);
+        
+        // Calculate standard deviation of RSI
+        const stdDev = rsiValues.map((val, i) => {
+          if (i < bbPeriod - 1) return NaN;
+          const slice = rsiValues.slice(i - bbPeriod + 1, i + 1);
+          const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+          const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / slice.length;
+          return Math.sqrt(variance);
+        });
+        
+        // Calculate upper and lower bands
+        const upperBand = smaOfRSI.map((sma, i) => sma + (stdDev[i] * bbStdDev));
+        const lowerBand = smaOfRSI.map((sma, i) => sma - (stdDev[i] * bbStdDev));
+        
+        // Add appropriate traces based on target type
+        if (condition.target_type === 'BB_TOP') {
+          traces.push({
+            x: cachedSP500Data.dates,
+            y: upperBand,
+            type: 'scatter',
+            mode: 'lines',
+            name: `BB_TOP(${bbPeriod}, ${bbStdDev}) of RSI(${rsiPeriod})`,
+            line: { color: targetColors[colorIdx % targetColors.length], width: 2, dash: 'dot' }
+          });
+        } else if (condition.target_type === 'BB_MID') {
+          traces.push({
+            x: cachedSP500Data.dates,
+            y: smaOfRSI,
+            type: 'scatter',
+            mode: 'lines',
+            name: `BB_MID(${bbPeriod}) of RSI(${rsiPeriod})`,
+            line: { color: targetColors[colorIdx % targetColors.length], width: 2, dash: 'dot' }
+          });
+        } else if (condition.target_type === 'BB_BOTTOM') {
+          traces.push({
+            x: cachedSP500Data.dates,
+            y: lowerBand,
+            type: 'scatter',
+            mode: 'lines',
+            name: `BB_BOTTOM(${bbPeriod}, ${bbStdDev}) of RSI(${rsiPeriod})`,
+            line: { color: targetColors[colorIdx % targetColors.length], width: 2, dash: 'dot' }
+          });
+        }
+        
+        colorIdx++;
+      });
+    });
   } else {
     // Target is a moving average OF THE RSI (not another RSI)
     // Need to show MA for each RSI period and each MA period combination
@@ -9967,30 +11683,84 @@ function createIndicatorTraces(condition) {
     const periodString = condition.target_period || '20';
     const periods = periodString.toString().split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
     
-    console.log('[PREVIEW] Creating MA traces for periods:', periods);
+    console.log('[PREVIEW] Creating indicator traces for periods:', periods, 'target_type:', condition.target_type);
     
-    periods.forEach((period, idx) => {
-      const maValues = calculateSimpleMA(cachedSP500Data.close, period);
-      // Blue shades for MAs
-      const colors = [
-        'rgba(30, 144, 255, 0.9)',   // Dodger blue
-        'rgba(0, 100, 255, 0.9)',    // Deep bright blue
-        'rgba(70, 180, 255, 0.9)',   // Sky blue
-        'rgba(0, 50, 200, 0.9)',     // Navy blue
-        'rgba(100, 200, 255, 0.9)'   // Light cyan blue
-      ];
+    const colors = [
+      'rgba(30, 144, 255, 0.9)',   // Dodger blue
+      'rgba(0, 100, 255, 0.9)',    // Deep bright blue
+      'rgba(70, 180, 255, 0.9)',   // Sky blue
+      'rgba(0, 50, 200, 0.9)',     // Navy blue
+      'rgba(100, 200, 255, 0.9)'   // Light cyan blue
+    ];
+    
+    // Check if this is a Bollinger Band target
+    if (condition.target_type && condition.target_type.startsWith('BB_')) {
+      const bbStdDev = parseFloat(condition.bb_std || '2.0');
       
-      console.log('[PREVIEW] Adding MA trace:', period, 'first few values:', maValues.slice(0, 5));
-      
-      traces.push({
-        x: cachedSP500Data.dates,
-        y: maValues,
-        type: 'scatter',
-        mode: 'lines',
-        name: `${condition.target_type}(${period})`,
-        line: { color: colors[idx % colors.length], width: 2 }
+      periods.forEach((period, idx) => {
+        // Calculate SMA of price (middle band)
+        const smaValues = calculateSimpleMA(cachedSP500Data.close, period);
+        
+        // Calculate standard deviation of price
+        const stdDev = cachedSP500Data.close.map((val, i) => {
+          if (i < period - 1) return NaN;
+          const slice = cachedSP500Data.close.slice(i - period + 1, i + 1);
+          const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+          const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / slice.length;
+          return Math.sqrt(variance);
+        });
+        
+        // Calculate upper and lower bands
+        const upperBand = smaValues.map((sma, i) => sma + (stdDev[i] * bbStdDev));
+        const lowerBand = smaValues.map((sma, i) => sma - (stdDev[i] * bbStdDev));
+        
+        // Add appropriate trace based on target type
+        if (condition.target_type === 'BB_TOP') {
+          traces.push({
+            x: cachedSP500Data.dates,
+            y: upperBand,
+            type: 'scatter',
+            mode: 'lines',
+            name: `BB_TOP(${period}, ${bbStdDev})`,
+            line: { color: colors[idx % colors.length], width: 2 }
+          });
+        } else if (condition.target_type === 'BB_MID') {
+          traces.push({
+            x: cachedSP500Data.dates,
+            y: smaValues,
+            type: 'scatter',
+            mode: 'lines',
+            name: `BB_MID(${period})`,
+            line: { color: colors[idx % colors.length], width: 2 }
+          });
+        } else if (condition.target_type === 'BB_BOTTOM') {
+          traces.push({
+            x: cachedSP500Data.dates,
+            y: lowerBand,
+            type: 'scatter',
+            mode: 'lines',
+            name: `BB_BOTTOM(${period}, ${bbStdDev})`,
+            line: { color: colors[idx % colors.length], width: 2 }
+          });
+        }
       });
-    });
+    } else {
+      // Regular MA (SMA, EMA, etc.)
+      periods.forEach((period, idx) => {
+        const maValues = calculateSimpleMA(cachedSP500Data.close, period);
+        
+        console.log('[PREVIEW] Adding MA trace:', period, 'first few values:', maValues.slice(0, 5));
+        
+        traces.push({
+          x: cachedSP500Data.dates,
+          y: maValues,
+          type: 'scatter',
+          mode: 'lines',
+          name: `${condition.target_type}(${period})`,
+          line: { color: colors[idx % colors.length], width: 2 }
+        });
+      });
+    }
   } else if (condition.type === 'ma_crossover') {
     // Parse comma-separated periods for fast and slow
     const fastString = condition.fast_period || '10';
@@ -10174,3 +11944,5 @@ window.createNewFolder = createNewFolder;
 // Note: All onclick handler functions are now exposed to window immediately after their definitions
 // This ensures they're available when HTML with onclick handlers is dynamically generated
 // No need for duplicate assignments here - all functions are already exposed above
+
+

@@ -45,8 +45,49 @@ def rsi_sma(close: pd.Series, period: int) -> pd.Series:
     out[period:] = rsi
     return pd.Series(out, index=close.index, dtype="float32")
 
-def compute_basic(df: pd.DataFrame, *, rsi_period: int) -> dict[str, pd.Series]:
+def rsi_bollinger_bands(rsi: pd.Series, period: int, std_dev: float = 2.0) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """
+    Calculate Bollinger Bands around RSI.
+    Returns: (middle, upper, lower) as pandas Series
+    """
+    # Middle band is SMA of RSI
+    middle = rsi.rolling(window=period, min_periods=period).mean()
+    
+    # Standard deviation of RSI
+    std = rsi.rolling(window=period, min_periods=period).std()
+    
+    # Upper and lower bands
+    upper = middle + (std * std_dev)
+    lower = middle - (std * std_dev)
+    
+    return middle, upper, lower
+
+def compute_basic(df: pd.DataFrame, *, 
+                  rsi_period: int, 
+                  rsi_bb_period: int = None,
+                  rsi_bb_std_dev: float = None) -> dict[str, pd.Series]:
+    """
+    Compute indicators. Returns dict with RSI and optional Bollinger Bands.
+    
+    Args:
+        df: DataFrame with OHLCV data
+        rsi_period: RSI calculation period (default 14)
+        rsi_bb_period: Bollinger Band period for RSI (default 20)
+        rsi_bb_std_dev: Bollinger Band std dev multiplier (default 2.0)
+    
+    Returns:
+        Dict with keys: RSI, RSI_BB_MIDDLE, RSI_BB_UPPER, RSI_BB_LOWER
+    """
     out: dict[str, pd.Series] = {}
     if get("RSI_ENABLED"):
         out["RSI"] = rsi_sma(df["Close"], int(rsi_period))
+        
+        # Calculate Bollinger Bands around RSI if params provided
+        if rsi_bb_period is not None:
+            bb_period = int(rsi_bb_period)
+            bb_std = float(rsi_bb_std_dev) if rsi_bb_std_dev is not None else 2.0
+            middle, upper, lower = rsi_bollinger_bands(out["RSI"], bb_period, bb_std)
+            out["RSI_BB_MIDDLE"] = middle
+            out["RSI_BB_UPPER"] = upper
+            out["RSI_BB_LOWER"] = lower
     return out

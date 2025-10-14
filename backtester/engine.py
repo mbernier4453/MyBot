@@ -21,20 +21,38 @@ def _exec_price(open_px: float, close_px: float, side: str, when: str) -> float:
 def run_symbol(
     df: pd.DataFrame, *,
     rsi_period: int,
-    rsi_buy_below: float,
-    rsi_sell_above: float
+    rsi_buy_below: float = None,
+    rsi_sell_above: float = None,
+    rsi_bb_period: int = None,
+    rsi_bb_std_dev: float = None,
+    use_rsi_bb: bool = False
 ) -> dict:
     """
     Backtest RSI long only with MOO or MOC and integer shares.
     Decide at bar i close, execute at bar i+1 open or close, mark to bar i+1 close.
     Returns dict with equity series, metrics, and event markers.
+    
+    Args:
+        df: OHLCV DataFrame
+        rsi_period: RSI calculation period (e.g., 14)
+        rsi_buy_below: Fixed RSI threshold for entry (e.g., 30) - ignored if use_rsi_bb=True
+        rsi_sell_above: Fixed RSI threshold for exit (e.g., 70) - ignored if use_rsi_bb=True
+        rsi_bb_period: Bollinger Band period for RSI (e.g., 20)
+        rsi_bb_std_dev: Bollinger Band std dev multiplier (e.g., 2.0)
+        use_rsi_bb: If True, use Bollinger Bands instead of fixed thresholds
     """
     # indicators and signals
-    ind = compute_basic(df, rsi_period=int(rsi_period))
+    ind = compute_basic(
+        df, 
+        rsi_period=int(rsi_period),
+        rsi_bb_period=rsi_bb_period,
+        rsi_bb_std_dev=rsi_bb_std_dev
+    )
     entry_sig, exit_sig = build_signals(
         ind,
-        rsi_buy_below=float(rsi_buy_below),
-        rsi_sell_above=float(rsi_sell_above),
+        rsi_buy_below=float(rsi_buy_below) if rsi_buy_below is not None else None,
+        rsi_sell_above=float(rsi_sell_above) if rsi_sell_above is not None else None,
+        use_rsi_bb=use_rsi_bb
     )
 
     # config

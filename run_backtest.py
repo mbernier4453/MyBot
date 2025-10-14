@@ -182,8 +182,11 @@ def run_backtest(config):
                     res = run_symbol(
                         df,
                         rsi_period=params["rsi_period"],
-                        rsi_buy_below=params["rsi_buy_below"],
-                        rsi_sell_above=params["rsi_sell_above"],
+                        rsi_buy_below=params.get("rsi_buy_below"),
+                        rsi_sell_above=params.get("rsi_sell_above"),
+                        rsi_bb_period=params.get("rsi_bb_period"),
+                        rsi_bb_std_dev=params.get("rsi_bb_std_dev"),
+                        use_rsi_bb=params.get("use_rsi_bb", False)
                     )
                     m = res["metrics"]
                     strat_eq = res["equity"]
