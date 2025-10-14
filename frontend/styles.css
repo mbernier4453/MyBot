@@ -2994,11 +2994,18 @@ select[multiple] option:checked {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   transition: all 0.2s;
+  cursor: pointer;
 }
 
 .config-item:hover {
   background: var(--bg-tertiary);
   border-color: var(--accent-blue);
+}
+
+.config-item.selected {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
 }
 
 .config-item-info {
@@ -3356,19 +3363,6 @@ kbd {
   font-weight: 500;
   background: var(--bg-secondary);
   border: 2px solid var(--accent-blue);
-}
-
-/* Sticky preview controls */
-.preview-controls-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: var(--bg-secondary);
-  padding: 15px;
-  border-radius: 6px;
-  margin-bottom: 15px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--border-color);
 }
 
 @media (max-width: 768px) {

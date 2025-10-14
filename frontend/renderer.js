@@ -7525,10 +7525,17 @@ if (confirmSaveConfigBtn) {
   });
 }
 
+// Track selected config for loading
+let selectedConfigId = null;
+
 // Load Config Modal
 function openLoadConfigModal() {
   const modal = document.getElementById('loadConfigModal');
   const container = document.getElementById('configListContainer');
+  
+  // Reset selection
+  selectedConfigId = null;
+  updateLoadConfigOkButton();
   
   // Build config list with folders
   container.innerHTML = '';
@@ -7560,6 +7567,7 @@ function openLoadConfigModal() {
       configs.forEach(cfg => {
         const item = document.createElement('div');
         item.className = 'config-item';
+        item.dataset.configId = cfg.id;
         const savedDate = new Date(cfg.saved_at).toLocaleDateString();
         item.innerHTML = `
           <div class="config-item-info">
@@ -7567,10 +7575,18 @@ function openLoadConfigModal() {
             <div class="config-item-date">Saved: ${savedDate}</div>
           </div>
           <div class="config-item-actions">
-            <button class="btn-sm" onclick="loadConfigById(${cfg.id})">Load</button>
             <button class="btn-sm danger" onclick="deleteConfigById(${cfg.id})">Delete</button>
           </div>
         `;
+        
+        // Click to select (not load immediately)
+        item.addEventListener('click', (e) => {
+          // Don't select if clicking delete button
+          if (e.target.tagName === 'BUTTON') return;
+          
+          selectConfigForLoad(cfg.id);
+        });
+        
         itemsContainer.appendChild(item);
       });
       
@@ -7585,10 +7601,45 @@ function openLoadConfigModal() {
   modal.style.display = 'flex';
 }
 
+function selectConfigForLoad(id) {
+  selectedConfigId = id;
+  
+  // Update visual selection
+  document.querySelectorAll('.config-item').forEach(item => {
+    if (parseInt(item.dataset.configId) === id) {
+      item.classList.add('selected');
+    } else {
+      item.classList.remove('selected');
+    }
+  });
+  
+  updateLoadConfigOkButton();
+}
+
+function updateLoadConfigOkButton() {
+  const okBtn = document.getElementById('loadConfigOkBtn');
+  if (okBtn) {
+    okBtn.disabled = selectedConfigId === null;
+  }
+}
+
 function closeLoadConfigModal() {
   document.getElementById('loadConfigModal').style.display = 'none';
+  selectedConfigId = null;
 }
 window.closeLoadConfigModal = closeLoadConfigModal;
+
+function confirmLoadConfig() {
+  if (selectedConfigId === null) return;
+  
+  const config = backtestConfigs.find(c => c.id === selectedConfigId);
+  if (config) {
+    populateBacktestConfig(config.config);
+    closeLoadConfigModal();
+    console.log('[CONFIG] Configuration loaded:', config.name);
+  }
+}
+window.confirmLoadConfig = confirmLoadConfig;
 
 // Load config
 const loadConfigBtn = document.getElementById('loadConfigBtn');
@@ -9081,6 +9132,7 @@ function matchAllExitsToEntries(entries, conditionalExits, tpExits, slExits, sig
   // POSITIONAL MODE: For each entry, find the FIRST exit (conditional, TP, or SL)
   console.log('[UNIFIED MATCHING] Starting with entries:', entries, 'conditional:', conditionalExits, 'TP:', tpExits, 'SL:', slExits);
   
+  const finalMatchedEntries = [];
   const finalMatchedExits = [];
   const finalTpExits = [];
   const finalSlExits = [];
@@ -9094,12 +9146,14 @@ function matchAllExitsToEntries(entries, conditionalExits, tpExits, slExits, sig
     const tpExitLines = tpExits.filter(e => e.lineNumber === lineNum);
     const slExitLines = slExits.filter(e => e.lineNumber === lineNum);
     
+    const validEntries = [];
     const finalConditionalExits = [];
     const finalTpExitsForLine = [];
     const finalSlExitsForLine = [];
     
     // For each entry in this line, find the first exit of ANY type
-    entryLine.indices.forEach(entryIdx => {
+    entryLine.indices.forEach((entryIdx, entryPosition) => {
+      const isLastEntry = entryPosition === entryLine.indices.length - 1;
       let firstExitIdx = Infinity;
       let firstExitType = null; // 'conditional', 'tp', or 'sl'
       
@@ -9133,17 +9187,29 @@ function matchAllExitsToEntries(entries, conditionalExits, tpExits, slExits, sig
         });
       });
       
-      // Add the first exit found to the appropriate array
-      if (firstExitType === 'conditional') {
-        finalConditionalExits.push(firstExitIdx);
-      } else if (firstExitType === 'tp') {
-        finalTpExitsForLine.push(firstExitIdx);
-      } else if (firstExitType === 'sl') {
-        finalSlExitsForLine.push(firstExitIdx);
+      // CRITICAL: Add entry if it has an exit OR if it's the last entry (can remain open)
+      if (firstExitType !== null || isLastEntry) {
+        validEntries.push(entryIdx);
+        
+        // Add the first exit found to the appropriate array (if one exists)
+        if (firstExitType === 'conditional') {
+          finalConditionalExits.push(firstExitIdx);
+        } else if (firstExitType === 'tp') {
+          finalTpExitsForLine.push(firstExitIdx);
+        } else if (firstExitType === 'sl') {
+          finalSlExitsForLine.push(firstExitIdx);
+        } else if (isLastEntry) {
+          console.log('[UNIFIED MATCHING] Entry at index', entryIdx, 'is the last entry - allowing it to remain open');
+        }
+      } else {
+        console.warn('[UNIFIED MATCHING] Entry at index', entryIdx, 'has no exit and is not the last entry - skipping in positional mode');
       }
     });
     
     // Add to final results
+    if (validEntries.length > 0) {
+      finalMatchedEntries.push({ lineNumber: lineNum, indices: validEntries });
+    }
     if (finalConditionalExits.length > 0) {
       finalMatchedExits.push({ lineNumber: lineNum, indices: finalConditionalExits });
     }
@@ -9155,10 +9221,10 @@ function matchAllExitsToEntries(entries, conditionalExits, tpExits, slExits, sig
     }
   });
   
-  console.log('[UNIFIED MATCHING] Results - conditional:', finalMatchedExits, 'TP:', finalTpExits, 'SL:', finalSlExits);
+  console.log('[UNIFIED MATCHING] Results - entries:', finalMatchedEntries, 'conditional exits:', finalMatchedExits, 'TP:', finalTpExits, 'SL:', finalSlExits);
   
   return {
-    matched: { entries, exits: finalMatchedExits },
+    matched: { entries: finalMatchedEntries, exits: finalMatchedExits },
     tpExits: finalTpExits,
     slExits: finalSlExits
   };
@@ -10256,9 +10322,7 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
             mode: 'lines',
             name: `RSI(${exitRsiPeriod}) (Exit)`,
             line: { color: rsiColors[idx % rsiColors.length].replace(/,\s*[\d.]+\)/, ', 0.4)'), width: 2 },
-            opacity: 0.4,
-            legendgroup: 'exits',
-            legendgrouptitle: { text: 'Exit Conditions' }
+            opacity: 0.4
           });
         });
         
@@ -10266,8 +10330,6 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
         exitTargetTraces.forEach(trace => {
           trace.name = `${trace.name} (Exit)`;
           trace.opacity = 0.4;
-          trace.legendgroup = 'exits';
-          trace.legendgrouptitle = { text: 'Exit Conditions' };
           if (trace.line && trace.line.color) {
             trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.4)');
           }
@@ -10281,8 +10343,6 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
           trace.name = `${trace.name} (Exit - Price Scale)`;
           trace.opacity = 0.3;
           trace.yaxis = 'y2'; // Use secondary y-axis for price scale
-          trace.legendgroup = 'exits';
-          trace.legendgrouptitle = { text: 'Exit Conditions' };
           trace.line = { ...trace.line, dash: 'dot' }; // Make it dotted to distinguish
           if (trace.line && trace.line.color) {
             trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.3)');
@@ -10297,8 +10357,6 @@ function createCombinedRSIChart(chartId, entryCondition, exitConditions, signalM
           trace.name = `${trace.name} (Exit - Price Scale)`;
           trace.opacity = 0.3;
           trace.yaxis = 'y2'; // Use secondary y-axis for price scale
-          trace.legendgroup = 'exits';
-          trace.legendgrouptitle = { text: 'Exit Conditions' };
           trace.line = { ...trace.line, dash: 'dot' }; // Make it dotted
           if (trace.line && trace.line.color) {
             trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.3)');
@@ -10627,8 +10685,6 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
         exitIndicatorTraces.forEach(trace => {
           trace.name = `${trace.name} (Exit)`;
           trace.opacity = 0.4;
-          trace.legendgroup = 'exits';
-          trace.legendgrouptitle = { text: 'Exit Conditions' };
           if (trace.line && trace.line.color) {
             trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.4)');
           }
@@ -10655,9 +10711,7 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
             name: `RSI(${exitRsiPeriod}) (Exit - RSI Scale)`,
             line: { color: rsiColors[idx % rsiColors.length].replace(/,\s*[\d.]+\)/, ', 0.3)'), width: 2, dash: 'dot' },
             opacity: 0.3,
-            yaxis: 'y2',
-            legendgroup: 'exits',
-            legendgrouptitle: { text: 'Exit Conditions' }
+            yaxis: 'y2'
           });
         });
         
@@ -10666,8 +10720,6 @@ function createCombinedMACrossoverChart(chartId, entryCondition, exitConditions,
           trace.name = `${trace.name} (Exit - RSI Scale)`;
           trace.opacity = 0.3;
           trace.yaxis = 'y2';
-          trace.legendgroup = 'exits';
-          trace.legendgrouptitle = { text: 'Exit Conditions' };
           trace.line = { ...trace.line, dash: 'dot' };
           if (trace.line && trace.line.color) {
             trace.line.color = trace.line.color.replace(/,\s*[\d.]+\)/, ', 0.3)');
