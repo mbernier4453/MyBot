@@ -642,13 +642,13 @@ ipcMain.handle('get-buyhold-metrics', async (event, runId) => {
   }
   
   try {
-    // Get buy & hold metrics from metrics_json for each ticker
+    // Get buy & hold metrics from metrics_json with buyhold_ prefix
     const stmt = db.prepare(`
       SELECT 
         ticker,
         metrics_json
       FROM strategies
-      WHERE run_id = ?
+      WHERE run_id = ? AND buyhold_json IS NOT NULL
       GROUP BY ticker
     `);
     stmt.bind([runId]);
@@ -657,18 +657,17 @@ ipcMain.handle('get-buyhold-metrics', async (event, runId) => {
     while (stmt.step()) {
       const row = stmt.getAsObject();
       try {
-        const metricsJson = (row.metrics_json || '{}').replace(/:\s*NaN/g, ': null');
-        const metrics = JSON.parse(metricsJson);
-        
-        // Extract buy & hold metrics if they exist (keys are buyhold_*)
-        if (metrics.buyhold_total_return !== undefined) {
+        if (row.metrics_json) {
+          const metrics = JSON.parse(row.metrics_json);
+          
+          // Extract buyhold_ prefixed metrics
           buyHoldMetrics[row.ticker] = {
-            total_return: metrics.buyhold_total_return,
-            cagr: metrics.buyhold_cagr,
-            sharpe: metrics.buyhold_sharpe,
-            sortino: metrics.buyhold_sortino,
-            vol: null, // Buy & hold doesn't have separate vol stored in summarize_comparisons
-            maxdd: metrics.buyhold_maxdd
+            total_return: metrics.buyhold_total_return || null,
+            cagr: metrics.buyhold_cagr || null,
+            sharpe: metrics.buyhold_sharpe || null,
+            sortino: metrics.buyhold_sortino || null,
+            vol: metrics.buyhold_vol || null,
+            maxdd: metrics.buyhold_maxdd || null
           };
         }
       } catch (parseError) {
@@ -1012,6 +1011,18 @@ ipcMain.handle('calculate-capm', async (event, strategyEquity, benchmarkEquity) 
     const pythonPath = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
     const scriptPath = path.join(__dirname, '..', 'calculate_capm.py');
     
+    // Transform data if needed (from our storage format to Python script format)
+    const transformEquity = (equity) => {
+      if (equity && equity.equity && equity.dates) {
+        return {
+          data: equity.equity,
+          index: equity.dates,
+          name: equity.name || 'Equity'
+        };
+      }
+      return equity; // Already in correct format
+    };
+    
     return new Promise((resolve, reject) => {
       const python = spawn(pythonPath, [scriptPath]);
       
@@ -1020,8 +1031,8 @@ ipcMain.handle('calculate-capm', async (event, strategyEquity, benchmarkEquity) 
       
       // Send equity data as JSON to Python stdin
       python.stdin.write(JSON.stringify({
-        strategy: strategyEquity,
-        benchmark: benchmarkEquity
+        strategy: transformEquity(strategyEquity),
+        benchmark: transformEquity(benchmarkEquity)
       }));
       python.stdin.end();
       
@@ -1490,6 +1501,63 @@ ipcMain.handle('backtest-run', async (event, config) => {
           success: false,
           error: `Process exited with code ${code}`,
           output: output
+        });
+      }
+    });
+  });
+});
+
+// Run dynamic backtest from frontend config
+ipcMain.handle('run-dynamic-backtest', async (event, config) => {
+  return new Promise((resolve, reject) => {
+    console.log('[DYNAMIC BACKTEST] Running with config:', config);
+    
+    const pythonCommand = getPythonExecutable();
+    const scriptPath = path.join(__dirname, '..', 'dynamic_backtest.py');
+    const configJson = JSON.stringify(config);
+    
+    // Spawn Python process
+    const pythonProcess = spawn(pythonCommand, [scriptPath, configJson], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let output = '';
+    let errorOutput = '';
+
+    pythonProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+      console.error('[DYNAMIC BACKTEST ERROR]', data.toString());
+    });
+
+    pythonProcess.on('error', (error) => {
+      console.error('[DYNAMIC BACKTEST] Process error:', error);
+      resolve({ success: false, error: error.message });
+    });
+
+    pythonProcess.on('exit', (code) => {
+      console.log(`[DYNAMIC BACKTEST] Process exited with code ${code}`);
+      
+      if (code === 0) {
+        try {
+          const result = JSON.parse(output);
+          resolve(result);
+        } catch (e) {
+          resolve({
+            success: false,
+            error: 'Failed to parse backtest results',
+            details: output
+          });
+        }
+      } else {
+        resolve({
+          success: false,
+          error: `Process exited with code ${code}`,
+          stderr: errorOutput
         });
       }
     });

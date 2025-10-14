@@ -982,11 +982,16 @@ textarea.form-input {
 }
 
 .run-mode {
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .run-mode.portfolio {
@@ -1682,25 +1687,37 @@ textarea.form-input {
 }
 
 .btn-delete-run {
-  background: none;
-  border: none;
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
-  padding: 2px 6px;
-  opacity: 0.6;
-  transition: opacity 0.2s, transform 0.1s;
+  font-size: 16px;
+  font-weight: bold;
+  padding: 4px 8px;
+  color: #ff4444;
+  opacity: 0.8;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  line-height: 1;
+  position: relative;
+  z-index: 100;
+  min-width: 28px;
+  height: 28px;
+  flex-shrink: 0;
 }
 
 .btn-delete-run:hover {
+  background: rgba(255, 68, 68, 0.2);
+  border-color: #ff4444;
   opacity: 1;
   transform: scale(1.1);
 }
 
 .btn-delete-run:active {
-  transform: scale(0.95);
+  transform: scale(0.9);
+  background: rgba(255, 68, 68, 0.3);
 }
 
 /* Charting Page */

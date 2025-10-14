@@ -45,6 +45,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onBacktestProgress: (callback) => ipcRenderer.on('backtest-progress', (event, data) => callback(data)),
   onBacktestComplete: (callback) => ipcRenderer.on('backtest-complete', (event, data) => callback(data)),
   
+  // Dynamic Backtester (new system)
+  runDynamicBacktest: (config) => ipcRenderer.invoke('run-dynamic-backtest', config),
+  
   // Strategy Preview
   loadPreviewData: (params) => ipcRenderer.invoke('load-preview-data', params)
 });

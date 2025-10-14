@@ -20,6 +20,8 @@
         <button class="main-tab" data-main-tab="screener">Screener</button>
         <button class="main-tab" data-main-tab="watchlists">Watchlists</button>
         <button class="main-tab" data-main-tab="charting">Charting</button>
+        <button class="main-tab" data-main-tab="financials">Financials</button>
+        <button class="main-tab" data-main-tab="ratios">Ratios</button>
         <button class="main-tab" data-main-tab="rsi">RSI</button>
         <button class="main-tab" data-main-tab="backtesting">Backtesting</button>
         <button class="main-tab" data-main-tab="results">Results</button>
@@ -159,6 +161,38 @@
               <div id="watchlistTreemapContainer" class="treemap-container-fullscreen">
                 <svg id="watchlistTreemap"></svg>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Financials Page -->
+      <div id="financialsPage" class="main-page">
+        <div class="page-container">
+          <div class="page-header">
+            <h2>Financials</h2>
+            <p class="page-subtitle">Financial statements and company data</p>
+          </div>
+          <div class="page-content">
+            <div class="empty-state">
+              <h3>🏗️ Coming Soon</h3>
+              <p>Financial data analysis features will be added here</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ratios Page -->
+      <div id="ratiosPage" class="main-page">
+        <div class="page-container">
+          <div class="page-header">
+            <h2>Ratios</h2>
+            <p class="page-subtitle">Financial ratios and valuation metrics</p>
+          </div>
+          <div class="page-content">
+            <div class="empty-state">
+              <h3>🏗️ Coming Soon</h3>
+              <p>Financial ratio analysis features will be added here</p>
             </div>
           </div>
         </div>
@@ -499,6 +533,15 @@
                 <div class="form-group">
                   <label for="notes">Notes:</label>
                   <textarea id="notes" rows="3" placeholder="Description of this backtest..."></textarea>
+                </div>
+                <div class="form-group">
+                  <label for="backtestDbPath">Save Results To:</label>
+                  <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="text" id="backtestDbPath" readonly placeholder="Default: results/db/backtests.db" style="flex: 1;" />
+                    <button type="button" id="selectBacktestDbBtn" class="btn btn-secondary">📂 Browse...</button>
+                    <button type="button" id="clearBacktestDbBtn" class="btn btn-secondary" title="Use default database">✖</button>
+                  </div>
+                  <small>Choose where backtest results will be saved. Leave empty for default location.</small>
                 </div>
                 <div class="form-group">
                   <label>Tickers Source:</label>

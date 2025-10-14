@@ -34,6 +34,31 @@ tradeSearch?.addEventListener('input', filterTrades);
 sideFilter?.addEventListener('change', filterTrades);
 compareBtn?.addEventListener('click', compareRuns);
 
+// Backtest database path selector
+const backtestDbPathInput = document.getElementById('backtestDbPath');
+const selectBacktestDbBtn = document.getElementById('selectBacktestDbBtn');
+const clearBacktestDbBtn = document.getElementById('clearBacktestDbBtn');
+let backtestDbPath = null; // Stores the selected database path
+
+if (selectBacktestDbBtn) {
+  selectBacktestDbBtn.addEventListener('click', async () => {
+    const result = await window.electronAPI.selectDb();
+    if (result.success) {
+      backtestDbPath = result.path;
+      backtestDbPathInput.value = result.path;
+      console.log('[BACKTEST] Database path selected:', backtestDbPath);
+    }
+  });
+}
+
+if (clearBacktestDbBtn) {
+  clearBacktestDbBtn.addEventListener('click', () => {
+    backtestDbPath = null;
+    backtestDbPathInput.value = '';
+    console.log('[BACKTEST] Using default database path');
+  });
+}
+
 // Function to switch to a specific tab
 function switchToTab(tabName) {
   tabs.forEach(t => t.classList.remove('active'));
@@ -149,6 +174,10 @@ function displayRuns(runs) {
     return;
   }
   
+  // Count single and portfolio runs for numbering
+  let singleCount = 0;
+  let portfolioCount = 0;
+  
   runsList.innerHTML = runs.map(run => {
     const startDate = new Date(run.started_at * 1000).toLocaleString();
     
@@ -165,25 +194,41 @@ function displayRuns(runs) {
       }
     }
     
+    // Generate display label with counter
+    let modeLabel;
+    if (run.mode === 'portfolio') {
+      portfolioCount++;
+      modeLabel = `Portfolio (#${portfolioCount})`;
+    } else {
+      // Treat 'single' and any other mode (like 'dynamic_grid') as single
+      singleCount++;
+      modeLabel = `Single (#${singleCount})`;
+    }
+    
     return `
       <div class="run-item" data-run-id="${run.run_id}">
         <div class="run-item-header">
           <span class="run-id">${run.run_id}</span>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="run-mode ${run.mode}">${run.mode || 'single'}</span>
-            <button class="btn-delete-run" onclick="deleteRun('${run.run_id}', event)" title="Delete run">✕</button>
+            <span class="run-mode ${run.mode === 'portfolio' ? 'portfolio' : 'single'}">${modeLabel}</span>
+            <button class="btn-delete-run" data-run-id="${run.run_id}" title="Delete run">✕</button>
           </div>
         </div>
         <div class="run-info">${startDate}</div>
-        <div class="run-info">${duration} • ${run.result_count || 0} results</div>
+        <div class="run-info">${duration} • ${run.result_count || 0} strategies</div>
         ${run.notes ? `<div class="run-notes">${run.notes}</div>` : ''}
       </div>
     `;
   }).join('');
   
-  // Add click handlers
+  // Add click handlers for run items
   document.querySelectorAll('.run-item').forEach(item => {
     item.addEventListener('click', (e) => {
+      // Ignore clicks on delete button
+      if (e.target.classList.contains('btn-delete-run')) {
+        return;
+      }
+      
       const runId = item.dataset.runId;
       
       if (e.ctrlKey || e.metaKey) {
@@ -244,6 +289,15 @@ function displayRuns(runs) {
           }
         }
       }
+    });
+  });
+  
+  // Add delete button handlers using event delegation
+  document.querySelectorAll('.btn-delete-run').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation(); // Prevent run selection
+      const runId = btn.dataset.runId;
+      await deleteRun(runId, e);
     });
   });
 }
@@ -912,12 +966,12 @@ async function loadRunDetails(run) {
       console.log('Portfolio data:', p);
       overviewHtml += `
         <div class="metrics-grid">
-          ${createMetricCard('Total Return', formatPercent(p.total_return), p.total_return >= 0)}
-          ${createMetricCard('CAGR', formatPercent(p.cagr), p.cagr >= 0)}
+          ${createMetricCard('Total Return', formatPercentAlready(p.total_return), p.total_return >= 0)}
+          ${createMetricCard('CAGR', formatPercentAlready(p.cagr), p.cagr >= 0)}
           ${createMetricCard('Sharpe Ratio', formatNumber(p.sharpe, 2), p.sharpe >= 0)}
           ${createMetricCard('Sortino Ratio', formatNumber(p.sortino, 2), p.sortino >= 0)}
-          ${createMetricCard('Volatility', formatPercent(p.vol))}
-          ${createMetricCard('Max Drawdown', formatPercent(p.maxdd), false)}
+          ${createMetricCard('Volatility', formatPercentAlready(p.vol))}
+          ${createMetricCard('Max Drawdown', formatPercentAlready(p.maxdd), false)}
           ${createMetricCard('Win Rate', formatPercent(p.win_rate), p.win_rate >= 0.5)}
           ${createMetricCard('Total Trades', p.trades_total || 0)}
         </div>
@@ -994,10 +1048,10 @@ async function loadRunDetails(run) {
       overviewHtml += `
         <div class="metrics-grid">
           ${createMetricCard('Strategies', strategies.length)}
-          ${createMetricCard('Avg Return', formatPercent(avgReturn), avgReturn >= 0)}
-          ${createMetricCard('Best Return', formatPercent(maxReturn), maxReturn >= 0)}
+          ${createMetricCard('Avg Return', formatPercentAlready(avgReturn), avgReturn >= 0)}
+          ${createMetricCard('Best Return', formatPercentAlready(maxReturn), maxReturn >= 0)}
           ${createMetricCard('Median Sharpe', formatNumber(medianSharpe, 2), medianSharpe >= 0)}
-          ${createMetricCard('Worst Drawdown', formatPercent(worstDrawdown), false)}
+          ${createMetricCard('Worst Drawdown', formatPercentAlready(worstDrawdown), false)}
           ${createMetricCard('Unique Tickers', new Set(strategies.map(s => s.ticker)).size)}
         </div>
       `;
@@ -1116,10 +1170,10 @@ function displayStrategies(strategies) {
           <tr class="strategy-row" data-strategy-id="${s.id}" style="cursor: pointer;">
             <td class="ticker-cell">${s.ticker}</td>
             <td class="${getComparisonClass(s.total_return, bh.total_return, true)}">
-              ${formatPercent(s.total_return)}
+              ${formatPercentAlready(s.total_return)}
             </td>
             <td class="${getComparisonClass(s.cagr, bh.cagr, true)}">
-              ${formatPercent(s.cagr)}
+              ${formatPercentAlready(s.cagr)}
             </td>
             <td class="${getComparisonClass(s.sharpe, bh.sharpe, true)}">
               ${formatNumber(s.sharpe, 2)}
@@ -1128,10 +1182,10 @@ function displayStrategies(strategies) {
               ${formatNumber(s.sortino, 2)}
             </td>
             <td class="${getComparisonClass(s.vol, bh.vol, false)}">
-              ${formatPercent(s.vol)}
+              ${formatPercentAlready(s.vol)}
             </td>
             <td class="${getComparisonClass(s.maxdd, bh.maxdd, false)}">
-              ${formatPercent(s.maxdd)}
+              ${formatPercentAlready(s.maxdd)}
             </td>
             <td>${formatPercent(s.win_rate)}</td>
             <td>${s.trades_total || 0}</td>
@@ -1239,15 +1293,15 @@ async function displayStrategyOverview(strategyId) {
         <div class="metric-card">
           <div class="metric-label">Total Return</div>
           <div class="metric-value" style="color: ${strategy.total_return >= 0 ? 'var(--positive)' : 'var(--negative)'};">
-            ${formatPercent(strategy.total_return)}
+            ${formatPercentAlready(strategy.total_return)}
           </div>
-          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercent(bh.total_return)}</div>` : ''}
+          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercentAlready(bh.total_return)}</div>` : ''}
         </div>
         
         <div class="metric-card">
           <div class="metric-label">CAGR</div>
-          <div class="metric-value">${formatPercent(strategy.cagr)}</div>
-          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercent(bh.cagr)}</div>` : ''}
+          <div class="metric-value">${formatPercentAlready(strategy.cagr)}</div>
+          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercentAlready(bh.cagr)}</div>` : ''}
         </div>
         
         <div class="metric-card">
@@ -1264,14 +1318,14 @@ async function displayStrategyOverview(strategyId) {
         
         <div class="metric-card">
           <div class="metric-label">Volatility</div>
-          <div class="metric-value">${formatPercent(strategy.vol)}</div>
-          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercent(bh.vol)}</div>` : ''}
+          <div class="metric-value">${formatPercentAlready(strategy.vol)}</div>
+          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercentAlready(bh.vol)}</div>` : ''}
         </div>
         
         <div class="metric-card">
           <div class="metric-label">Max Drawdown</div>
-          <div class="metric-value" style="color: var(--negative);">${formatPercent(strategy.maxdd)}</div>
-          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercent(bh.maxdd)}</div>` : ''}
+          <div class="metric-value" style="color: var(--negative);">${formatPercentAlready(strategy.maxdd)}</div>
+          ${hasBuyHold ? `<div class="metric-sub">B&H: ${formatPercentAlready(bh.maxdd)}</div>` : ''}
         </div>
         
         <div class="metric-card">
@@ -1602,6 +1656,12 @@ function createInfoRow(label, value) {
 function formatPercent(value, decimals = 2) {
   if (value === null || value === undefined || isNaN(value)) return 'N/A';
   return (value * 100).toFixed(decimals) + '%';
+}
+
+// For values already in percentage format (not decimal)
+function formatPercentAlready(value, decimals = 2) {
+  if (value === null || value === undefined || isNaN(value)) return 'N/A';
+  return Number(value).toFixed(decimals) + '%';
 }
 
 function formatNumber(value, decimals = 2) {
@@ -1957,32 +2017,54 @@ async function viewTearsheet(strategyId) {
         '<p style="color: var(--text-secondary); font-size: 11px; text-align: center; padding: 20px;">CAPM analysis not available (benchmark disabled or missing)</p>';
     }
     
+    // Transform equity data from storage format to chart format
+    const transformEquity = (equityData, name) => {
+      if (!equityData) return null;
+      if (equityData.data && equityData.index) {
+        // Already in correct format
+        return equityData;
+      }
+      if (equityData.equity && equityData.dates) {
+        // Our storage format - transform to chart format
+        return {
+          data: equityData.equity,
+          index: equityData.dates,
+          name: name
+        };
+      }
+      return null;
+    };
+    
+    const transformedStrategy = transformEquity(strategy.equity, 'Strategy');
+    const transformedBuyHold = transformEquity(strategy.buyhold_equity, 'Buy & Hold');
+    const transformedBenchmark = transformEquity(strategy.benchmark_equity, 'Benchmark (QQQ)');
+    
     // Display equity chart
-    if (strategy.equity) {
-      displayEquityChart(strategy.equity, strategy.buyhold_equity, strategy.benchmark_equity, strategy.events);
+    if (transformedStrategy) {
+      displayEquityChart(transformedStrategy, transformedBuyHold, transformedBenchmark, strategy.events);
     } else {
       document.getElementById('equityChart').innerHTML = 
         '<p style="color: var(--text-secondary);">Equity data not available</p>';
     }
     
     // Display vol-matched charts
-    if (strategy.equity && strategy.benchmark_equity) {
-      displayVolMatchedChart(strategy.equity, strategy.benchmark_equity, 'volMatchedBenchChart', 'Benchmark');
+    if (transformedStrategy && transformedBenchmark) {
+      displayVolMatchedChart(transformedStrategy, transformedBenchmark, 'volMatchedBenchChart', 'Benchmark');
     } else {
       document.getElementById('volMatchedBenchChart').innerHTML = 
         '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 11px;">Benchmark not available</div>';
     }
     
-    if (strategy.equity && strategy.buyhold_equity) {
-      displayVolMatchedChart(strategy.equity, strategy.buyhold_equity, 'volMatchedBuyHoldChart', 'Buy & Hold');
+    if (transformedStrategy && transformedBuyHold) {
+      displayVolMatchedChart(transformedStrategy, transformedBuyHold, 'volMatchedBuyHoldChart', 'Buy & Hold');
     } else {
       document.getElementById('volMatchedBuyHoldChart').innerHTML = 
         '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 11px;">Buy & Hold not available</div>';
     }
     
     // Display drawdown chart
-    if (strategy.equity) {
-      displayDrawdownChart(strategy.equity, strategy.buyhold_equity, strategy.benchmark_equity);
+    if (transformedStrategy) {
+      displayDrawdownChart(transformedStrategy, transformedBuyHold, transformedBenchmark);
     } else {
       document.getElementById('drawdownChart').innerHTML = 
         '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 11px;">Data not available</div>';
@@ -2034,24 +2116,39 @@ function displayTearsheetMetrics(strategy) {
     cagr: m.buyhold_cagr,
     sharpe: m.buyhold_sharpe,
     sortino: m.buyhold_sortino,
-    vol: m.buyhold_vol || m.vol, // Fallback
+    vol: m.buyhold_vol,
     maxdd: m.buyhold_maxdd
   };
   
   const benchMetrics = {
-    total_return: m.bench_total_return,
-    cagr: m.bench_cagr,
-    sharpe: m.bench_sharpe,
-    sortino: m.bench_sortino,
-    vol: m.bench_vol || m.vol, // Fallback
-    maxdd: m.bench_maxdd
+    total_return: m.benchmark_total_return,
+    cagr: m.benchmark_cagr,
+    sharpe: m.benchmark_sharpe,
+    sortino: m.benchmark_sortino,
+    vol: m.benchmark_vol,
+    maxdd: m.benchmark_maxdd
   };
   
-  function formatMetricValue(value, isPercent = false, higherIsBetter = true) {
-    if (value === null || value === undefined || isNaN(value)) return '<span style="color: var(--text-secondary);">N/A</span>';
+  function formatMetricValue(value, compareValue, isPercent = false, higherIsBetter = true) {
+    if (value === null || value === undefined || isNaN(value)) {
+      return '<div style="text-align: right; color: var(--text-secondary);">N/A</div>';
+    }
     
-    const formatted = isPercent ? formatPercent(value) : formatNumber(value, 3);
-    return `<span class="metric-value">${formatted}</span>`;
+    // Use formatPercentAlready because backend already stores as percentage
+    const formatted = isPercent ? formatPercentAlready(value) : formatNumber(value, 3);
+    
+    // Determine color based on comparison with buy & hold
+    let color = 'var(--text-primary)';
+    if (compareValue !== null && compareValue !== undefined && !isNaN(compareValue)) {
+      if (higherIsBetter) {
+        color = value > compareValue ? 'var(--success)' : 'var(--danger)';
+      } else {
+        // For metrics where lower is better (vol, maxdd)
+        color = value < compareValue ? 'var(--success)' : 'var(--danger)';
+      }
+    }
+    
+    return `<div style="text-align: right; color: ${color};">${formatted}</div>`;
   }
   
   const metricsHtml = `
@@ -2063,39 +2160,39 @@ function displayTearsheetMetrics(strategy) {
     </div>
     <div class="metric-row">
       <div class="metric-label">Total Return</div>
-      ${formatMetricValue(stratMetrics.total_return, true)}
-      ${formatMetricValue(bhMetrics.total_return, true)}
-      ${formatMetricValue(benchMetrics.total_return, true)}
+      ${formatMetricValue(stratMetrics.total_return, bhMetrics.total_return, true, true)}
+      ${formatMetricValue(bhMetrics.total_return, null, true, true)}
+      ${formatMetricValue(benchMetrics.total_return, null, true, true)}
     </div>
     <div class="metric-row">
       <div class="metric-label">CAGR</div>
-      ${formatMetricValue(stratMetrics.cagr, true)}
-      ${formatMetricValue(bhMetrics.cagr, true)}
-      ${formatMetricValue(benchMetrics.cagr, true)}
+      ${formatMetricValue(stratMetrics.cagr, bhMetrics.cagr, true, true)}
+      ${formatMetricValue(bhMetrics.cagr, null, true, true)}
+      ${formatMetricValue(benchMetrics.cagr, null, true, true)}
     </div>
     <div class="metric-row">
       <div class="metric-label">Sharpe</div>
-      ${formatMetricValue(stratMetrics.sharpe, false)}
-      ${formatMetricValue(bhMetrics.sharpe, false)}
-      ${formatMetricValue(benchMetrics.sharpe, false)}
+      ${formatMetricValue(stratMetrics.sharpe, bhMetrics.sharpe, false, true)}
+      ${formatMetricValue(bhMetrics.sharpe, null, false, true)}
+      ${formatMetricValue(benchMetrics.sharpe, null, false, true)}
     </div>
     <div class="metric-row">
       <div class="metric-label">Sortino</div>
-      ${formatMetricValue(stratMetrics.sortino, false)}
-      ${formatMetricValue(bhMetrics.sortino, false)}
-      ${formatMetricValue(benchMetrics.sortino, false)}
+      ${formatMetricValue(stratMetrics.sortino, bhMetrics.sortino, false, true)}
+      ${formatMetricValue(bhMetrics.sortino, null, false, true)}
+      ${formatMetricValue(benchMetrics.sortino, null, false, true)}
     </div>
     <div class="metric-row">
       <div class="metric-label">Volatility</div>
-      ${formatMetricValue(stratMetrics.vol, true)}
-      ${formatMetricValue(bhMetrics.vol, true)}
-      ${formatMetricValue(benchMetrics.vol, true)}
+      ${formatMetricValue(stratMetrics.vol, bhMetrics.vol, true, false)}
+      ${formatMetricValue(bhMetrics.vol, null, true, false)}
+      ${formatMetricValue(benchMetrics.vol, null, true, false)}
     </div>
     <div class="metric-row">
       <div class="metric-label">Max Drawdown</div>
-      ${formatMetricValue(stratMetrics.maxdd, true)}
-      ${formatMetricValue(bhMetrics.maxdd, true)}
-      ${formatMetricValue(benchMetrics.maxdd, true)}
+      ${formatMetricValue(stratMetrics.maxdd, bhMetrics.maxdd, true, false)}
+      ${formatMetricValue(bhMetrics.maxdd, null, true, false)}
+      ${formatMetricValue(benchMetrics.maxdd, null, true, false)}
     </div>
   `;
   
@@ -2246,9 +2343,37 @@ function displayEquityChart(strategyEquity, buyholdEquity, benchmarkEquity, even
       equityMap.set(normalizedDate, strategyEquity.data[i]);
     });
     
-    // Separate buy and sell events
-    const buyEvents = events.filter(e => e.type === 'buy');
-    const sellEvents = events.filter(e => e.type === 'sell');
+    // Convert trades to buy/sell events if needed
+    // Trades format: {entry_date, entry_price, shares, exit_date, exit_price, pnl}
+    // Events format: {type: 'buy'/'sell', ts: date, price, qty}
+    let buyEvents = [];
+    let sellEvents = [];
+    
+    events.forEach(trade => {
+      if (trade.type === 'buy' || trade.type === 'sell') {
+        // Already in events format
+        if (trade.type === 'buy') buyEvents.push(trade);
+        else sellEvents.push(trade);
+      } else if (trade.entry_date || trade.exit_date) {
+        // Trade format - convert to events
+        if (trade.entry_date) {
+          buyEvents.push({
+            type: 'buy',
+            ts: trade.entry_date,
+            price: trade.entry_price,
+            qty: trade.shares
+          });
+        }
+        if (trade.exit_date) {
+          sellEvents.push({
+            type: 'sell',
+            ts: trade.exit_date,
+            price: trade.exit_price,
+            qty: trade.shares
+          });
+        }
+      }
+    });
     
     console.log('Trade events:', { buyCount: buyEvents.length, sellCount: sellEvents.length });
     
@@ -7480,55 +7605,130 @@ if (runBacktestBtn) {
       return;
     }
     
-    // Additional validation for portfolio mode
-    if (config.PORTFOLIO_MODE) {
-      // Check for duplicate tickers
-      const uniqueTickers = [...new Set(config.TICKERS)];
-      if (uniqueTickers.length !== config.TICKERS.length) {
-        alert('Error: Duplicate tickers detected. Each ticker should only appear once.');
-        return;
-      }
-      
-      // Check if strategies are defined
-      if (!config.PORTFOLIO_STRATEGIES || Object.keys(config.PORTFOLIO_STRATEGIES).length === 0) {
-        alert('Error: Portfolio mode requires strategy parameters for each ticker.\n\nNote: The system will auto-populate default RSI parameters if none are specified.');
-        // Don't return - let the auto-population handle it
-      }
-      
-      // Check if weights sum correctly (should be 1.0 after normalization)
-      if (config.PORTFOLIO_WEIGHTS) {
-        const weightSum = Object.values(config.PORTFOLIO_WEIGHTS).reduce((sum, w) => sum + w, 0);
-        if (Math.abs(weightSum - 1.0) > 0.01) {
-          console.warn(`[BACKTEST] Portfolio weights sum to ${weightSum.toFixed(4)}, expected ~1.0`);
-        }
-      }
+    // Validate entry conditions exist
+    if (!config.ENTRY_CONDITIONS || config.ENTRY_CONDITIONS.length === 0) {
+      alert('Please add at least one entry condition.');
+      return;
     }
+    
+    // Portfolio mode not yet supported in dynamic backtest
+    if (config.PORTFOLIO_MODE) {
+      alert('Portfolio mode is not yet implemented in the new dynamic backtest system.\n\nPlease disable portfolio mode and test with individual tickers first.');
+      return;
+    }
+    
+    // Convert frontend config (UPPERCASE) to backend format (camelCase)
+    const backendConfig = {
+      runId: config.RUN_ID || 'auto',
+      tickers: config.TICKERS,
+      startDate: config.START,
+      endDate: config.END || new Date().toISOString().split('T')[0], // Use today if null
+      initialCapital: config.INITIAL_CAPITAL,
+      entryConditions: config.ENTRY_CONDITIONS || [],
+      exitConditions: config.EXIT_CONDITIONS || [],
+      entryMode: config.ENTRY_MODE || 'all',
+      exitMode: config.EXIT_MODE || 'all',
+      takeProfitEnabled: config.TAKE_PROFIT_ENABLED || false,
+      takeProfitType: config.TAKE_PROFIT_TYPE,
+      takeProfitPercent: config.TAKE_PROFIT_PERCENT,
+      takeProfitValue: config.TAKE_PROFIT_VALUE,
+      stopLossEnabled: config.STOP_LOSS_ENABLED || false,
+      stopLossType: config.STOP_LOSS_TYPE,
+      stopLossPercent: config.STOP_LOSS_PERCENT,
+      stopLossValue: config.STOP_LOSS_VALUE,
+      targetWeight: config.TARGET_WEIGHT || 0.95,
+      entryFees: config.ENTRY_FEES_BPS || 10,
+      exitFees: config.EXIT_FEES_BPS || 10,
+      buyHoldEnabled: config.BUY_HOLD_ENABLED || false,
+      benchmarkEnabled: config.BENCHMARK_ENABLED || false,
+      benchmarkSymbol: config.BENCHMARK_SYMBOL || 'QQQ',
+      saveToDatabase: true, // Always save results
+      databasePath: backtestDbPath || null, // Use selected path or default
+      notes: config.NOTES || ''
+    };
     
     // Disable button and show loading state
     runBacktestBtn.disabled = true;
-    runBacktestBtn.textContent = 'Starting Backtest...';
+    runBacktestBtn.textContent = 'Running Backtest...';
     runBacktestBtn.classList.add('loading');
     
     try {
-      // Run backtest (this will trigger progress events)
-      console.log('[BACKTEST] Starting backtest...');
-      const response = await window.electronAPI.backtestRun(config);
+      // Run backtest with new dynamic system
+      console.log('[BACKTEST] Starting dynamic backtest...');
+      console.log('[BACKTEST] Backend config:', backendConfig);
+      const result = await window.electronAPI.runDynamicBacktest(backendConfig);
       
-      if (!response.success) {
-        // Immediate failure (before process could start)
-        runBacktestBtn.disabled = false;
-        runBacktestBtn.textContent = 'Run Backtest';
-        runBacktestBtn.classList.remove('loading');
-        alert(`Error starting backtest:\n\n${response.error}`);
+      // Re-enable button
+      runBacktestBtn.disabled = false;
+      runBacktestBtn.textContent = 'Run Backtest';
+      runBacktestBtn.classList.remove('loading');
+      
+      if (result.success) {
+        console.log('[BACKTEST] Grid search completed:', result);
+        console.log('[BACKTEST] Best result trades:', result.best_result?.trades);
+        
+        const best = result.best_result;
+        
+        // Format entry condition for display
+        const formatCondition = (cond) => {
+          if (cond.type === 'rsi') {
+            const value = cond.target_value || cond.value || '?';
+            const interaction = cond.interaction ? cond.interaction.replace(/_/g, ' ') : 'unknown';
+            const target = cond.target_type === 'Value' ? `Value(${value})` : cond.target_type;
+            return `RSI(${cond.rsi_period}) ${interaction} ${target}`;
+          }
+          return JSON.stringify(cond);
+        };
+        
+        // Display results in a modal or alert for now
+        const tickersList = result.tickers.join(', ');
+        
+        const summary = `
+✅ Grid Search Complete!
+
+📊 Tested:
+  • ${result.num_entry_conditions} entry condition(s)
+  • ${result.num_tickers} ticker(s): ${tickersList}
+  • ${result.total_strategies} total strategy combinations
+
+✨ Database:
+  • ${result.total_runs} run(s) created (1 per entry condition)
+  ${result.run_ids && result.run_ids.length > 0 ? `• 💾 Saved ${result.run_ids.length} runs to database` : '• ⚠️ Not saved to database'}
+  • Each run = all grid variations × all tickers
+
+🏆 Best Result (Across All):
+  • Ticker: ${best.ticker}
+  • Entry: ${formatCondition(best.entry_condition)}
+  • Total Return: ${best.metrics.total_return.toFixed(2)}%
+  • Sharpe: ${best.metrics.sharpe ? best.metrics.sharpe.toFixed(2) : 'N/A'}
+  • Trades: ${best.metrics.num_trades}
+  • Win Rate: ${best.metrics.win_rate ? (best.metrics.win_rate * 100).toFixed(1) + '%' : 'N/A'}
+
+${best.metrics.num_trades === 0 ? `\n⚠️ Note: Best result had NO TRADES
+Check if entry conditions are too strict or data range is insufficient.` : ''}
+
+👉 View detailed results in the Results tab!
+Each run shows all tickers as separate strategies.
+        `.trim();
+        
+        alert(summary);
+        
+        // TODO: Display full results in a proper UI (sortable table, charts, etc.)
+        
+      } else {
+        console.error('[BACKTEST] Backtest failed:', result);
+        const errorMsg = result.stderr ? 
+          `${result.error}\n\nPython Error:\n${result.stderr}` : 
+          result.error;
+        alert(`Backtest failed:\n\n${errorMsg}`);
       }
-      // Otherwise, wait for progress/complete events
       
     } catch (error) {
       console.error('[BACKTEST] Error running backtest:', error);
       runBacktestBtn.disabled = false;
       runBacktestBtn.textContent = 'Run Backtest';
       runBacktestBtn.classList.remove('loading');
-      alert(`Error starting backtest:\n\n${error.message}`);
+      alert(`Error running backtest:\n\n${error.message || error}`);
     }
   });
 }
@@ -8037,7 +8237,7 @@ function lightenColor(color, factor) {
 // ==================== KEYBOARD SHORTCUTS ====================
 
 // Main tabs for navigation
-const MAIN_TABS = ['home', 'screener', 'watchlists', 'charting', 'rsi', 'backtesting', 'results'];
+const MAIN_TABS = ['home', 'screener', 'watchlists', 'charting', 'financials', 'ratios', 'rsi', 'backtesting', 'results'];
 
 // Function to switch main navigation tabs
 function switchMainTab(tabName) {
@@ -8146,8 +8346,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Ctrl+1 through Ctrl+7: Direct tab access
-    if (e.ctrlKey && e.key >= '1' && e.key <= '7') {
+    // Ctrl+1 through Ctrl+9: Direct tab access
+    if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
       e.preventDefault();
       const index = parseInt(e.key) - 1;
       console.log('[SHORTCUT] Ctrl+' + e.key + ', switching to:', MAIN_TABS[index]);
@@ -8724,12 +8924,20 @@ function addConditionFromData(conditionGroup, conditionData) {
         // Restore BB parameters
         if (conditionData.bb_std !== undefined) {
           const bbStdField = document.getElementById(`${conditionId}_bb_std`);
-          if (bbStdField) bbStdField.value = conditionData.bb_std;
+          const bbStdValueSpan = document.getElementById(`${conditionId}_bb_std_value`);
+          if (bbStdField) {
+            bbStdField.value = conditionData.bb_std;
+            if (bbStdValueSpan) bbStdValueSpan.textContent = conditionData.bb_std;
+          }
         }
         // Restore KC parameters
         if (conditionData.kc_mult !== undefined) {
           const kcMultField = document.getElementById(`${conditionId}_kc_mult`);
-          if (kcMultField) kcMultField.value = conditionData.kc_mult;
+          const kcMultValueSpan = document.getElementById(`${conditionId}_kc_mult_value`);
+          if (kcMultField) {
+            kcMultField.value = conditionData.kc_mult;
+            if (kcMultValueSpan) kcMultValueSpan.textContent = conditionData.kc_mult;
+          }
         }
         if (conditionData.interaction) {
           document.getElementById(`${conditionId}_interaction`).value = conditionData.interaction;
@@ -8753,12 +8961,20 @@ function addConditionFromData(conditionGroup, conditionData) {
         // Restore BB parameters
         if (conditionData.bb_std !== undefined) {
           const bbStdField = document.getElementById(`${conditionId}_bb_std`);
-          if (bbStdField) bbStdField.value = conditionData.bb_std;
+          const bbStdValueSpan = document.getElementById(`${conditionId}_bb_std_value`);
+          if (bbStdField) {
+            bbStdField.value = conditionData.bb_std;
+            if (bbStdValueSpan) bbStdValueSpan.textContent = conditionData.bb_std;
+          }
         }
         // Restore KC parameters
         if (conditionData.kc_mult !== undefined) {
           const kcMultField = document.getElementById(`${conditionId}_kc_mult`);
-          if (kcMultField) kcMultField.value = conditionData.kc_mult;
+          const kcMultValueSpan = document.getElementById(`${conditionId}_kc_mult_value`);
+          if (kcMultField) {
+            kcMultField.value = conditionData.kc_mult;
+            if (kcMultValueSpan) kcMultValueSpan.textContent = conditionData.kc_mult;
+          }
         }
         if (conditionData.interaction) {
           document.getElementById(`${conditionId}_interaction`).value = conditionData.interaction;
@@ -8839,17 +9055,25 @@ function toggleStopLoss() {
 // Toggle take profit type
 function toggleTakeProfitType() {
   const type = document.getElementById('takeProfitType')?.value;
-  document.getElementById('takeProfitPercent').style.display = type === 'percent' ? 'block' : 'none';
-  document.getElementById('takeProfitDollar').style.display = type === 'dollar' ? 'block' : 'none';
-  document.getElementById('takeProfitCondition').style.display = type === 'condition' ? 'block' : 'none';
+  const percentEl = document.getElementById('takeProfitPercent');
+  const dollarEl = document.getElementById('takeProfitDollar');
+  const conditionEl = document.getElementById('takeProfitCondition');
+  
+  if (percentEl) percentEl.style.display = type === 'percent' ? 'block' : 'none';
+  if (dollarEl) dollarEl.style.display = type === 'dollar' ? 'block' : 'none';
+  if (conditionEl) conditionEl.style.display = type === 'condition' ? 'block' : 'none';
 }
 
 // Toggle stop loss type
 function toggleStopLossType() {
   const type = document.getElementById('stopLossType')?.value;
-  document.getElementById('stopLossPercent').style.display = type === 'percent' ? 'block' : 'none';
-  document.getElementById('stopLossDollar').style.display = type === 'dollar' ? 'block' : 'none';
-  document.getElementById('stopLossCondition').style.display = type === 'condition' ? 'block' : 'none';
+  const percentEl = document.getElementById('stopLossPercent');
+  const dollarEl = document.getElementById('stopLossDollar');
+  const conditionEl = document.getElementById('stopLossCondition');
+  
+  if (percentEl) percentEl.style.display = type === 'percent' ? 'block' : 'none';
+  if (dollarEl) dollarEl.style.display = type === 'dollar' ? 'block' : 'none';
+  if (conditionEl) conditionEl.style.display = type === 'condition' ? 'block' : 'none';
 }
 
 // Validate timeframe selection
