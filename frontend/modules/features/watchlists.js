@@ -11,6 +11,10 @@ let currentWatchlist = null;
 let watchlistStockData = new Map();
 let editingWatchlistId = null;
 
+// Reference to main treemap data from polygon-treemap module
+// This will be populated by the main treemap when it loads data
+const treemapData = new Map();
+
 // Load watchlists from localStorage
 function loadWatchlists() {
   const stored = localStorage.getItem('watchlists');
@@ -89,29 +93,33 @@ function selectWatchlist(id) {
 async function loadWatchlistStockData() {
   if (!currentWatchlist) return;
   
-  // First, get data from main treemap data if available
-  currentWatchlist.tickers.forEach(ticker => {
-    if (treemapData.has(ticker)) {
-      watchlistStockData.set(ticker, treemapData.get(ticker));
-    }
-  });
+  console.log('[WATCHLISTS] Loading stock data for watchlist:', currentWatchlist.name);
+  console.log('[WATCHLISTS] Tickers to load:', currentWatchlist.tickers);
   
-  // If treemapData is empty or missing tickers, fetch all data
-  if (treemapData.size === 0 || currentWatchlist.tickers.some(t => !watchlistStockData.has(t))) {
-    try {
-      const allData = await window.electronAPI.polygonGetAllData();
-      if (allData && Array.isArray(allData)) {
-        allData.forEach(stock => {
-          if (currentWatchlist.tickers.includes(stock.ticker)) {
-            watchlistStockData.set(stock.ticker, stock);
-          }
-        });
-        // Refresh the display after fetching
-        displayWatchlistStocks();
-      }
-    } catch (error) {
-      console.error('Error fetching watchlist stock data:', error);
+  try {
+    // Fetch all data from Polygon
+    const allData = await window.electronAPI.polygonGetAllData();
+    console.log('[WATCHLISTS] Received data from Polygon:', allData ? allData.length : 0, 'stocks');
+    
+    if (allData && Array.isArray(allData)) {
+      // Populate both local treemapData and watchlistStockData
+      allData.forEach(stock => {
+        if (currentWatchlist.tickers.includes(stock.ticker)) {
+          watchlistStockData.set(stock.ticker, stock);
+          treemapData.set(stock.ticker, stock);
+          console.log('[WATCHLISTS] Loaded data for', stock.ticker, ':', stock);
+        }
+      });
+      
+      console.log('[WATCHLISTS] Stock data loaded:', watchlistStockData.size, 'stocks');
+      
+      // Refresh the display after fetching
+      displayWatchlistStocks();
+    } else {
+      console.warn('[WATCHLISTS] No data received from Polygon API');
     }
+  } catch (error) {
+    console.error('[WATCHLISTS] Error fetching watchlist stock data:', error);
   }
 }
 
@@ -305,6 +313,55 @@ document.getElementById('backToListBtn')?.addEventListener('click', () => {
   document.getElementById('watchlistTreemapView').style.display = 'none';
   document.getElementById('watchlistContent').style.display = 'flex';
 });
+
+// Get color for percent change (same logic as polygon-treemap)
+function getColorForPercent(percent) {
+  if (percent === null || percent === undefined) return '#404040';
+  
+  // Use theme colors for positive (green) and negative (red)
+  if (percent > 0) {
+    const intensity = Math.min(Math.abs(percent) / 3, 1); // Cap at 3% for full intensity
+    const baseColor = window.getPositiveColor ? window.getPositiveColor() : '#00aa55';
+    
+    // Darken the color based on intensity
+    const brightnessScale = 0.2 + (intensity * 0.8);
+    
+    const hex = baseColor.replace('#', '');
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+    
+    r = Math.round(r * brightnessScale);
+    g = Math.round(g * brightnessScale);
+    b = Math.round(b * brightnessScale);
+    
+    return '#' + [r, g, b].map(x => {
+      const hexVal = x.toString(16);
+      return hexVal.length === 1 ? '0' + hexVal : hexVal;
+    }).join('');
+  } else if (percent < 0) {
+    const intensity = Math.min(Math.abs(percent) / 3, 1);
+    const baseColor = window.getNegativeColor ? window.getNegativeColor() : '#e74c3c';
+    
+    const brightnessScale = 0.2 + (intensity * 0.8);
+    
+    const hex = baseColor.replace('#', '');
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+    
+    r = Math.round(r * brightnessScale);
+    g = Math.round(g * brightnessScale);
+    b = Math.round(b * brightnessScale);
+    
+    return '#' + [r, g, b].map(x => {
+      const hexVal = x.toString(16);
+      return hexVal.length === 1 ? '0' + hexVal : hexVal;
+    }).join('');
+  }
+  
+  return '#404040'; // Zero or neutral
+}
 
 // Draw watchlist treemap
 function drawWatchlistTreemap() {
