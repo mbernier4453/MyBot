@@ -1,0 +1,419 @@
+/**
+ * Run Preview Module
+ * 
+ * Handles preview chart generation for backtest runs.
+ * Generates entry/exit signals based on conditions and visualizes them with Plotly.
+ */
+
+import * as BacktestRuns from './runs.js';
+
+const RunPreview = {
+  /**
+   * Generate preview chart for a run
+   * @param {number} runId - Run ID
+   */
+  async generate(runId) {
+    console.log(`[PREVIEW] Generating preview for run ${runId}`);
+    
+    const run = BacktestRuns.getRun(runId);
+    if (!run) {
+      console.error('[PREVIEW] Run not found:', runId);
+      return;
+    }
+    
+    // Get selected ticker
+    const tickerSelect = document.getElementById(`runPreviewTicker_${runId}`);
+    const ticker = tickerSelect?.value;
+    
+    if (!ticker) {
+      alert('Please select a ticker to preview');
+      return;
+    }
+    
+    const previewContainer = document.getElementById(`runPreview_${runId}`);
+    previewContainer.innerHTML = '<div class="preview-loading">Loading price data for ' + ticker + '</div>';
+    
+    try {
+      // Load price data
+      const startDate = '2023-01-01'; // TODO: Make configurable
+      const endDate = new Date().toISOString().split('T')[0];
+      const interval = '1d';
+      
+      const result = await window.electronAPI.loadPreviewData({
+        ticker: ticker,
+        startDate: startDate,
+        endDate: endDate,
+        interval: interval
+      });
+      
+      if (!result.success) {
+        previewContainer.innerHTML = `<div class="preview-status" style="color: var(--accent-red);">Error loading data: ${result.error}</div>`;
+        return;
+      }
+      
+      const priceData = result.data;
+      console.log(`[PREVIEW] Loaded ${priceData.dates.length} days of data for ${ticker}`);
+      
+      // Generate signals for all conditions
+      const entrySignals = await this._generateSignals(run.entryConditions, priceData, run.entryMode);
+      const exitSignals = await this._generateSignals(run.exitConditions, priceData, run.exitMode);
+      
+      console.log('[PREVIEW] Generated signals:', {
+        entryConditions: run.entryConditions.length,
+        exitConditions: run.exitConditions.length,
+        entrySignals: entrySignals.length,
+        exitSignals: exitSignals.length
+      });
+      
+      // Render preview chart
+      this._renderChart(runId, ticker, priceData, entrySignals, exitSignals, run);
+      
+    } catch (error) {
+      console.error('[PREVIEW] Error generating preview:', error);
+      previewContainer.innerHTML = `<div class="preview-status" style="color: var(--accent-red);">Error: ${error.message}</div>`;
+    }
+  },
+
+  /**
+   * Generate signals for preview based on conditions
+   * @param {Array} conditions - Array of condition objects
+   * @param {Object} priceData - Price data from API
+   * @param {string} mode - 'all' or 'any'
+   * @returns {Promise<Array>} Array of signal indices
+   * @private
+   */
+  async _generateSignals(conditions, priceData, mode) {
+    if (!conditions || conditions.length === 0) {
+      return [];
+    }
+    
+    console.log('[PREVIEW] Generating signals for', conditions.length, 'conditions, mode:', mode);
+    
+    const allSignalArrays = [];
+    
+    // Generate signals for each condition
+    for (const cond of conditions) {
+      console.log('[PREVIEW] Processing condition:', cond.type, cond);
+      const signals = await this._generateConditionSignals(cond, priceData);
+      console.log('[PREVIEW] Condition generated', signals.length, 'signals');
+      allSignalArrays.push(signals);
+    }
+    
+    // Combine signals based on mode
+    if (mode === 'all') {
+      // AND: Only indices where ALL conditions are true
+      if (allSignalArrays.length === 0) return [];
+      return allSignalArrays[0].filter(idx => 
+        allSignalArrays.every(arr => arr.includes(idx))
+      );
+    } else {
+      // OR: Indices where ANY condition is true
+      const allIndices = new Set();
+      allSignalArrays.forEach(arr => arr.forEach(idx => allIndices.add(idx)));
+      return Array.from(allIndices).sort((a, b) => a - b);
+    }
+  },
+
+  /**
+   * Generate signals for a single condition
+   * @param {Object} cond - Condition object
+   * @param {Object} priceData - Price data
+   * @returns {Promise<Array>} Array of signal indices
+   * @private
+   */
+  async _generateConditionSignals(cond, priceData) {
+    const signals = [];
+    const { dates, open, high, low, close, volume } = priceData;
+    
+    // Calculate indicators based on condition type
+    let sourceValues, targetValues;
+    
+    // STEP 1: Calculate source values (Price, RSI, MA)
+    switch (cond.type) {
+      case 'price':
+        sourceValues = close;
+        break;
+      
+      case 'rsi':
+        sourceValues = calculateRSIArray(close, cond.rsi_period || 14);
+        break;
+      
+      case 'ma':
+        sourceValues = calculateMA(close, cond.ma_type, cond.ma_period);
+        break;
+      
+      default:
+        console.warn('[PREVIEW] Unknown condition type:', cond.type);
+        return [];
+    }
+    
+    // STEP 2: Calculate target values
+    switch (cond.target_type) {
+      case 'Value':
+        targetValues = new Array(sourceValues.length).fill(cond.target_value || 0);
+        break;
+      
+      case 'SMA':
+        targetValues = calculateSMA(close, cond.target_period || 20);
+        break;
+      
+      case 'EMA':
+        targetValues = calculateEMA(close, cond.target_period || 20);
+        break;
+      
+      case 'HMA':
+        targetValues = calculateHMA(close, cond.target_period || 20);
+        break;
+      
+      case 'KAMA':
+        targetValues = calculateKAMA(close, cond.target_period || 20);
+        break;
+      
+      case 'BB_TOP':
+      case 'BB_MID':
+      case 'BB_BOTTOM':
+        const bb = calculateBB(close, cond.target_period || 20, cond.bb_std || 2.0);
+        targetValues = cond.target_type === 'BB_TOP' ? bb.upper : 
+                       cond.target_type === 'BB_BOTTOM' ? bb.lower : bb.middle;
+        break;
+      
+      case 'KC_TOP':
+      case 'KC_MID':
+      case 'KC_BOTTOM':
+        const kc = calculateKC(high, low, close, cond.target_period || 20, cond.kc_mult || 2.0);
+        targetValues = cond.target_type === 'KC_TOP' ? kc.upper :
+                       cond.target_type === 'KC_BOTTOM' ? kc.lower : kc.middle;
+        break;
+      
+      default:
+        console.warn('[PREVIEW] Unknown target type:', cond.target_type);
+        return [];
+    }
+    
+    // STEP 3: Detect signals based on interaction type
+    const threshold = (cond.threshold_pct || 0) / 100; // Convert % to decimal
+    
+    console.log('[PREVIEW] Signal detection:', {
+      type: cond.type,
+      sourceLength: sourceValues.length,
+      targetLength: targetValues.length,
+      sourceNonNull: sourceValues.filter(v => v !== null && !isNaN(v)).length,
+      targetNonNull: targetValues.filter(v => v !== null && !isNaN(v)).length,
+      interaction: cond.interaction,
+      threshold: threshold,
+      sampleSource: sourceValues.slice(50, 60),
+      sampleTarget: targetValues.slice(50, 60)
+    });
+    
+    for (let i = 1; i < sourceValues.length; i++) {
+      if (!sourceValues[i] || !targetValues[i]) continue;
+      if (isNaN(sourceValues[i]) || isNaN(targetValues[i])) continue;
+      
+      const prev = sourceValues[i - 1];
+      const curr = sourceValues[i];
+      const targetPrev = targetValues[i - 1];
+      const targetCurr = targetValues[i];
+      
+      if (!prev || !targetPrev || isNaN(prev) || isNaN(targetPrev)) continue;
+      
+      let triggered = false;
+      
+      switch (cond.interaction) {
+        case 'cross':
+          // Detect crossover in the specified direction
+          if (cond.direction === 'above') {
+            // Was below, now above (with threshold)
+            if (prev <= targetPrev && curr >= targetCurr * (1 + threshold)) {
+              triggered = true;
+            }
+          } else if (cond.direction === 'below') {
+            // Was above, now below (with threshold)
+            if (prev >= targetPrev && curr <= targetCurr * (1 - threshold)) {
+              triggered = true;
+            }
+          }
+          break;
+        
+        case 'above':
+          // Currently above by threshold amount
+          if (curr >= targetCurr * (1 + threshold)) {
+            triggered = true;
+          }
+          break;
+        
+        case 'below':
+          // Currently below by threshold amount  
+          if (curr <= targetCurr * (1 - threshold)) {
+            triggered = true;
+          }
+          break;
+      }
+      
+      if (triggered) {
+        // Apply delay bars
+        const signalIndex = i + (cond.delay_bars || 0);
+        if (signalIndex < sourceValues.length) {
+          signals.push(signalIndex);
+          
+          // Log first few signals for debugging
+          if (signals.length <= 3) {
+            console.log('[PREVIEW] Signal triggered:', {
+              index: i,
+              signalIndex,
+              prev,
+              curr,
+              targetPrev,
+              targetCurr,
+              interaction: cond.interaction,
+              direction: cond.direction,
+              threshold
+            });
+          }
+        }
+      }
+    }
+    
+    console.log('[PREVIEW] Total signals found:', signals.length);
+    
+    return signals;
+  },
+
+  /**
+   * Render the preview chart with Plotly
+   * @private
+   */
+  _renderChart(runId, ticker, priceData, entrySignals, exitSignals, run) {
+    const previewContainer = document.getElementById(`runPreview_${runId}`);
+    
+    const html = `
+      <div class="preview-status">
+        ✓ Preview generated for ${ticker} (${priceData.dates.length} bars)
+        <div style="font-size: 11px; margin-top: 6px;">
+          Entry signals: ${entrySignals.length} | Exit signals: ${exitSignals.length}
+        </div>
+      </div>
+      <div id="previewChart_${runId}" class="preview-chart"></div>
+      <div class="preview-legend">
+        <div class="legend-item">
+          <div class="legend-color" style="background: #2196F3;"></div>
+          <span>Price</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #4CAF50;"></div>
+          <span>Entry Signals (${entrySignals.length})</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #F44336;"></div>
+          <span>Exit Signals (${exitSignals.length})</span>
+        </div>
+      </div>
+    `;
+    
+    previewContainer.innerHTML = html;
+    
+    // Prepare chart data
+    const traces = [];
+    
+    // Price line chart (using close prices)
+    traces.push({
+      type: 'scatter',
+      mode: 'lines',
+      x: priceData.dates,
+      y: priceData.close,
+      name: ticker + ' Price',
+      line: {
+        color: '#2196F3',
+        width: 2
+      },
+      hovertemplate: '%{x}<br>Price: $%{y:.2f}<extra></extra>'
+    });
+    
+    // Entry signals
+    if (entrySignals.length > 0) {
+      traces.push({
+        type: 'scatter',
+        mode: 'markers',
+        x: entrySignals.map(i => priceData.dates[i]),
+        y: entrySignals.map(i => priceData.close[i] * 0.997), // Slightly below the price
+        name: 'Entry',
+        marker: {
+          symbol: 'triangle-up',
+          size: 14,
+          color: '#4CAF50',
+          line: { color: '#fff', width: 1 }
+        },
+        hovertemplate: 'ENTRY<br>%{x}<br>Price: $%{y:.2f}<extra></extra>'
+      });
+    }
+    
+    // Exit signals
+    if (exitSignals.length > 0) {
+      traces.push({
+        type: 'scatter',
+        mode: 'markers',
+        x: exitSignals.map(i => priceData.dates[i]),
+        y: exitSignals.map(i => priceData.close[i] * 1.003), // Slightly above the price
+        name: 'Exit',
+        marker: {
+          symbol: 'triangle-down',
+          size: 14,
+          color: '#F44336',
+          line: { color: '#fff', width: 1 }
+        },
+        hovertemplate: 'EXIT<br>%{x}<br>Price: $%{y:.2f}<extra></extra>'
+      });
+    }
+    
+    const layout = {
+      title: {
+        text: `${ticker} - Strategy Preview`,
+        font: { size: 16, color: '#e0e0e0' }
+      },
+      xaxis: { 
+        title: 'Date', 
+        type: 'date', 
+        rangeslider: { visible: false },
+        gridcolor: '#2a2a2a',
+        showgrid: true
+      },
+      yaxis: { 
+        title: 'Price ($)',
+        gridcolor: '#2a2a2a',
+        showgrid: true
+      },
+      plot_bgcolor: '#0a0a0a',
+      paper_bgcolor: '#111111',
+      font: { color: '#e0e0e0', size: 12 },
+      hovermode: 'closest',
+      showlegend: true,
+      legend: { 
+        x: 0, 
+        y: 1.15, 
+        orientation: 'h',
+        bgcolor: 'rgba(0,0,0,0)',
+        font: { size: 11 }
+      },
+      margin: { t: 80, r: 30, b: 50, l: 70 },
+      dragmode: 'pan' // Enable pan by default
+    };
+    
+    const config = {
+      responsive: true,
+      displayModeBar: true,
+      displaylogo: false,
+      modeBarButtonsToAdd: ['drawopenpath', 'eraseshape'],
+      modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+      scrollZoom: true // Enable scroll to zoom
+    };
+    
+    Plotly.newPlot(`previewChart_${runId}`, traces, layout, config);
+  }
+};
+
+// Export
+export { RunPreview };
+
+// Also expose to window
+window.RunPreview = RunPreview;
+
+console.log('[INIT] Run preview module loaded');

@@ -49,5 +49,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runDynamicBacktest: (config) => ipcRenderer.invoke('run-dynamic-backtest', config),
   
   // Strategy Preview
-  loadPreviewData: (params) => ipcRenderer.invoke('load-preview-data', params)
+  loadPreviewData: (params) => ipcRenderer.invoke('load-preview-data', params),
+  
+  // Debug Logging
+  debugGetLogs: () => ipcRenderer.invoke('debug-get-logs'),
+  debugGetMainLogs: () => ipcRenderer.invoke('debug-get-main-logs'),
+  debugGetRendererLogs: () => ipcRenderer.invoke('debug-get-renderer-logs'),
+  debugSendLog: (level, message) => ipcRenderer.send('renderer-log', { level, message })
 });

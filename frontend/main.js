@@ -4,7 +4,13 @@ const fs = require('fs');
 const initSqlJs = require('sql.js');
 const WebSocket = require('ws');
 const { SP500_BY_SECTOR, MARKET_CAPS_BY_SECTOR } = require('./sp500_data.js');
+const DebugLogger = require('./debug-logger.js');
+
 require('dotenv').config();
+
+// Initialize debug logger
+const debugLogger = new DebugLogger(path.join(__dirname, 'logs'));
+console.log('[STARTUP] Debug logger initialized');
 
 let mainWindow;
 let db = null;
@@ -28,10 +34,11 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
   
-  // Open DevTools in development
-  if (process.argv.includes('--dev')) {
-    mainWindow.webContents.openDevTools();
-  }
+  // Open DevTools always (for debugging)
+  mainWindow.webContents.openDevTools();
+  
+  // Setup renderer process logging
+  debugLogger.setupRendererLogging(mainWindow);
 }
 
 app.whenReady().then(async () => {
@@ -1570,7 +1577,7 @@ ipcMain.handle('load-preview-data', async (event, params) => {
     console.log('[PREVIEW] Loading data for visualization:', params);
     
     const pythonCommand = getPythonExecutable();
-    const scriptPath = path.join(__dirname, '..', 'load_preview_data.py');
+    const scriptPath = path.join(__dirname, '..', 'backend', 'preview', 'load_preview_data.py');
     const paramsJson = JSON.stringify(params);
     
     // Spawn Python process
@@ -1619,4 +1626,17 @@ ipcMain.handle('load-preview-data', async (event, params) => {
       }
     });
   });
+});
+
+// ===== DEBUG LOGGING IPC HANDLERS =====
+ipcMain.handle('debug-get-logs', () => {
+  return debugLogger.getAllLogs();
+});
+
+ipcMain.handle('debug-get-main-logs', () => {
+  return debugLogger.getMainLogs();
+});
+
+ipcMain.handle('debug-get-renderer-logs', () => {
+  return debugLogger.getRendererLogs();
 });

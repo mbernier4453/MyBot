@@ -279,11 +279,31 @@
           </div>
           
           <div class="chart-controls">
-              <div class="live-update-toggle chart-normalize-toggle">
-                <label class="toggle-label">
-                  <input type="checkbox" class="chart-normalize-checkbox" />
-                  <span>Normalize</span>
-                </label>
+              <div class="control-group">
+                <label>Normalize:</label>
+                <select class="chart-normalize-mode">
+                  <option value="off">Off</option>
+                  <option value="index100" title="Scales all series to start at 100. Perfect for comparing relative performance.">Index to 100</option>
+                  <option value="cumret" title="Shows percentage returns from anchor date. e.g., +0.15 means +15% gain.">% Return</option>
+                  <option value="log" title="Log returns - makes multiplicative changes additive. Good for analyzing compounding.">Log Index</option>
+                  <option value="zscore" title="Shows how many standard deviations away from the rolling average. Uses lookback period.">Z-Score</option>
+                  <option value="volscale" title="Scales to target volatility. Makes high/low vol stocks comparable. Uses lookback period.">Vol Scale</option>
+                </select>
+              </div>
+              <div class="control-group chart-normalize-anchor" style="display: none;">
+                <label>Anchor:</label>
+                <select class="chart-anchor-mode">
+                  <option value="first">First Visible</option>
+                  <option value="date">Specific Date</option>
+                </select>
+                <input type="date" class="chart-anchor-date" style="display: none; margin-left: 5px;" />
+              </div>
+              <div class="control-group chart-normalize-lookback" style="display: none;">
+                <label title="Number of bars to use for rolling statistics (mean, std dev). Higher = smoother but slower to react.">Lookback:</label>
+                <input type="number" class="chart-lookback-input" value="60" min="5" max="500" style="width: 60px;" title="Bars used for calculating rolling mean and standard deviation" />
+              </div>
+              <div class="control-group">
+                <button class="chart-add-indicator-btn">+ Add Indicator</button>
               </div>
               <div class="control-group">
                 <label>Timeframe:</label>
@@ -313,12 +333,6 @@
                   <option value="month">Monthly</option>
                 </select>
               </div>
-              <div class="live-update-toggle">
-                <label class="toggle-label">
-                  <input type="checkbox" class="chart-live-update-toggle" checked />
-                  <span>Live Updates</span>
-                </label>
-              </div>
               <div class="live-update-toggle chart-extended-hours-toggle">
                 <label class="toggle-label">
                   <input type="checkbox" class="chart-extended-hours-checkbox" checked />
@@ -342,6 +356,13 @@
                 <button class="chart-add-overlay-btn">+ Add Overlay</button>
               </div>
             </div>
+            <div class="chart-indicators-list" style="display: none;">
+              <div class="indicators-header" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+                <span>Indicators</span>
+                <span class="indicators-toggle">▼</span>
+              </div>
+              <div class="chart-indicators-container" style="display: block;"></div>
+            </div>
             <div class="chart-overlays-list" style="display: none;">
               <div class="overlays-header">
                 <span>Overlays:</span>
@@ -354,9 +375,38 @@
                 <p>Loading chart data...</p>
               </div>
               <div class="chart-empty-state empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center;">
-                <div style="text-align: center;">
-                  <h3>Select a ticker to view chart</h3>
-                  <p style="color: #666; margin-top: 10px;">Enter a ticker or choose from your watchlist</p>
+                <div style="
+                  text-align: center;
+                  max-width: 400px;
+                  padding: 40px;
+                ">
+                  <div style="
+                    width: 64px;
+                    height: 64px;
+                    margin: 0 auto 24px;
+                    border-radius: 50%;
+                    background: linear-gradient(135deg, var(--accent-blue) 0%, #667eea 100%);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    opacity: 0.8;
+                  ">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round">
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
+                  </div>
+                  <h3 style="
+                    margin: 0 0 12px 0;
+                    font-size: 18px;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                  ">No Chart Selected</h3>
+                  <p style="
+                    margin: 0;
+                    color: var(--text-secondary);
+                    font-size: 14px;
+                    line-height: 1.6;
+                  ">Enter a ticker symbol or select a stock from your watchlist to view its chart</p>
                 </div>
               </div>
             </div>
@@ -506,175 +556,288 @@
         </div>
       </div>
 
-      <!-- Backtesting Page -->
-      <div id="backtestingPage" class="main-page">
-        <div class="page-content">
-          <div class="backtest-config-container">
-            <div class="config-header">
-              <h2>Backtesting Configuration</h2>
-              <div class="config-actions">
-                <button id="loadConfigBtn" class="btn btn-secondary">Load Config</button>
-                <button id="saveConfigBtn" class="btn btn-secondary">Save Config</button>
-                <button id="runBacktestBtn" class="btn btn-primary">Run Backtest</button>
+      <!-- Backtesting Page - Run-Based Architecture -->
+      <div id="backtestingPage" class="main-page backtest-page">
+        <div class="backtest-layout">
+          <!-- Left Sidebar: Run List (25%) -->
+          <div class="backtest-sidebar">
+            <div id="runList" class="run-list">
+              <!-- Dynamically populated by runs-ui.js -->
+            </div>
+          </div>
+
+          <!-- Right Panel: Run Details (75%) -->
+          <div class="backtest-main">
+            <!-- Run Details Section (dynamically populated) -->
+            <div id="runDetails" class="run-details-container">
+              <!-- Dynamically populated by runs-ui.js based on selected run -->
+              <div class="empty-state" style="padding: 40px; text-align: center; color: #888;">
+                <h3>No Run Selected</h3>
+                <p>Create a new Strategy or Portfolio run to get started</p>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <!-- Main Configuration -->
-            <div class="config-section">
-              <div class="section-header" onclick="toggleSection('mainSection')">
-                <h3>▼ Main Configuration</h3>
-              </div>
-              <div id="mainSection" class="section-content">
-                <div class="form-group">
-                  <label for="runId">Run ID:</label>
-                  <input type="text" id="runId" placeholder="auto" />
-                  <small>Leave as "auto" for automatic ID generation</small>
-                </div>
-                <div class="form-group">
-                  <label for="notes">Notes:</label>
-                  <textarea id="notes" rows="3" placeholder="Description of this backtest..."></textarea>
-                </div>
-                <div class="form-group">
-                  <label for="backtestDbPath">Save Results To:</label>
-                  <div style="display: flex; gap: 10px; align-items: center;">
-                    <input type="text" id="backtestDbPath" readonly placeholder="Default: results/db/backtests.db" style="flex: 1;" />
-                    <button type="button" id="selectBacktestDbBtn" class="btn btn-secondary">📂 Browse...</button>
-                    <button type="button" id="clearBacktestDbBtn" class="btn btn-secondary" title="Use default database">✖</button>
-                  </div>
-                  <small>Choose where backtest results will be saved. Leave empty for default location.</small>
-                </div>
-                <div class="form-group">
-                  <label>Tickers Source:</label>
-                  <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <label style="margin: 0; font-weight: normal;">
-                      <input type="radio" name="tickerSource" value="manual" checked /> Manual Entry
-                    </label>
-                    <label style="margin: 0; font-weight: normal;">
-                      <input type="radio" name="tickerSource" value="watchlist" /> From Watchlist
-                    </label>
-                  </div>
-                  <div id="manualTickersInput">
-                    <input type="text" id="tickers" placeholder="AAPL, MSFT, GOOGL (comma-separated)" />
-                    <small>Enter ticker symbols separated by commas</small>
-                  </div>
-                  <div id="watchlistTickersInput" style="display: none;">
-                    <select id="tickerWatchlistSelect" class="form-input">
-                      <option value="">Select a watchlist...</option>
-                    </select>
-                    <small>Select a watchlist to use all its tickers</small>
-                  </div>
-                </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="initialCapital">Initial Capital ($):</label>
-                    <input type="number" id="initialCapital" value="100000" min="0" step="1000" />
-                  </div>
-                  <div class="form-group">
-                    <label for="timeframe">Timeframe:</label>
-                    <select id="timeframe" onchange="validateTimeframe()">
-                      <option value="1day" selected>1 Day</option>
-                      <option value="4hour">4 Hour</option>
-                      <option value="1hour">1 Hour</option>
-                      <option value="15min">15 Minute</option>
-                      <option value="5min">5 Minute</option>
-                      <option value="1min">1 Minute</option>
-                    </select>
-                    <small id="timeframeWarning" style="color: #ff6b6b; display: none;">
-                      ⚠️ Intraday data limited to 3 months
-                    </small>
-                  </div>
-                </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="startDate">Start Date:</label>
-                    <input type="date" id="startDate" value="2000-01-01" />
-                  </div>
-                  <div class="form-group">
-                    <label for="endDate">End Date:</label>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                      <input type="date" id="endDate" style="flex: 1;" />
-                      <label style="margin: 0; font-weight: normal; white-space: nowrap;">
-                        <input type="checkbox" id="endDateToday" checked /> Use Today
-                      </label>
-                    </div>
-                    <small>Uncheck "Use Today" to set a specific end date</small>
-                  </div>
-                </div>
-                <div class="form-row">
-                  <div class="form-group checkbox-group">
-                    <label>
-                      <input type="checkbox" id="buyHoldEnabled" checked />
-                      Enable Buy & Hold Comparison
-                    </label>
-                  </div>
-                  <div class="form-group checkbox-group">
-                    <label>
-                      <input type="checkbox" id="benchmarkEnabled" checked />
-                      Enable Benchmark Comparison
-                    </label>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label for="benchmarkSymbol">Benchmark Symbol:</label>
-                  <input type="text" id="benchmarkSymbol" value="QQQ" placeholder="QQQ" />
-                </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="rfAnnual">Risk-Free Rate (Annual, decimal):</label>
-                    <input type="number" id="rfAnnual" value="0.02" min="0" max="1" step="0.01" />
-                    <small>e.g., 0.02 = 2% annual</small>
-                  </div>
-                  <div class="form-group">
-                    <label for="periodsPerYear">Periods Per Year:</label>
-                    <input type="number" id="periodsPerYear" value="252" min="1" step="1" />
-                  </div>
-                </div>
-                
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="targetWeight">Target Weight:</label>
-                    <input type="number" id="targetWeight" value="0.95" min="0" max="1" step="0.05" />
-                    <small>Fraction of capital per position (0.0 - 1.0)</small>
-                  </div>
-                  <div class="form-group">
-                    <label for="entryFees">Entry Fees (bps):</label>
-                    <input type="number" id="entryFees" value="10" min="0" step="1" />
-                  </div>
-                </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="exitFees">Exit Fees (bps):</label>
-                    <input type="number" id="exitFees" value="10" min="0" step="1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="slipOpen">Slippage (bps):</label>
-                    <input type="number" id="slipOpen" value="2" min="0" step="1" />
-                    <small>Entry/exit slippage in basis points</small>
-                  </div>
-                </div>
-              </div>
+      <!-- Results Page (Current functionality) -->
+      <div id="resultsPage" class="main-page">
+        <div class="page-header">
+          <h2>Backtest Results</h2>
+          <div class="header-controls">
+            <button id="selectDbBtn" class="btn btn-primary">Select Database</button>
+            <span id="dbPath" class="db-path"></span>
+          </div>
+        </div>
+        
+        <div class="main-content">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <!-- Favorites Section -->
+        <div class="favorites-section">
+          <div class="favorites-header">
+            <h3>⭐ Saved Strategies</h3>
+            <div style="display: flex; gap: 5px;">
+              <button id="createFolderBtn" class="btn-icon" title="Create Folder" onclick="promptCreateFolder()">📁+</button>
+              <button id="toggleFavorites" class="toggle-favorites-btn">▼</button>
             </div>
+          </div>
+          <div id="favoritesList" class="favorites-list">
+            <div class="empty-state-small">
+              <p style="font-size: 12px; color: #666;">No saved strategies yet</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="sidebar-divider"></div>
+        
+        <div class="sidebar-header">
+          <h2>All Runs</h2>
+          <div class="filters">
+            <input type="text" id="runSearch" placeholder="Search runs..." class="search-input">
+            <select id="modeFilter" class="filter-select">
+              <option value="">All Modes</option>
+              <option value="single">Single</option>
+              <option value="portfolio">Portfolio</option>
+            </select>
+          </div>
+        </div>
+        <div id="runsList" class="runs-list">
+          <div class="empty-state">
+            <p>📂 Select a database to view runs</p>
+          </div>
+        </div>
+      </aside>
 
-            <!-- Portfolio Configuration -->
-            <div class="config-section">
-              <div class="section-header" onclick="toggleSection('portfolioSection')">
-                <h3>▶ Portfolio Configuration</h3>
-              </div>
-              <div id="portfolioSection" class="section-content collapsed">
-                <div class="form-group checkbox-group">
-                  <label>
-                    <input type="checkbox" id="portfolioMode" />
-                    Enable Portfolio Mode
-                  </label>
-                  <small>Run multiple tickers with specified weights</small>
-                </div>
-                <div id="portfolioSettings" style="display: none;">
-                  <div class="form-group">
-                    <label>Portfolio Composition:</label>
-                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                      <label style="margin: 0; font-weight: normal;">
-                        <input type="radio" name="portfolioSource" value="tickers" checked /> Ticker Weights
-                      </label>
+      <!-- Details Panel -->
+      <main class="details-panel">
+        <div class="tabs">
+          <button id="overviewBtn" class="tab active" data-tab="overview">Overview</button>
+          <button id="strategiesBtn" class="tab" data-tab="strategies">Strategies</button>
+          <button id="portfolioBtn" class="tab" data-tab="portfolio" style="display: none;">Portfolio</button>
+          <!-- Trades tab removed - doesn't work well outside portfolio mode -->
+          <!-- Compare tab removed - not needed -->
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="overviewTab" class="tab-content active">
+          <div class="empty-state">
+            <p>👈 Select a run to view details</p>
+          </div>
+        </div>
+
+        <!-- Strategies Tab -->
+        <div id="strategiesTab" class="tab-content">
+          <div class="controls-bar">
+            <select id="tickerFilter" class="filter-select">
+              <option value="">All Tickers</option>
+            </select>
+            <span style="margin-left: 20px; color: var(--text-secondary); font-size: 13px;">
+              💡 Click column headers to sort
+            </span>
+          </div>
+          <div id="strategiesContent" class="strategies-content">
+            <div class="empty-state">
+              <p>No strategies to display</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Portfolio Tab -->
+        <div id="portfolioTab" class="tab-content">
+          <div id="portfolioContent" class="portfolio-content">
+            <div class="empty-state">
+              <p>No portfolio data available</p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+    <!-- Status Bar -->
+    <footer class="status-bar">
+      <span id="statusText">Ready</span>
+    </footer>
+  </div>
+
+  <!-- Tearsheet Modal -->
+  <div id="tearsheetModal" class="modal">
+    <div class="modal-content tearsheet-modal">
+      <div class="modal-header">
+        <h2 id="tearsheetTitle" style="display:inline-block; vertical-align:middle; margin-right:10px;">Strategy Tearsheet</h2>
+        <button id="downloadTearsheetBtn" class="modal-download" title="Download as HTML" onclick="downloadTearsheetHtml()" style="background:none;border:none;padding:0;vertical-align:middle;cursor:pointer;outline:none;">
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:middle;">
+            <path d="M10 3v9m0 0l-3.5-3.5M10 12l3.5-3.5" stroke="#6ec1e4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="4" y="15" width="12" height="2" rx="1" fill="#6ec1e4"/>
+          </svg>
+        </button>
+        <button class="modal-close" onclick="closeTearsheet()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="tearsheetLoading" class="loading">
+          <div class="spinner"></div>
+          <p>Loading tearsheet...</p>
+        </div>
+        <div id="tearsheetContent" style="display: none;">
+          <div class="tearsheet-layout">
+            <!-- Tearsheet content dynamically loaded by tearsheet.js -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Watchlist Modals -->
+  <!-- Create/Edit Watchlist Modal -->
+  <div id="watchlistModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="watchlistModalTitle">Create Watchlist</h3>
+        <button class="modal-close" onclick="document.getElementById('watchlistModal').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Watchlist Name</label>
+          <input type="text" id="watchlistNameInput" class="form-input" placeholder="e.g., Tech Giants, Dividend Stocks">
+        </div>
+        <div class="form-group">
+          <label>Description (optional)</label>
+          <textarea id="watchlistDescInput" class="form-input" rows="3" placeholder="Brief description of this watchlist"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('watchlistModal').style.display='none'">Cancel</button>
+        <button id="saveWatchlistBtn" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Stock Modal -->
+  <div id="addStockModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Stocks</h3>
+        <button class="modal-close" onclick="document.getElementById('addStockModal').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Stock Tickers (comma-separated)</label>
+          <input type="text" id="stockTickersInput" class="form-input" placeholder="e.g., AAPL, MSFT, GOOGL">
+          <small style="color: #999; display: block; margin-top: 5px;">Enter one or more ticker symbols separated by commas</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('addStockModal').style.display='none'">Cancel</button>
+        <button id="addStocksBtn" class="btn btn-primary">Add Stocks</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Strategy Modal -->
+  <div id="saveStrategyModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Save Strategy</h3>
+        <button class="modal-close" onclick="closeSaveStrategyModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Strategy Name</label>
+          <input type="text" id="strategyNameInput" class="form-input" placeholder="Enter a name for this strategy">
+        </div>
+        <div class="form-group">
+          <label style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Select Folder (Optional)</span>
+            <button type="button" class="btn-sm" onclick="openCreateFolderModalFromStrategy()" style="font-size: 12px; padding: 4px 8px;">📁 New Folder</button>
+          </label>
+          <select id="strategyFolderSelect" class="form-input">
+            <option value="">Uncategorized</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeSaveStrategyModal()">Cancel</button>
+        <button id="confirmSaveStrategyBtn" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Folder Modal -->
+  <div id="createFolderModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3>Create Folder</h3>
+        <button class="modal-close" onclick="closeCreateFolderModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Folder Name</label>
+          <input type="text" id="folderNameInput" class="form-input" placeholder="Enter folder name">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeCreateFolderModal()">Cancel</button>
+        <button id="confirmCreateFolderBtn" class="btn btn-primary">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Folder Confirmation Modal -->
+  <div id="deleteFolderModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3>Delete Folder?</h3>
+        <button class="modal-close" onclick="closeDeleteFolderModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete this folder? Strategies will be moved to "Uncategorized".</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeDeleteFolderModal()">Cancel</button>
+        <button id="confirmDeleteFolderBtn" class="btn btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load main application as ES6 module -->
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3>⚙️ Settings</h3>
+        <button class="modal-close" onclick="closeSettings()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Settings Tabs -->
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="colors" onclick="switchSettingsTab('colors')">🎨 Colors</button>
+          <button class="settings-tab" data-tab="shortcuts" onclick="switchSettingsTab('shortcuts')">⌨️ Shortcuts</button>
+        </div>
                       <label style="margin: 0; font-weight: normal;">
                         <input type="radio" name="portfolioSource" value="strategies" /> Saved Strategies
                       </label>
@@ -991,8 +1154,8 @@
           <button id="overviewBtn" class="tab active" data-tab="overview">Overview</button>
           <button id="strategiesBtn" class="tab" data-tab="strategies">Strategies</button>
           <button id="portfolioBtn" class="tab" data-tab="portfolio" style="display: none;">Portfolio</button>
-          <button id="tradesBtn" class="tab" data-tab="trades">Trades</button>
-          <button id="compareBtn" class="tab" data-tab="compare">Compare</button>
+          <!-- Trades tab removed - doesn't work well outside portfolio mode -->
+          <!-- Compare tab removed - not needed -->
         </div>
 
         <!-- Overview Tab -->
@@ -1028,35 +1191,9 @@
           </div>
         </div>
 
-        <!-- Trades Tab -->
-        <div id="tradesTab" class="tab-content">
-          <div class="controls-bar">
-            <input type="text" id="tradeSearch" placeholder="Search ticker..." class="search-input">
-            <select id="sideFilter" class="filter-select">
-              <option value="">All Sides</option>
-              <option value="buy">Buy</option>
-              <option value="sell">Sell</option>
-            </select>
-          </div>
-          <div id="tradesContent" class="trades-content">
-            <div class="empty-state">
-              <p>No trades to display</p>
-            </div>
-          </div>
-        </div>
+        <!-- Trades Tab - REMOVED (doesn't work well outside portfolio mode) -->
 
-        <!-- Compare Tab -->
-        <div id="compareTab" class="tab-content">
-          <div class="compare-controls">
-            <p>Select multiple runs from the sidebar (Ctrl+Click) to compare</p>
-            <button id="compareBtn" class="btn btn-primary" disabled>Compare Selected</button>
-          </div>
-          <div id="compareContent" class="compare-content">
-            <div class="empty-state">
-              <p>Select runs to compare</p>
-            </div>
-          </div>
-        </div>
+        <!-- Compare Tab - REMOVED (not needed) -->
       </main>
         </div>
       </div>
@@ -1526,6 +1663,128 @@
     </div>
   </div>
 
-  <script src="renderer.js"></script>
+  <!-- Add Indicator Modal -->
+  <div id="addIndicatorModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3>Add Indicator</h3>
+        <button class="modal-close" onclick="document.getElementById('addIndicatorModal').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Indicator Type</label>
+          <select id="indicatorTypeSelect" class="form-input">
+            <option value="">-- Select Indicator --</option>
+            <optgroup label="Moving Averages">
+              <option value="SMA" title="Simple Moving Average - arithmetic mean over period">SMA - Simple Moving Average</option>
+              <option value="EMA" title="Exponential Moving Average - gives more weight to recent prices">EMA - Exponential Moving Average</option>
+              <option value="HMA" title="Hull Moving Average - reduced lag using weighted averages">HMA - Hull Moving Average</option>
+              <option value="KAMA" title="Kaufman Adaptive Moving Average - adjusts to market volatility">KAMA - Kaufman Adaptive MA</option>
+            </optgroup>
+            <optgroup label="Bands & Channels">
+              <option value="BB" title="Bollinger Bands - volatility bands around SMA">BB - Bollinger Bands</option>
+              <option value="KC" title="Keltner Channels - volatility bands using ATR">KC - Keltner Channels</option>
+            </optgroup>
+            <optgroup label="Oscillators">
+              <option value="RSI" title="Relative Strength Index - momentum oscillator (0-100)">RSI - Relative Strength Index</option>
+              <option value="ATR" title="Average True Range - measures volatility">ATR - Average True Range</option>
+            </optgroup>
+          </select>
+        </div>
+        
+        <!-- Parameters will be shown based on indicator type -->
+        <div id="indicatorParamsContainer" style="display: none;">
+          <!-- MA Parameters -->
+          <div id="maParams" style="display: none;">
+            <div class="form-group">
+              <label>Period Type</label>
+              <select id="maPeriodType" class="form-input">
+                <option value="bars">Number of Bars</option>
+                <option value="time">Time Period</option>
+              </select>
+            </div>
+            <div class="form-group" id="maPeriodBars">
+              <label>Number of Bars</label>
+              <input type="number" id="maPeriod" class="form-input" value="20" min="1" max="500">
+            </div>
+            <div class="form-group" id="maPeriodTime" style="display: none;">
+              <label>Time Period</label>
+              <select id="maPeriodTimeSelect" class="form-input">
+                <option value="5">5 bars</option>
+                <option value="10">10 bars</option>
+                <option value="20" selected>20 bars</option>
+                <option value="50">50 bars</option>
+                <option value="100">100 bars</option>
+                <option value="200">200 bars</option>
+              </select>
+            </div>
+          </div>
+          
+          <!-- KAMA Parameters -->
+          <div id="kamaParams" style="display: none;">
+            <div class="form-group">
+              <label>Period</label>
+              <input type="number" id="kamaPeriod" class="form-input" value="20" min="1" max="500">
+            </div>
+            <div class="form-group">
+              <label>Fast</label>
+              <input type="number" id="kamaFast" class="form-input" value="2" min="1" max="100">
+            </div>
+            <div class="form-group">
+              <label>Slow</label>
+              <input type="number" id="kamaSlow" class="form-input" value="30" min="1" max="100">
+            </div>
+          </div>
+          
+          <!-- Bollinger Bands Parameters -->
+          <div id="bbParams" style="display: none;">
+            <div class="form-group">
+              <label>Period</label>
+              <input type="number" id="bbPeriod" class="form-input" value="20" min="1" max="500">
+            </div>
+            <div class="form-group">
+              <label>Standard Deviations</label>
+              <input type="number" id="bbStdDev" class="form-input" value="2" min="0.5" max="5" step="0.1">
+            </div>
+          </div>
+          
+          <!-- Keltner Channels Parameters -->
+          <div id="kcParams" style="display: none;">
+            <div class="form-group">
+              <label>Period</label>
+              <input type="number" id="kcPeriod" class="form-input" value="20" min="1" max="500">
+            </div>
+            <div class="form-group">
+              <label>ATR Multiplier</label>
+              <input type="number" id="kcMultiplier" class="form-input" value="2" min="0.5" max="5" step="0.1">
+            </div>
+          </div>
+          
+          <!-- RSI Parameters -->
+          <div id="rsiParams" style="display: none;">
+            <div class="form-group">
+              <label>Period</label>
+              <input type="number" id="rsiPeriod" class="form-input" value="14" min="1" max="500">
+            </div>
+          </div>
+          
+          <!-- ATR Parameters -->
+          <div id="atrParams" style="display: none;">
+            <div class="form-group">
+              <label>Period</label>
+              <input type="number" id="atrPeriod" class="form-input" value="14" min="1" max="500">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('addIndicatorModal').style.display='none'">Cancel</button>
+        <button id="addIndicatorBtn" class="btn btn-primary">Add Indicator</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load main application as ES6 module -->
+  <script type="module" src="renderer.js"></script>
 </body>
 </html>
