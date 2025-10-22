@@ -995,7 +995,7 @@ class ChartTab {
     }
     
     // Add indicators for main ticker and all overlays
-    if (this.indicators && this.indicators.length > > 0) {
+    if (this.indicators && this.indicators.length > 0) {
       // Build list of all data sources (main + overlays)
       const dataSources = [
         { ticker: this.ticker, bars: bars, isMain: true }
