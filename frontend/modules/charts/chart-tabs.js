@@ -756,13 +756,22 @@ class ChartTab {
       })
     };
     
+    // Determine volume bar colors based on close vs open - use same colors as candlesticks
+    const volumeColors = volume.map((v, i) => {
+      const isPositive = close[i] >= open[i];
+      // Add transparency to match volume bar style
+      const baseColor = isPositive ? positiveColor : negativeColor;
+      // Convert hex to rgba with 20% opacity
+      return baseColor + '33';
+    });
+    
     const volumeTrace = {
       type: 'bar',
       x: dates,
       y: volume,
       name: 'Volume',
       marker: {
-        color: volume.map((v, i) => close[i] >= open[i] ? '#00aa5533' : '#e74c3c33')
+        color: volumeColors
       },
       xaxis: 'x',
       yaxis: 'y2',
@@ -1244,10 +1253,17 @@ class ChartTab {
     
     Plotly.newPlot(chartCanvas, traces, layout, config);
     
-    // Enable Ctrl+scroll zoom (zoom around mouse position)
+    // Enable Ctrl+scroll zoom (zoom around mouse position) with improved performance
+    let zoomTimeout = null;
     chartCanvas.addEventListener('wheel', (e) => {
       if (e.ctrlKey) {
         e.preventDefault();
+        
+        // Clear any pending zoom
+        if (zoomTimeout) {
+          clearTimeout(zoomTimeout);
+        }
+        
         const delta = e.deltaY;
         const xaxis = chartCanvas._fullLayout.xaxis;
         const yaxis = chartCanvas._fullLayout.yaxis;
@@ -1257,22 +1273,23 @@ class ChartTab {
         const mouseX = e.clientX - plotBbox.left;
         const relativeX = mouseX / plotBbox.width;
         
-        // X-axis zoom
+        // X-axis zoom - more aggressive zoom factor
         const xRange = xaxis.range;
         const xWidth = xRange[1] - xRange[0];
-        const xZoomFactor = delta > 0 ? 1.15 : 0.85;
+        const xZoomFactor = delta > 0 ? 1.1 : 0.9; // Faster zoom
         const xNewWidth = xWidth * xZoomFactor;
         const xMousePos = xRange[0] + (xWidth * relativeX);
         const xNewMin = xMousePos - (xNewWidth * relativeX);
         const xNewMax = xMousePos + (xNewWidth * (1 - relativeX));
         
-        // Y-axis zoom
+        // Y-axis zoom - more aggressive zoom factor
         const yRange = yaxis.range;
         const yHeight = yRange[1] - yRange[0];
-        const yZoomFactor = delta > 0 ? 1.15 : 0.85;
+        const yZoomFactor = delta > 0 ? 1.1 : 0.9; // Faster zoom
         const yNewHeight = yHeight * yZoomFactor;
         const yCenter = (yRange[0] + yRange[1]) / 2;
         
+        // Apply zoom immediately for responsiveness
         Plotly.relayout(chartCanvas, {
           'xaxis.range': [xNewMin, xNewMax],
           'yaxis.range': [yCenter - yNewHeight / 2, yCenter + yNewHeight / 2]

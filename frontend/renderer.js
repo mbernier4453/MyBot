@@ -432,8 +432,9 @@ document.addEventListener('keydown', (e) => {
   // Ctrl+W: Close current chart tab
   if (e.ctrlKey && e.key === 'w') {
     e.preventDefault();
-    if (activeChartTabId !== null) {
-      closeChartTab(activeChartTabId);
+    const activeTab = ChartTabSystem.getActiveTab();
+    if (activeTab) {
+      closeChartTab(activeTab.id);
     }
     return;
   }
@@ -441,6 +442,8 @@ document.addEventListener('keydown', (e) => {
   // Ctrl+Tab: Next tab
   if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
     e.preventDefault();
+    const chartTabs = ChartTabSystem.getAllTabs();
+    const activeChartTabId = ChartTabSystem.getActiveTab()?.id;
     const currentIndex = chartTabs.findIndex(t => t.id === activeChartTabId);
     if (currentIndex !== -1 && chartTabs.length > 1) {
       const nextIndex = (currentIndex + 1) % chartTabs.length;
@@ -452,6 +455,8 @@ document.addEventListener('keydown', (e) => {
   // Ctrl+Shift+Tab: Previous tab
   if (e.ctrlKey && e.shiftKey && e.key === 'Tab') {
     e.preventDefault();
+    const chartTabs = ChartTabSystem.getAllTabs();
+    const activeChartTabId = ChartTabSystem.getActiveTab()?.id;
     const currentIndex = chartTabs.findIndex(t => t.id === activeChartTabId);
     if (currentIndex !== -1 && chartTabs.length > 1) {
       const prevIndex = (currentIndex - 1 + chartTabs.length) % chartTabs.length;
