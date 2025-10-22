@@ -2122,6 +2122,154 @@ textarea.form-input {
   height: 100%;
 }
 
+/* Chart Header with Ticker Selector */
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  border-bottom: 2px solid var(--border-color);
+  flex-shrink: 0;
+  gap: 20px;
+}
+
+.chart-ticker-selector {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ticker-display-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.ticker-display-group:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.ticker-dropdown-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  transition: color 0.2s;
+}
+
+.ticker-dropdown-btn:hover {
+  color: var(--accent-blue);
+}
+
+.ticker-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 300px;
+  max-width: 400px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.ticker-dropdown-section {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ticker-dropdown-section:last-child {
+  border-bottom: none;
+}
+
+.chart-ticker-input {
+  width: 100%;
+  padding: 8px 12px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.chart-ticker-input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.chart-watchlist-select {
+  width: 100%;
+  padding: 8px 12px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  margin-top: 6px;
+  cursor: pointer;
+}
+
+.chart-watchlist-select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.chart-ticker-list-dropdown {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.chart-ticker-list-dropdown .ticker-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.chart-ticker-list-dropdown .ticker-item:hover {
+  background-color: var(--bg-primary);
+}
+
+.chart-live-stats {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.live-ticker-large {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent-blue);
+}
+
+.live-price-large {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.live-change-large {
+  font-size: 20px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+/* Legacy live info bar (kept for backward compatibility) */
 .chart-live-info-top {
   display: flex;
   justify-content: space-between;
@@ -2146,25 +2294,6 @@ textarea.form-input {
   gap: 20px;
   justify-content: center;
   flex: 1;
-}
-
-.live-ticker-large {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--accent-blue);
-}
-
-.live-price-large {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.live-change-large {
-  font-size: 20px;
-  font-weight: 600;
-  padding: 4px 12px;
-  border-radius: 4px;
 }
 
 .live-info-right {
@@ -2447,7 +2576,8 @@ textarea.form-input {
 .chart-display {
   flex: 1;
   background-color: var(--bg-primary);
-  overflow: hidden;
+  overflow-y: auto; /* Enable scrolling for tall charts */
+  overflow-x: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -2456,8 +2586,7 @@ textarea.form-input {
 
 .chart-canvas {
   width: 100%;
-  height: 100%;
-  flex: 1;
+  flex-shrink: 0; /* Prevent shrinking when content exceeds parent */
   min-height: 600px;
 }
 

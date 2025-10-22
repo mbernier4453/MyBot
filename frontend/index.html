@@ -209,41 +209,6 @@
             <button class="chart-new-tab-btn" id="chartNewTabBtn" title="New Chart Tab">+</button>
           </div>
 
-          <!-- Sidebar toggle button -->
-          <button id="sidebarToggle" class="sidebar-toggle">☰</button>
-          
-          <!-- Sidebar with ticker selection -->
-          <div class="chart-sidebar" id="chartSidebar">
-            <div class="chart-sidebar-header">
-              <h2>Select Ticker</h2>
-              <button id="closeSidebar" class="close-sidebar">←</button>
-            </div>
-            
-            <!-- Ticker input section -->
-            <div class="chart-input-section">
-              <label>Enter Ticker</label>
-              <div class="ticker-input-group">
-                <input type="text" id="chartTickerInput" placeholder="e.g., AAPL" />
-                <button id="chartTickerBtn" class="btn-icon">→</button>
-              </div>
-            </div>
-
-            <!-- Watchlist selection -->
-            <div class="chart-watchlist-section">
-              <label>Or Select from Watchlist</label>
-              <select id="chartWatchlistSelect" class="form-input">
-                <option value="">Choose a watchlist...</option>
-              </select>
-              <div id="chartTickerList" class="chart-ticker-list">
-                <div class="empty-state" style="padding: 20px; font-size: 12px;">
-                  Select a watchlist to see tickers
-                </div>
-              </div>
-            </div>
-
-
-          </div>
-
           <!-- Main chart area with tab content -->
           <div class="chart-main-area">
             <!-- Chart tab contents will be added here dynamically -->
@@ -257,24 +222,33 @@
       <!-- Chart Tab Template (hidden, used for cloning) -->
       <template id="chartTabTemplate">
         <div class="chart-tab-content">
-          <!-- Live Info Bar at Top -->
-          <div class="chart-live-info-top" style="display: none;">
-            <div class="live-info-left">
-              <div class="live-stat">
-                <span class="live-stat-label">Volume:</span>
-                <span class="chart-live-volume live-stat-value">0</span>
+          <!-- Chart Header with Ticker Selector -->
+          <div class="chart-header">
+            <div class="chart-ticker-selector">
+              <div class="ticker-display-group">
+                <span class="chart-live-ticker live-ticker-large" style="cursor: pointer; user-select: none;" title="Click to select ticker">Enter Ticker</span>
+                <button class="ticker-dropdown-btn" title="Change ticker">▼</button>
+              </div>
+              <div class="ticker-dropdown-menu" style="display: none;">
+                <div class="ticker-dropdown-section">
+                  <input type="text" class="chart-ticker-input" placeholder="Enter ticker (e.g., AAPL)" />
+                </div>
+                <div class="ticker-dropdown-section">
+                  <label style="font-size: 11px; opacity: 0.7;">Select from watchlist</label>
+                  <select class="chart-watchlist-select">
+                    <option value="">Choose watchlist...</option>
+                  </select>
+                  <div class="chart-ticker-list-dropdown">
+                    <!-- Tickers will be populated here -->
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="live-info-center">
-              <span class="chart-live-ticker live-ticker-large">-</span>
+            <div class="chart-live-stats">
               <span class="chart-live-price live-price-large">$0.00</span>
               <span class="chart-live-change live-change-large">+0.00%</span>
-            </div>
-            <div class="live-info-right">
-              <div class="live-stat">
-                <span class="live-stat-label">Market Cap:</span>
-                <span class="chart-live-marketcap live-stat-value">-</span>
-              </div>
+              <span class="chart-live-volume" style="font-size: 13px; opacity: 0.7; margin-left: 15px;">Vol: 0</span>
+              <span class="chart-live-marketcap" style="font-size: 13px; opacity: 0.7; margin-left: 10px;">-</span>
             </div>
           </div>
           

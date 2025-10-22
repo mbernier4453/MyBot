@@ -96,31 +96,68 @@ async function loadWatchlistStockData() {
   console.log('[WATCHLISTS] Loading stock data for watchlist:', currentWatchlist.name);
   console.log('[WATCHLISTS] Tickers to load:', currentWatchlist.tickers);
   
-  try {
-    // Fetch all data from Polygon
-    const allData = await window.electronAPI.polygonGetAllData();
-    console.log('[WATCHLISTS] Received data from Polygon:', allData ? allData.length : 0, 'stocks');
-    
-    if (allData && Array.isArray(allData)) {
-      // Populate both local treemapData and watchlistStockData
-      allData.forEach(stock => {
-        if (currentWatchlist.tickers.includes(stock.ticker)) {
-          watchlistStockData.set(stock.ticker, stock);
-          treemapData.set(stock.ticker, stock);
-          console.log('[WATCHLISTS] Loaded data for', stock.ticker, ':', stock);
-        }
-      });
-      
-      console.log('[WATCHLISTS] Stock data loaded:', watchlistStockData.size, 'stocks');
-      
-      // Refresh the display after fetching
-      displayWatchlistStocks();
-    } else {
-      console.warn('[WATCHLISTS] No data received from Polygon API');
+  // Clear existing data for this watchlist
+  watchlistStockData.clear();
+  
+  // Check if we can get data from the window-level polygon treemap data
+  // This is populated by the main polygon-treemap module via websocket
+  let foundCount = 0;
+  currentWatchlist.tickers.forEach(ticker => {
+    // Try to get from window.treemapData (exposed by polygon-treemap module)
+    if (window.treemapData && window.treemapData.has(ticker)) {
+      const data = window.treemapData.get(ticker);
+      watchlistStockData.set(ticker, data);
+      treemapData.set(ticker, data);
+      foundCount++;
+      console.log('[WATCHLISTS] Loaded data for', ticker, 'from treemap cache');
     }
-  } catch (error) {
-    console.error('[WATCHLISTS] Error fetching watchlist stock data:', error);
+  });
+  
+  console.log('[WATCHLISTS] Loaded', foundCount, 'of', currentWatchlist.tickers.length, 'stocks from cache');
+  
+  // For any tickers not found in cache, fetch them specifically
+  const missingTickers = currentWatchlist.tickers.filter(ticker => !watchlistStockData.has(ticker));
+  
+  if (missingTickers.length > 0) {
+    console.log('[WATCHLISTS] Fetching missing tickers:', missingTickers);
+    try {
+      // First check the stockData cache
+      const allData = await window.electronAPI.polygonGetAllData();
+      
+      if (allData && Array.isArray(allData)) {
+        allData.forEach(stock => {
+          if (missingTickers.includes(stock.ticker)) {
+            watchlistStockData.set(stock.ticker, stock);
+            treemapData.set(stock.ticker, stock);
+            foundCount++;
+          }
+        });
+      }
+      
+      // For tickers still missing (not in S&P 500), fetch directly
+      const stillMissing = missingTickers.filter(ticker => !watchlistStockData.has(ticker));
+      if (stillMissing.length > 0) {
+        console.log('[WATCHLISTS] Fetching non-S&P500 tickers:', stillMissing);
+        const result = await window.electronAPI.polygonFetchTickers(stillMissing);
+        
+        if (result.success && result.data) {
+          result.data.forEach(stock => {
+            watchlistStockData.set(stock.ticker, stock);
+            treemapData.set(stock.ticker, stock);
+            foundCount++;
+          });
+          console.log('[WATCHLISTS] Fetched', result.data.length, 'additional tickers');
+        }
+      }
+      
+      console.log('[WATCHLISTS] Total loaded:', foundCount, 'of', currentWatchlist.tickers.length);
+    } catch (error) {
+      console.error('[WATCHLISTS] Error fetching tickers:', error);
+    }
   }
+  
+  // Always refresh display (will show "Loading..." for missing stocks)
+  displayWatchlistStocks();
 }
 
 // Display stocks in table
@@ -270,6 +307,17 @@ document.getElementById('addStocksBtn')?.addEventListener('click', () => {
   
   currentWatchlist.tickers.push(...newTickers);
   saveWatchlistsToStorage();
+  
+  // Subscribe to new tickers in Polygon websocket
+  if (window.electronAPI && window.electronAPI.polygonSubscribeTickers) {
+    window.electronAPI.polygonSubscribeTickers(newTickers)
+      .then(result => {
+        if (result.success) {
+          console.log('[WATCHLISTS] Subscribed to new tickers:', newTickers.join(', '));
+        }
+      })
+      .catch(err => console.error('[WATCHLISTS] Error subscribing to tickers:', err));
+  }
   
   document.getElementById('watchlistCount').textContent = `${currentWatchlist.tickers.length} stocks`;
   loadWatchlistStockData();
@@ -599,6 +647,14 @@ const WatchlistsModule = {
 };
 
 export default WatchlistsModule;
+
+// Listen for watchlist updates from other parts of the app
+if (window.electronAPI && window.electronAPI.onWatchlistsUpdated) {
+  window.electronAPI.onWatchlistsUpdated(() => {
+    console.log('[WATCHLISTS] Received watchlists-updated event, reloading...');
+    loadWatchlists();
+  });
+}
 
 // Expose to window for backward compatibility
 window.watchlists = watchlists;

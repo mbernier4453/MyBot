@@ -29,11 +29,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWatchlists: () => ipcRenderer.invoke('get-watchlists'),
   createWatchlist: (name, tickers, notes) => ipcRenderer.invoke('create-watchlist', name, tickers, notes),
   deleteWatchlist: (id) => ipcRenderer.invoke('delete-watchlist', id),
+  onWatchlistsUpdated: (callback) => ipcRenderer.on('watchlists-updated', () => callback()),
   
   // Polygon API
   polygonConnect: () => ipcRenderer.invoke('polygon-connect'),
   polygonDisconnect: () => ipcRenderer.invoke('polygon-disconnect'),
   polygonGetAllData: () => ipcRenderer.invoke('polygon-get-all-data'),
+  polygonFetchTickers: (tickers) => ipcRenderer.invoke('polygon-fetch-tickers', tickers),
+  polygonGetTickerDetails: (ticker) => ipcRenderer.invoke('polygon-get-ticker-details', ticker),
+  polygonGetSP500Data: () => ipcRenderer.invoke('polygon-get-sp500-data'),
+  polygonSubscribeTickers: (tickers) => ipcRenderer.invoke('polygon-subscribe-tickers', tickers),
+  polygonUnsubscribeTickers: (tickers) => ipcRenderer.invoke('polygon-unsubscribe-tickers', tickers),
   polygonGetHistoricalBars: (params) => ipcRenderer.invoke('polygon-get-historical-bars', params),
   onPolygonUpdate: (callback) => ipcRenderer.on('polygon-update', (event, data) => callback(data)),
   onPolygonStatus: (callback) => ipcRenderer.on('polygon-status', (event, status) => callback(status)),

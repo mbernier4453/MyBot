@@ -228,6 +228,193 @@ class ChartTab {
         }
       });
     }
+    
+    // Ticker selector dropdown
+    this.initializeTickerSelector();
+  }
+  
+  initializeTickerSelector() {
+    const content = this.contentElement;
+    
+    // Ticker display click to toggle dropdown
+    const tickerDisplay = content.querySelector('.chart-live-ticker');
+    const dropdownBtn = content.querySelector('.ticker-dropdown-btn');
+    const dropdownMenu = content.querySelector('.ticker-dropdown-menu');
+    
+    console.log('Ticker selector elements:', {
+      tickerDisplay: !!tickerDisplay,
+      dropdownBtn: !!dropdownBtn,
+      dropdownMenu: !!dropdownMenu
+    });
+    
+    if (!dropdownMenu) {
+      console.error('Dropdown menu not found in content');
+      return;
+    }
+    
+    const openDropdown = () => {
+      dropdownMenu.style.display = 'block';
+      this.loadWatchlistsInDropdown();
+      
+      // Focus the input field
+      const tickerInput = content.querySelector('.chart-ticker-input');
+      if (tickerInput) {
+        setTimeout(() => tickerInput.focus(), 50);
+      }
+    };
+    
+    const toggleDropdown = () => {
+      const isVisible = dropdownMenu.style.display === 'block';
+      if (isVisible) {
+        dropdownMenu.style.display = 'none';
+      } else {
+        openDropdown();
+      }
+    };
+    
+    if (tickerDisplay) {
+      tickerDisplay.addEventListener('click', toggleDropdown);
+    }
+    
+    if (dropdownBtn) {
+      dropdownBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleDropdown();
+      });
+    }
+    
+    // Keyboard shortcut: Ctrl+T to open ticker selector
+    const keyboardHandler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+        e.preventDefault();
+        openDropdown();
+      } else if (e.key === 'Escape' && dropdownMenu.style.display === 'block') {
+        dropdownMenu.style.display = 'none';
+      }
+    };
+    
+    // Add keyboard listener when tab is active
+    document.addEventListener('keydown', keyboardHandler);
+    
+    // Click outside to close
+    document.addEventListener('click', (e) => {
+      if (!content.contains(e.target) || (!dropdownMenu.contains(e.target) && e.target !== tickerDisplay && e.target !== dropdownBtn)) {
+        dropdownMenu.style.display = 'none';
+      }
+    });
+    
+    // Ticker input
+    const tickerInput = content.querySelector('.chart-ticker-input');
+    if (tickerInput) {
+      tickerInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          const ticker = tickerInput.value.trim().toUpperCase();
+          if (ticker) {
+            this.setTicker(ticker);
+            dropdownMenu.style.display = 'none';
+            tickerInput.value = '';
+          }
+        }
+      });
+      
+      // Also handle Escape to close dropdown
+      tickerInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          dropdownMenu.style.display = 'none';
+        }
+      });
+    }
+    
+    // Watchlist selector
+    const watchlistSelect = content.querySelector('.chart-watchlist-select');
+    if (watchlistSelect) {
+      watchlistSelect.addEventListener('change', () => {
+        const watchlistName = watchlistSelect.value;
+        if (watchlistName) {
+          this.loadTickersFromWatchlist(watchlistName);
+        }
+      });
+    }
+  }
+  
+  async loadWatchlistsInDropdown() {
+    const content = this.contentElement;
+    const watchlistSelect = content.querySelector('.chart-watchlist-select');
+    
+    if (!watchlistSelect) {
+      console.error('Watchlist select element not found');
+      return;
+    }
+    
+    try {
+      // Load watchlists from localStorage (same as watchlists page)
+      const stored = localStorage.getItem('watchlists');
+      let watchlists = [];
+      
+      if (stored) {
+        try {
+          watchlists = JSON.parse(stored);
+        } catch (error) {
+          console.error('Error parsing watchlists from localStorage:', error);
+        }
+      }
+      
+      watchlistSelect.innerHTML = '<option value="">Choose watchlist...</option>';
+      
+      if (Array.isArray(watchlists) && watchlists.length > 0) {
+        watchlists.forEach(w => {
+          const option = document.createElement('option');
+          option.value = w.name;
+          option.textContent = w.name;
+          watchlistSelect.appendChild(option);
+        });
+      } else {
+        watchlistSelect.innerHTML = '<option value="">No watchlists found</option>';
+      }
+    } catch (error) {
+      console.error('Error loading watchlists:', error);
+      watchlistSelect.innerHTML = '<option value="">Error loading watchlists</option>';
+    }
+  }
+  
+  async loadTickersFromWatchlist(watchlistName) {
+    const content = this.contentElement;
+    const tickerListContainer = content.querySelector('.chart-ticker-list-dropdown');
+    if (!tickerListContainer) return;
+    
+    try {
+      // Load watchlists from localStorage
+      const stored = localStorage.getItem('watchlists');
+      let watchlists = [];
+      
+      if (stored) {
+        try {
+          watchlists = JSON.parse(stored);
+        } catch (error) {
+          console.error('Error parsing watchlists from localStorage:', error);
+        }
+      }
+      
+      const watchlist = watchlists.find(w => w.name === watchlistName);
+      
+      if (watchlist && watchlist.tickers) {
+        tickerListContainer.innerHTML = '';
+        watchlist.tickers.forEach(ticker => {
+          const item = document.createElement('div');
+          item.className = 'ticker-item';
+          item.textContent = ticker;
+          item.addEventListener('click', () => {
+            this.setTicker(ticker);
+            content.querySelector('.ticker-dropdown-menu').style.display = 'none';
+          });
+          tickerListContainer.appendChild(item);
+        });
+      } else {
+        tickerListContainer.innerHTML = '<div style="padding: 12px; color: #666;">No tickers in this watchlist</div>';
+      }
+    } catch (error) {
+      console.error('Error loading tickers from watchlist:', error);
+    }
   }
   
   validateIntervalForTimeframe() {
@@ -286,24 +473,35 @@ class ChartTab {
     if (!this.ticker) return;
     
     const content = this.contentElement;
-    const liveInfoBar = content.querySelector('.chart-live-info-top');
     const data = treemapData.get(this.ticker);
     
     if (data) {
-      liveInfoBar.style.display = 'flex';
-      content.querySelector('.chart-live-ticker').textContent = this.ticker;
-      content.querySelector('.chart-live-price').textContent = `$${data.close.toFixed(2)}`;
+      // Update ticker display
+      const tickerEl = content.querySelector('.chart-live-ticker');
+      if (tickerEl) tickerEl.textContent = this.ticker;
       
+      // Update price
+      const priceEl = content.querySelector('.chart-live-price');
+      if (priceEl) priceEl.textContent = `$${data.close.toFixed(2)}`;
+      
+      // Update change
       const changeEl = content.querySelector('.chart-live-change');
-      const changePercent = data.changePercent;
-      changeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
-      changeEl.style.backgroundColor = changePercent >= 0 ? '#00aa55' : '#ff4444';
-      changeEl.style.color = 'white';
+      if (changeEl) {
+        const changePercent = data.changePercent;
+        changeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+        changeEl.style.backgroundColor = changePercent >= 0 ? '#00aa55' : '#ff4444';
+        changeEl.style.color = 'white';
+      }
       
-      content.querySelector('.chart-live-volume').textContent = (data.volume / 1e6).toFixed(2) + 'M';
-      content.querySelector('.chart-live-marketcap').textContent = (data.marketCap / 1e9).toFixed(2) + 'B';
-    } else {
-      liveInfoBar.style.display = 'none';
+      // Update volume
+      const volumeEl = content.querySelector('.chart-live-volume');
+      if (volumeEl) volumeEl.textContent = 'Vol: ' + (data.volume / 1e6).toFixed(2) + 'M';
+      
+      // Update market cap
+      const marketCapEl = content.querySelector('.chart-live-marketcap');
+      if (marketCapEl && data.marketCap) {
+        marketCapEl.textContent = 'MCap: $' + (data.marketCap / 1e9).toFixed(2) + 'B';
+      }
     }
   }
   
@@ -353,6 +551,14 @@ class ChartTab {
     `;
     
     try {
+      // Subscribe to live updates for this ticker
+      try {
+        await window.electronAPI.polygonSubscribeTickers([this.ticker]);
+        console.log(`[CHART] Subscribed to ${this.ticker}`);
+      } catch (subError) {
+        console.warn(`[CHART] Failed to subscribe to ${this.ticker}:`, subError);
+      }
+      
       const dateRange = this.getDateRange();
       const { timespan, multiplier } = this.getTimespanParams();
       
@@ -1058,12 +1264,18 @@ class ChartTab {
               ? `(${indicator.params.period},${indicator.params.stdDev})`
               : `(${indicator.params.period},${indicator.params.multiplier})`;
             
+            // Normalize indicator values if needed (except RSI/ATR)
+            const anchorIdx = this.getAnchorIndex(source.bars);
+            const normalizedUpper = this.normalizeData(result.upper, anchorIdx);
+            const normalizedMiddle = this.normalizeData(result.middle, anchorIdx);
+            const normalizedLower = this.normalizeData(result.lower, anchorIdx);
+            
             // Upper band
             traces.push({
               type: 'scatter',
               mode: 'lines',
               x: dates,
-              y: result.upper,
+              y: normalizedUpper,
               name: `${label} Upper ${params}${tickerLabel}`,
               line: { color: color, width: source.isMain ? 1 : 0.8, dash: 'dash' },
               opacity: opacity,
@@ -1079,7 +1291,7 @@ class ChartTab {
               type: 'scatter',
               mode: 'lines',
               x: dates,
-              y: result.middle,
+              y: normalizedMiddle,
               name: `${label} Middle ${params}${tickerLabel}`,
               line: { color: color, width: source.isMain ? 1.5 : 1 },
               opacity: opacity,
@@ -1095,7 +1307,7 @@ class ChartTab {
               type: 'scatter',
               mode: 'lines',
               x: dates,
-              y: result.lower,
+              y: normalizedLower,
               name: `${label} Lower ${params}${tickerLabel}`,
               line: { color: color, width: source.isMain ? 1 : 0.8, dash: 'dash' },
               opacity: opacity,
@@ -1201,7 +1413,7 @@ class ChartTab {
               }
             }
           } else {
-            // Simple line indicators (MA, ATR, etc.)
+            // Simple line indicators (SMA, EMA, HMA, KAMA)
             let label = indicator.type;
             if (indicator.type === 'KAMA') {
               label += `(${indicator.params.period},${indicator.params.fast},${indicator.params.slow})`;
@@ -1209,11 +1421,15 @@ class ChartTab {
               label += `(${indicator.params.period})`;
             }
             
+            // Normalize indicator values if needed (matches price normalization)
+            const anchorIdx = this.getAnchorIndex(source.bars);
+            const normalizedResult = this.normalizeData(result, anchorIdx);
+            
             const trace = {
               type: 'scatter',
               mode: 'lines',
               x: dates,
-              y: result,
+              y: normalizedResult,
               name: `${source.ticker} ${label}`,
               line: { color: color, width: source.isMain ? 2 : 1.5 },
               opacity: opacity,
@@ -1250,6 +1466,18 @@ class ChartTab {
         yaxis: traces[0].yaxis
       });
     }
+    
+    // Calculate chart height based on number of panels
+    // Base height for main chart + volume, additional height for RSI/ATR panels
+    const hasRSI = layout.yaxis3 !== undefined;
+    const hasATR = layout.yaxis4 !== undefined;
+    let chartHeight = 600; // Base height
+    if (hasRSI && hasATR) {
+      chartHeight = 900; // 4 panels: main + volume + RSI + ATR
+    } else if (hasRSI || hasATR) {
+      chartHeight = 750; // 3 panels: main + volume + one indicator
+    }
+    layout.height = chartHeight;
     
     Plotly.newPlot(chartCanvas, traces, layout, config);
     
@@ -1480,6 +1708,14 @@ class ChartTab {
     overlaysList.style.display = 'block';
     
     try {
+      // Subscribe to live updates for this overlay ticker
+      try {
+        await window.electronAPI.polygonSubscribeTickers([ticker]);
+        console.log(`[CHART] Subscribed to overlay ${ticker}`);
+      } catch (subError) {
+        console.warn(`[CHART] Failed to subscribe to overlay ${ticker}:`, subError);
+      }
+      
       // Fetch data for overlay ticker with same date range
       const dateRange = this.getDateRange();
       const { timespan, multiplier } = this.getTimespanParams();
@@ -1548,6 +1784,11 @@ class ChartTab {
     const content = this.contentElement;
     const overlaysContainer = content.querySelector('.chart-overlays-container');
     const overlaysList = content.querySelector('.chart-overlays-list');
+    
+    // Unsubscribe from live updates
+    window.electronAPI.polygonUnsubscribeTickers([ticker])
+      .then(() => console.log(`[CHART] Unsubscribed from overlay ${ticker}`))
+      .catch(err => console.warn(`[CHART] Failed to unsubscribe from ${ticker}:`, err));
     
     // Remove from array
     this.overlays = this.overlays.filter(o => o.ticker !== ticker);
@@ -1986,6 +2227,21 @@ function createChartTab() {
   
   // Activate the new tab
   activateChartTab(tab.id);
+  
+  // Automatically open ticker selector and focus input
+  setTimeout(() => {
+    const dropdownMenu = tab.contentElement.querySelector('.ticker-dropdown-menu');
+    const tickerInput = tab.contentElement.querySelector('.chart-ticker-input');
+    
+    if (dropdownMenu) {
+      dropdownMenu.style.display = 'block';
+      tab.loadWatchlistsInDropdown();
+    }
+    
+    if (tickerInput) {
+      tickerInput.focus();
+    }
+  }, 50);
   
   return tab;
 }

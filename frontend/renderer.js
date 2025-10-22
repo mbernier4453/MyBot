@@ -598,6 +598,17 @@ function initializeDOMElements() {
   }, 100);
 }
 
+// Listen for watchlist updates
+if (window.electronAPI.onWatchlistsUpdated) {
+  window.electronAPI.onWatchlistsUpdated(() => {
+    console.log('[RENDERER] Watchlists updated, reloading chart ticker lists');
+    // Reload watchlists for all chart tabs
+    if (typeof window.loadWatchlistsForCharts === 'function') {
+      window.loadWatchlistsForCharts();
+    }
+  });
+}
+
 // Call init when DOM is ready
 console.log('[RENDERER] Setting up DOM ready listener, readyState:', document.readyState);
 if (document.readyState === 'loading') {

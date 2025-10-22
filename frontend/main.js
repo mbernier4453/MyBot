@@ -89,41 +89,266 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// Flatten all sectors into single ticker list
-const SP500_TICKERS = Object.values(SP500_BY_SECTOR).flat();
+// Load S&P 500 tickers from CSV
+let SP500_TICKERS = [];
+let SP500_DATA = {}; // Will store sector and sub-industry info
 
-// Flatten market caps from all sectors
+function loadSP500CSV() {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const csvPath = path.join(__dirname, '../spy503.csv');
+    
+    if (!fs.existsSync(csvPath)) {
+      console.error('[POLYGON] CSV file not found, using fallback list');
+      SP500_TICKERS = Object.values(SP500_BY_SECTOR).flat();
+      return;
+    }
+    
+    const csvContent = fs.readFileSync(csvPath, 'utf8');
+    const lines = csvContent.split('\n');
+    
+    // Skip header
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      
+      // Parse CSV line (handle quoted fields)
+      const values = parseCSVLine(lines[i]);
+      if (values.length < 4) continue;
+      
+      const ticker = values[0];
+      SP500_TICKERS.push(ticker);
+      SP500_DATA[ticker] = {
+        name: values[1],
+        sector: values[2],
+        subIndustry: values[3]
+      };
+    }
+    
+    console.log(`[POLYGON] Loaded ${SP500_TICKERS.length} S&P 500 tickers from CSV`);
+  } catch (error) {
+    console.error('[POLYGON] Error loading CSV:', error);
+    SP500_TICKERS = Object.values(SP500_BY_SECTOR).flat();
+  }
+}
+
+// Parse CSV line handling quoted fields
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current.trim());
+  return result;
+}
+
+// Load CSV on startup
+loadSP500CSV();
+
+// Add sector ETFs for watchlist support
+const SECTOR_ETFS = ['XLK', 'XLF', 'XLV', 'XLY', 'XLP', 'XLE', 'XLI', 'XLU', 'XLRE', 'XLC', 'XLB'];
+
+// Flatten market caps from all sectors (fallback only)
 const MARKET_CAPS = Object.values(MARKET_CAPS_BY_SECTOR).reduce((acc, sectorCaps) => {
   return { ...acc, ...sectorCaps };
 }, {});
 
+// Add market caps for sector ETFs (approximate values in billions)
+SECTOR_ETFS.forEach(etf => {
+  MARKET_CAPS[etf] = 10; // Default 10B for ETFs
+});
+
+// Fetch ALL S&P 500 stocks using Polygon's ticker list API
+async function fetchAllSP500Tickers() {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) return SP500_TICKERS;
+  
+  try {
+    const https = require('https');
+    const url = `https://api.polygon.io/v3/reference/tickers?market=stocks&active=true&limit=1000&apiKey=${apiKey}`;
+    
+    return new Promise((resolve) => {
+      https.get(url, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(data);
+            if (response.results) {
+              // Filter for S&P 500 stocks (you can improve this filter)
+              const tickers = response.results
+                .filter(t => t.market === 'stocks' && t.primary_exchange)
+                .map(t => t.ticker)
+                .slice(0, 500); // Get first 500
+              console.log(`[POLYGON] Fetched ${tickers.length} tickers from API`);
+              resolve(tickers.length > 400 ? tickers : SP500_TICKERS);
+            } else {
+              resolve(SP500_TICKERS);
+            }
+          } catch (error) {
+            console.error('[POLYGON] Error parsing tickers:', error);
+            resolve(SP500_TICKERS);
+          }
+        });
+      }).on('error', (error) => {
+        console.error('[POLYGON] Error fetching tickers:', error);
+        resolve(SP500_TICKERS);
+      });
+    });
+  } catch (error) {
+    return SP500_TICKERS;
+  }
+}
+
+// Cache for market caps (persists between app restarts)
+const marketCapCache = new Map();
+const MARKET_CAP_CACHE_FILE = path.join(app.getPath('userData'), 'market-caps-cache.json');
+const CACHE_EXPIRY_HOURS = 24; // Refresh once per day
+
+// Load market cap cache from disk
+function loadMarketCapCache() {
+  try {
+    if (fs.existsSync(MARKET_CAP_CACHE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(MARKET_CAP_CACHE_FILE, 'utf8'));
+      if (data.timestamp && Date.now() - data.timestamp < CACHE_EXPIRY_HOURS * 3600000) {
+        console.log(`[POLYGON] Loaded ${Object.keys(data.caps).length} cached market caps`);
+        Object.entries(data.caps).forEach(([ticker, cap]) => {
+          marketCapCache.set(ticker, cap);
+        });
+        return true;
+      }
+    }
+  } catch (error) {
+    console.error('[POLYGON] Error loading market cap cache:', error);
+  }
+  return false;
+}
+
+// Save market cap cache to disk
+function saveMarketCapCache() {
+  try {
+    const data = {
+      timestamp: Date.now(),
+      caps: Object.fromEntries(marketCapCache)
+    };
+    fs.writeFileSync(MARKET_CAP_CACHE_FILE, JSON.stringify(data));
+    console.log(`[POLYGON] Saved ${marketCapCache.size} market caps to cache`);
+  } catch (error) {
+    console.error('[POLYGON] Error saving market cap cache:', error);
+  }
+}
+
 // Fetch initial snapshot data from Polygon REST API
+// Gets ALL S&P 500 stocks for display, but doesn't subscribe to websocket
 async function fetchInitialData() {
   const apiKey = process.env.POLYGON_API_KEY;
   if (!apiKey) return;
 
-  console.log('[POLYGON] Fetching initial snapshot data...');
+  // Use CSV ticker list
+  console.log(`[POLYGON] Fetching snapshot data for ${SP500_TICKERS.length} S&P 500 stocks...`);
   
   try {
     const https = require('https');
-    const url = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?apiKey=${apiKey}`;
     
-    https.get(url, (res) => {
-      let data = '';
+    // Try loading from cache first
+    const cacheLoaded = loadMarketCapCache();
+    
+    const marketCaps = new Map(marketCapCache);
+    
+    // Only fetch missing market caps
+    const tickersToFetch = cacheLoaded 
+      ? SP500_TICKERS.filter(t => !marketCaps.has(t))
+      : SP500_TICKERS;
+    
+    if (tickersToFetch.length > 0) {
+      console.log(`[POLYGON] Fetching market caps for ${tickersToFetch.length} tickers (${SP500_TICKERS.length - tickersToFetch.length} cached)...`);
       
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
+      // Aggressive parallel fetching: 50 requests at a time with shorter delays
+      const marketCapBatchSize = 50;
+      const marketCapDelay = 250; // 250ms between batches = 200 requests/second effective rate
       
-      res.on('end', () => {
-        try {
-          const response = JSON.parse(data);
-          
-          if (response.status === 'OK' && response.tickers) {
-            let count = 0;
-            response.tickers.forEach(snapshot => {
-              // Only process S&P 500 stocks
-              if (SP500_TICKERS.includes(snapshot.ticker)) {
+      for (let i = 0; i < tickersToFetch.length; i += marketCapBatchSize) {
+        const batch = tickersToFetch.slice(i, i + marketCapBatchSize);
+        const batchPromises = batch.map(ticker => {
+          return new Promise((resolve) => {
+            const url = `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${apiKey}`;
+            https.get(url, (res) => {
+              let data = '';
+              res.on('data', (chunk) => { data += chunk; });
+              res.on('end', () => {
+                try {
+                  const response = JSON.parse(data);
+                  if (response.results && response.results.market_cap) {
+                    marketCaps.set(ticker, response.results.market_cap);
+                    marketCapCache.set(ticker, response.results.market_cap);
+                  }
+                } catch (error) {
+                  console.error(`[POLYGON] Error parsing market cap for ${ticker}:`, error);
+                }
+                resolve();
+              });
+            }).on('error', () => resolve());
+          });
+        });
+        
+        await Promise.all(batchPromises);
+        console.log(`[POLYGON] Fetched market caps: ${i + batch.length}/${tickersToFetch.length}`);
+        
+        // Delay between batches
+        if (i + marketCapBatchSize < tickersToFetch.length) {
+          await new Promise(resolve => setTimeout(resolve, marketCapDelay));
+        }
+      }
+      
+      // Save updated cache
+      saveMarketCapCache();
+    }
+    
+    console.log(`[POLYGON] Market cap fetch complete: ${marketCaps.size} tickers`);
+    
+    // Now fetch snapshot data
+    // Batch tickers into groups of 50 (Polygon limit per request)
+    const batchSize = 50;
+    const batches = [];
+    for (let i = 0; i < SP500_TICKERS.length; i += batchSize) {
+      batches.push(SP500_TICKERS.slice(i, i + batchSize));
+    }
+    
+    console.log(`[POLYGON] Fetching ${batches.length} batches of tickers...`);
+    let totalCount = 0;
+    let batchesCompleted = 0;
+    
+    // Fetch each batch
+    batches.forEach((batch, batchIndex) => {
+      const tickersParam = batch.join(',');
+      const url = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${tickersParam}&apiKey=${apiKey}`;
+      
+      https.get(url, (res) => {
+        let data = '';
+        
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(data);
+            
+            if (response.status === 'OK' && response.tickers) {
+              response.tickers.forEach(snapshot => {
                 const prevClose = snapshot.prevDay?.c || snapshot.day?.c || 100;
                 const currentPrice = snapshot.day?.c || prevClose;
                 
@@ -131,8 +356,16 @@ async function fetchInitialData() {
                 const change = currentPrice - prevClose;
                 const changePercent = prevClose > 0 ? ((change / prevClose) * 100) : 0;
                 
-                if (snapshot.ticker === 'AAPL') {
-                  console.log(`[SNAPSHOT] ${snapshot.ticker}: prevClose=$${prevClose.toFixed(2)}, current=$${currentPrice.toFixed(2)}, change=${changePercent.toFixed(2)}%`);
+                // Use real market cap from API fetch
+                const marketCap = marketCaps.get(snapshot.ticker) || null;
+                
+                // Log first ticker to verify data structure
+                if (batchIndex === 0 && totalCount === 0) {
+                  console.log(`[POLYGON] Sample data for ${snapshot.ticker}:`, {
+                    marketCap: marketCap,
+                    price: currentPrice,
+                    volume: snapshot.day?.v
+                  });
                 }
                 
                 const stockInfo = {
@@ -141,36 +374,41 @@ async function fetchInitialData() {
                   high: snapshot.day?.h || currentPrice,
                   low: snapshot.day?.l || currentPrice,
                   close: currentPrice,
-                  volume: snapshot.day?.v || 0,
-                  prevClose: prevClose, // Store previous close for reference
-                  marketCap: (MARKET_CAPS[snapshot.ticker] || 100) * 1e9, // Convert billions to actual value
+                  volume: snapshot.day?.v || 0, // REAL volume from snapshot
+                  prevClose: prevClose,
+                  marketCap: marketCap, // REAL market cap from ticker details API
                   timestamp: Date.now(),
                   change: change,
                   changePercent: changePercent
                 };
                 
                 stockData.set(snapshot.ticker, stockInfo);
-                count++;
+                totalCount++;
                 
                 // Send to renderer
                 if (mainWindow) {
                   mainWindow.webContents.send('polygon-update', stockInfo);
                 }
-              }
-            });
-            
-            console.log(`[POLYGON] Loaded ${count} stocks from snapshot`);
-            if (mainWindow) {
-              mainWindow.webContents.send('polygon-initial-load-complete', { count });
+              });
+              
+              console.log(`[POLYGON] Batch ${batchIndex + 1}/${batches.length} complete: ${response.tickers.length} stocks (total: ${totalCount})`);
             }
+          } catch (error) {
+            console.error(`[POLYGON] Error parsing batch ${batchIndex + 1}:`, error);
           }
-        } catch (error) {
-          console.error('[POLYGON] Error parsing snapshot data:', error);
-        }
+        });
+      }).on('error', (error) => {
+        console.error(`[POLYGON] Error fetching batch ${batchIndex + 1}:`, error);
       });
-    }).on('error', (error) => {
-      console.error('[POLYGON] Error fetching snapshot:', error);
     });
+    
+    // Wait a bit for all batches (using simple timeout since forEach doesn't support await)
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    console.log(`[POLYGON] All batches complete! Loaded ${totalCount} of ${SP500_TICKERS.length} S&P 500 stocks`);
+    if (mainWindow) {
+      mainWindow.webContents.send('polygon-initial-load-complete', { count: totalCount });
+    }
   } catch (error) {
     console.error('[POLYGON] Error in fetchInitialData:', error);
   }
@@ -198,18 +436,15 @@ function connectPolygon() {
     // Authenticate
     polygonWs.send(JSON.stringify({ action: 'auth', params: apiKey }));
     
-    // Subscribe to 1-minute aggregates for S&P 500 stocks
-    const subscriptions = SP500_TICKERS.map(ticker => `AM.${ticker}`);
-    polygonWs.send(JSON.stringify({ 
-      action: 'subscribe', 
-      params: subscriptions.join(',')
-    }));
+    // Do NOT subscribe to any tickers initially
+    // Will subscribe dynamically when user opens watchlists or charts
+    console.log('[POLYGON] WebSocket ready - waiting for user to view tickers');
     
     if (mainWindow) {
       mainWindow.webContents.send('polygon-status', { connected: true });
     }
     
-    // Fetch initial snapshot data
+    // Fetch initial snapshot data for ALL tickers (including ETFs)
     setTimeout(() => {
       fetchInitialData();
     }, 2000); // Wait 2 seconds for subscriptions to complete
@@ -232,9 +467,10 @@ function connectPolygon() {
         if (msg.ev === 'AM') {
           const ticker = msg.sym;
           
-          // Get previous data to preserve prevClose
+          // Get previous data to preserve prevClose and marketCap
           const prevData = stockData.get(ticker);
           const prevClose = prevData?.prevClose || msg.c;
+          const marketCap = prevData?.marketCap || null; // Keep market cap from initial fetch (no hardcoded fallback)
           const currentPrice = msg.c;
           const change = currentPrice - prevClose;
           const changePercent = prevClose > 0 ? ((change / prevClose) * 100) : 0;
@@ -249,9 +485,9 @@ function connectPolygon() {
             high: msg.h,
             low: msg.l,
             close: currentPrice,
-            volume: msg.v,
-            prevClose: prevClose, // Preserve yesterday's close
-            marketCap: (MARKET_CAPS[ticker] || 100) * 1e9,
+            volume: msg.v, // Real-time volume from websocket
+            prevClose: prevClose,
+            marketCap: marketCap, // Preserve real market cap from initial fetch
             timestamp: msg.s,
             change: change,
             changePercent: changePercent
@@ -325,7 +561,177 @@ ipcMain.handle('polygon-disconnect', () => {
 
 ipcMain.handle('polygon-get-all-data', () => {
   const data = Array.from(stockData.values());
-  return { success: true, data };
+  console.log(`[POLYGON] polygonGetAllData called, returning ${data.length} stocks`);
+  return data; // Return array directly for compatibility
+});
+
+// Fetch snapshot data for specific tickers (not in S&P 500)
+ipcMain.handle('polygon-fetch-tickers', async (event, tickers) => {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) {
+    return { success: false, error: 'No API key' };
+  }
+  
+  if (!Array.isArray(tickers) || tickers.length === 0) {
+    return { success: false, error: 'Invalid tickers array' };
+  }
+  
+  try {
+    const https = require('https');
+    const tickersParam = tickers.join(',');
+    const url = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${tickersParam}&apiKey=${apiKey}`;
+    
+    return new Promise((resolve) => {
+      https.get(url, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(data);
+            if (response.status === 'OK' && response.tickers) {
+              const results = [];
+              response.tickers.forEach(snapshot => {
+                const prevClose = snapshot.prevDay?.c || snapshot.day?.c || 100;
+                const currentPrice = snapshot.day?.c || prevClose;
+                const change = currentPrice - prevClose;
+                const changePercent = prevClose > 0 ? ((change / prevClose) * 100) : 0;
+                const marketCap = (MARKET_CAPS[snapshot.ticker] || 100) * 1e9; // Use hardcoded market caps
+                
+                const stockInfo = {
+                  ticker: snapshot.ticker,
+                  open: snapshot.day?.o || prevClose,
+                  high: snapshot.day?.h || currentPrice,
+                  low: snapshot.day?.l || currentPrice,
+                  close: currentPrice,
+                  volume: snapshot.day?.v || 0,
+                  prevClose: prevClose,
+                  marketCap: marketCap,
+                  timestamp: Date.now(),
+                  change: change,
+                  changePercent: changePercent
+                };
+                
+                stockData.set(snapshot.ticker, stockInfo);
+                results.push(stockInfo);
+                
+                // Send to renderer
+                if (mainWindow) {
+                  mainWindow.webContents.send('polygon-update', stockInfo);
+                }
+              });
+              
+              console.log(`[POLYGON] Fetched ${results.length} tickers: ${tickers.join(', ')}`);
+              resolve({ success: true, data: results });
+            } else {
+              console.error('[POLYGON] Error fetching tickers:', response.error);
+              resolve({ success: false, error: response.error || 'Unknown error' });
+            }
+          } catch (error) {
+            console.error('[POLYGON] Parse error:', error);
+            resolve({ success: false, error: error.message });
+          }
+        });
+      }).on('error', (error) => {
+        console.error('[POLYGON] Request error:', error);
+        resolve({ success: false, error: error.message });
+      });
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get ticker details (including market cap) from Polygon
+ipcMain.handle('polygon-get-ticker-details', async (event, ticker) => {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) {
+    return { success: false, error: 'No API key' };
+  }
+  
+  try {
+    const https = require('https');
+    const url = `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${apiKey}`;
+    
+    return new Promise((resolve) => {
+      https.get(url, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(data);
+            if (response.status === 'OK' && response.results) {
+              resolve({ success: true, data: response.results });
+            } else {
+              resolve({ success: false, error: response.error || 'Unknown error' });
+            }
+          } catch (error) {
+            resolve({ success: false, error: error.message });
+          }
+        });
+      }).on('error', (error) => {
+        resolve({ success: false, error: error.message });
+      });
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get S&P 500 ticker list and metadata
+ipcMain.handle('polygon-get-sp500-data', () => {
+  return {
+    success: true,
+    tickers: SP500_TICKERS,
+    data: SP500_DATA
+  };
+});
+
+// Subscribe to additional tickers dynamically
+ipcMain.handle('polygon-subscribe-tickers', (event, tickers) => {
+  if (!polygonWs || !isConnected) {
+    return { success: false, error: 'Not connected to Polygon' };
+  }
+  
+  if (!Array.isArray(tickers) || tickers.length === 0) {
+    return { success: false, error: 'Invalid tickers array' };
+  }
+  
+  try {
+    const subscriptions = tickers.map(ticker => `AM.${ticker}`);
+    polygonWs.send(JSON.stringify({ 
+      action: 'subscribe', 
+      params: subscriptions.join(',')
+    }));
+    console.log(`[POLYGON] Dynamically subscribed to: ${tickers.join(', ')}`);
+    return { success: true, tickers };
+  } catch (error) {
+    console.error('[POLYGON] Error subscribing to tickers:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Unsubscribe from tickers dynamically
+ipcMain.handle('polygon-unsubscribe-tickers', (event, tickers) => {
+  if (!polygonWs || !isConnected) {
+    return { success: false, error: 'Not connected to Polygon' };
+  }
+  
+  if (!Array.isArray(tickers) || tickers.length === 0) {
+    return { success: false, error: 'Invalid tickers array' };
+  }
+  
+  try {
+    const subscriptions = tickers.map(ticker => `AM.${ticker}`);
+    polygonWs.send(JSON.stringify({ 
+      action: 'unsubscribe', 
+      params: subscriptions.join(',')
+    }));
+    console.log(`[POLYGON] Unsubscribed from: ${tickers.join(', ')}`);
+    return { success: true, tickers };
+  } catch (error) {
+    console.error('[POLYGON] Error unsubscribing from tickers:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 // Fetch historical bars for candlestick chart
@@ -1373,6 +1779,12 @@ ipcMain.handle('create-watchlist', async (event, name, tickers, notes) => {
     stmt.free();
     
     saveDatabase();
+    
+    // Notify all windows that watchlists changed
+    if (mainWindow) {
+      mainWindow.webContents.send('watchlists-updated');
+    }
+    
     return { success: true };
   } catch (error) {
     console.error('[BACKEND] Error creating watchlist:', error);
@@ -1389,6 +1801,12 @@ ipcMain.handle('delete-watchlist', async (event, id) => {
     stmt.free();
     
     saveDatabase();
+    
+    // Notify all windows that watchlists changed
+    if (mainWindow) {
+      mainWindow.webContents.send('watchlists-updated');
+    }
+    
     return { success: true };
   } catch (error) {
     console.error('[BACKEND] Error deleting watchlist:', error);
