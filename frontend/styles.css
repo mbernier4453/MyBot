@@ -3281,7 +3281,16 @@ select[multiple] option:checked {
 /* Settings Modal */
 #settingsModal .modal-content {
   max-width: 700px;
+  max-height: 85vh;
   background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+#settingsModal .modal-body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .settings-tabs {

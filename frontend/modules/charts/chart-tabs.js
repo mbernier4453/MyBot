@@ -1032,8 +1032,7 @@ class ChartTab {
           }
           
           const dates = source.bars.map(b => formatDate(b.t));
-          const indicatorColors = ['#9b59b6', '#e74c3c', '#f39c12', '#1abc9c', '#3498db', '#e67e22'];
-          const baseColor = indicatorColors[indIdx % indicatorColors.length];
+          const baseColor = indicator.color || '#9b59b6'; // Use indicator's saved color
           
           // Use overlay color for overlays, indicator color for main
           const color = source.isMain ? baseColor : source.color;
@@ -1114,7 +1113,7 @@ class ChartTab {
             });
             
             // Only add RSI reference lines and axis setup once
-            if (sourceIdx === 0 && indIdx === 0) {
+            if (!layout.yaxis3 && sourceIdx === 0) {
               [30, 70].forEach((level, idx) => {
                 traces.push({
                   type: 'scatter',
@@ -1132,13 +1131,13 @@ class ChartTab {
               
               // Update layout to include y3 axis for RSI (separate panel)
               // Adjust main chart to make room
-              layout.yaxis.domain = [0.38, 1]; // Main chart top 62%
-              layout.yaxis2.domain = [0.19, 0.36]; // Volume middle 17%
+              layout.yaxis.domain = [0.40, 1]; // Main chart top 60%
+              layout.yaxis2.domain = [0.22, 0.38]; // Volume middle 16%
               layout.yaxis3 = {
                 title: 'RSI',
                 titlefont: { color: baseColor },
                 tickfont: { color: baseColor },
-                domain: [0, 0.17], // RSI panel bottom 17%
+                domain: [0, 0.20], // RSI panel bottom 20%
                 range: [0, 100],
                 showgrid: true,
                 gridcolor: '#1a1a1a',
@@ -1146,7 +1145,7 @@ class ChartTab {
               };
             }
           } else if (indicator.type === 'ATR') {
-            // ATR also uses a separate panel (share with RSI if both exist)
+            // ATR uses its own y-axis (y4) separate from RSI
             traces.push({
               type: 'scatter',
               mode: 'lines',
@@ -1156,24 +1155,41 @@ class ChartTab {
               line: { color: color, width: source.isMain ? 2 : 1.5 },
               opacity: opacity,
               xaxis: 'x',
-              yaxis: 'y3',
+              yaxis: 'y4',
               showlegend: true,
               hovertemplate: `${source.ticker} ATR: %{y:.2f}<extra></extra>`
             });
             
-            // Setup axis if not already done by RSI
-            if (!layout.yaxis3 && sourceIdx === 0 && indIdx === 0) {
-              layout.yaxis.domain = [0.38, 1];
-              layout.yaxis2.domain = [0.19, 0.36];
-              layout.yaxis3 = {
-                title: 'ATR',
-                titlefont: { color: baseColor },
-                tickfont: { color: baseColor },
-                domain: [0, 0.17],
-                showgrid: true,
-                gridcolor: '#1a1a1a',
-                zeroline: false
-              };
+            // Setup y4 axis for ATR if not already done
+            if (!layout.yaxis4 && sourceIdx === 0) {
+              // If RSI exists (y3), adjust all domains to fit 4 panels
+              if (layout.yaxis3) {
+                layout.yaxis.domain = [0.55, 1];    // Main chart: top 45%
+                layout.yaxis2.domain = [0.38, 0.53]; // Volume: 15%
+                layout.yaxis3.domain = [0.19, 0.36]; // RSI: 17%
+                layout.yaxis4 = {                    // ATR: bottom 17%
+                  title: 'ATR',
+                  titlefont: { color: baseColor },
+                  tickfont: { color: baseColor },
+                  domain: [0, 0.17],
+                  showgrid: true,
+                  gridcolor: '#1a1a1a',
+                  zeroline: false
+                };
+              } else {
+                // No RSI, just ATR - use 3 panels
+                layout.yaxis.domain = [0.40, 1];
+                layout.yaxis2.domain = [0.22, 0.38];
+                layout.yaxis4 = {
+                  title: 'ATR',
+                  titlefont: { color: baseColor },
+                  tickfont: { color: baseColor },
+                  domain: [0, 0.20],
+                  showgrid: true,
+                  gridcolor: '#1a1a1a',
+                  zeroline: false
+                };
+              }
             }
           } else {
             // Simple line indicators (MA, ATR, etc.)
@@ -1691,7 +1707,9 @@ class ChartTab {
   
   addIndicator(type, params) {
     const id = Date.now();
-    const indicator = { id, type, params };
+    const indicatorColors = ['#9b59b6', '#e74c3c', '#f39c12', '#1abc9c', '#3498db', '#e67e22'];
+    const color = indicatorColors[this.indicators.length % indicatorColors.length];
+    const indicator = { id, type, params, color };
     this.indicators.push(indicator);
     
     console.log('Indicator added:', indicator);
@@ -1734,9 +1752,7 @@ class ChartTab {
     
     indicatorsList.style.display = 'block';
     indicatorsContainer.innerHTML = this.indicators.map(ind => {
-      const indicatorColors = ['#9b59b6', '#e74c3c', '#f39c12', '#1abc9c', '#3498db', '#e67e22'];
-      const colorIndex = this.indicators.indexOf(ind) % indicatorColors.length;
-      const color = indicatorColors[colorIndex];
+      const color = ind.color || '#9b59b6'; // Use saved color or default
       
       let paramsHTML = '';
       
@@ -1814,6 +1830,10 @@ class ChartTab {
           padding: 6px 10px;
           margin-bottom: 6px;
         ">
+          <input type="color" class="indicator-color-input" data-indicator-id="${ind.id}" 
+                 value="${color}" 
+                 style="width: 30px; height: 24px; border: none; border-radius: 3px; cursor: pointer; margin-right: 8px;"
+                 title="Change color">
           <span style="font-weight: 600; font-size: 12px; color: var(--text-primary); margin-right: 12px; min-width: 50px;">
             ${ind.type}
           </span>
@@ -1831,6 +1851,31 @@ class ChartTab {
         </div>
       `;
     }).join('');
+    
+    // Add color change listeners
+    indicatorsList.querySelectorAll('.indicator-color-input').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const id = parseInt(e.target.dataset.indicatorId);
+        const color = e.target.value;
+        
+        // Update indicator color
+        const indicator = this.indicators.find(ind => ind.id === id);
+        if (indicator) {
+          indicator.color = color;
+          
+          // Update the border color immediately
+          const row = e.target.closest('.indicator-row');
+          if (row) {
+            row.style.borderLeft = `3px solid ${color}`;
+          }
+          
+          // Redraw chart with new color
+          if (this.chartData) {
+            this.drawChart(this.chartData);
+          }
+        }
+      });
+    });
     
     // Add input change listeners for live parameter editing
     indicatorsList.querySelectorAll('.indicator-param-input').forEach(input => {
