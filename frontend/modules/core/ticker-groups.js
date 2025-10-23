@@ -6,13 +6,19 @@
 class TickerGroupManager {
   constructor() {
     this.groups = new Map(); // groupId -> { ticker, subscribers }
-    this.activeGroup = null;
+    this.activeGroup = 'None'; // Default to None group
   }
 
   /**
    * Create or update a group with a ticker
    */
   setGroupTicker(groupId, ticker) {
+    // Skip if using None group
+    if (groupId === 'None') {
+      console.log(`[TICKER-GROUPS] Skipping group sync for None group`);
+      return;
+    }
+    
     if (!this.groups.has(groupId)) {
       this.groups.set(groupId, {
         ticker: ticker,
@@ -35,6 +41,7 @@ class TickerGroupManager {
    * Get ticker for a group
    */
   getGroupTicker(groupId) {
+    if (groupId === 'None') return null;
     return this.groups.get(groupId)?.ticker || null;
   }
 
@@ -96,7 +103,7 @@ class TickerGroupManager {
    * Get active group
    */
   getActiveGroup() {
-    return this.activeGroup || 'A';
+    return this.activeGroup || 'None';
   }
 
   /**

@@ -6,9 +6,10 @@
 import tickerGroups from '../core/ticker-groups.js';
 
 const FinancialsPage = {
-  currentTicker: null,
+  currentTickers: [],
   currentTimeframe: 'quarterly',
-  currentGroup: 'A',
+  currentGroup: 'None',
+  currentTickerIndex: 0,
 
   /**
    * Initialize the financials page
@@ -17,49 +18,67 @@ const FinancialsPage = {
     // Group selector
     const groupSelect = document.getElementById('financialsGroupSelect');
     if (groupSelect) {
-      groupSelect.value = tickerGroups.getActiveGroup();
-      this.currentGroup = tickerGroups.getActiveGroup();
+      groupSelect.value = 'None';
+      this.currentGroup = 'None';
       
       groupSelect.addEventListener('change', (e) => {
         this.currentGroup = e.target.value;
-        tickerGroups.setActiveGroup(this.currentGroup);
+        if (this.currentGroup !== 'None') {
+          tickerGroups.setActiveGroup(this.currentGroup);
+        }
         
         // Load ticker for this group if it exists
-        const ticker = tickerGroups.getGroupTicker(this.currentGroup);
-        if (ticker) {
-          document.getElementById('financialsTickerInput').value = ticker;
-          // Don't auto-load on group switch, just populate the input
+        if (this.currentGroup !== 'None') {
+          const ticker = tickerGroups.getGroupTicker(this.currentGroup);
+          if (ticker) {
+            document.getElementById('financialsTickerInput').value = ticker;
+            // Don't auto-load on group switch, just populate the input
+          } else {
+            document.getElementById('financialsTickerInput').value = '';
+          }
         } else {
           document.getElementById('financialsTickerInput').value = '';
         }
       });
     }
     
-    // Subscribe to ticker changes for current group
-    tickerGroups.subscribe(this.currentGroup, (ticker) => {
-      const input = document.getElementById('financialsTickerInput');
-      if (input && input.value !== ticker) {
-        input.value = ticker;
-        this.loadFinancials(ticker);
-      }
-    });
+    // Subscribe to ticker changes for current group (only if not None)
+    if (this.currentGroup !== 'None') {
+      tickerGroups.subscribe(this.currentGroup, (ticker) => {
+        const input = document.getElementById('financialsTickerInput');
+        if (input && input.value !== ticker) {
+          input.value = ticker;
+          this.loadFinancials(ticker);
+        }
+      });
+    }
     
     // Load button
     document.getElementById('loadFinancialsBtn')?.addEventListener('click', () => {
-      const ticker = document.getElementById('financialsTickerInput').value.trim().toUpperCase();
-      if (ticker) {
-        tickerGroups.setGroupTicker(this.currentGroup, ticker);
-        this.loadFinancials(ticker);
+      const input = document.getElementById('financialsTickerInput').value.trim().toUpperCase();
+      const tickers = input.split(',').map(t => t.trim()).filter(t => t);
+      if (tickers.length > 0) {
+        this.currentTickers = tickers;
+        this.currentTickerIndex = 0;
+        if (this.currentGroup !== 'None') {
+          tickerGroups.setGroupTicker(this.currentGroup, tickers[0]);
+        }
+        this.loadFinancials(tickers[0]);
       }
     });
 
     // Enter key on input
     document.getElementById('financialsTickerInput')?.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
-        const ticker = e.target.value.trim().toUpperCase();
-        if (ticker) {
-          tickerGroups.setGroupTicker(this.currentGroup, ticker);
-          this.loadFinancials(ticker);
+        const input = e.target.value.trim().toUpperCase();
+        const tickers = input.split(',').map(t => t.trim()).filter(t => t);
+        if (tickers.length > 0) {
+          this.currentTickers = tickers;
+          this.currentTickerIndex = 0;
+          if (this.currentGroup !== 'None') {
+            tickerGroups.setGroupTicker(this.currentGroup, tickers[0]);
+          }
+          this.loadFinancials(tickers[0]);
         }
       }
     });
@@ -68,8 +87,8 @@ const FinancialsPage = {
     document.querySelectorAll('input[name="financialsTimeframe"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         this.currentTimeframe = e.target.value;
-        if (this.currentTicker) {
-          this.loadFinancials(this.currentTicker);
+        if (this.currentTickers.length > 0) {
+          this.loadFinancials(this.currentTickers[this.currentTickerIndex]);
         }
       });
     });
@@ -95,16 +114,22 @@ const FinancialsPage = {
    * Load financials for a ticker
    */
   async loadFinancials(ticker) {
-    this.currentTicker = ticker;
     
     const dataSection = document.getElementById('financialsDataSection');
     const tickerEl = document.getElementById('financialsPageTicker');
     const loadingEl = document.getElementById('financialsPageLoading');
     const errorEl = document.getElementById('financialsPageError');
     
-    // Show section
+    // Show section and update ticker display
     dataSection.style.display = 'block';
-    tickerEl.textContent = ticker;
+    
+    // Show ticker count if multiple tickers
+    if (this.currentTickers.length > 1) {
+      tickerEl.textContent = `${ticker} (${this.currentTickerIndex + 1}/${this.currentTickers.length})`;
+    } else {
+      tickerEl.textContent = ticker;
+    }
+    
     loadingEl.style.display = 'block';
     errorEl.style.display = 'none';
     
@@ -114,7 +139,8 @@ const FinancialsPage = {
     document.getElementById('cashFlowPageTable').innerHTML = '';
     
     try {
-      const limit = this.currentTimeframe === 'quarterly' ? 8 : 5;
+      // Get up to 5 years of data (20 quarters or 5 annual reports)
+      const limit = this.currentTimeframe === 'quarterly' ? 20 : 5;
       
       const [balanceSheet, incomeStatement, cashFlow] = await Promise.all([
         window.electronAPI.polygonGetBalanceSheet(ticker, { timeframe: this.currentTimeframe, limit }),
@@ -281,16 +307,16 @@ const FinancialsPage = {
       return numVal != null ? `$${(numVal / 1e9).toFixed(2)}B` : 'N/A';
     };
     
+    // Updated field names based on actual Polygon API response structure
     const metrics = [
-      { label: 'Operating Cash Flow', key: 'net_cash_from_operating_activities' },
-      { label: 'Depreciation & Amortization', key: 'depreciation_depletion_and_amortization' },
-      { label: 'Change in Working Capital', key: 'change_in_other_operating_assets_and_liabilities_net' },
-      { label: 'Investing Cash Flow', key: 'net_cash_from_investing_activities' },
-      { label: 'CapEx', key: 'purchase_of_property_plant_and_equipment' },
-      { label: 'Financing Cash Flow', key: 'net_cash_from_financing_activities' },
-      { label: 'Dividends Paid', key: 'dividends' },
-      { label: 'Debt Issuance/Repayment', key: 'long_term_debt_issuances_repayments' },
-      { label: 'Net Change in Cash', key: 'change_in_cash_and_equivalents' }
+      { label: 'Operating Cash Flow', key: 'net_cash_flow_from_operating_activities' },
+      { label: 'Operating CF (Continuing)', key: 'net_cash_flow_from_operating_activities_continuing' },
+      { label: 'Investing Cash Flow', key: 'net_cash_flow_from_investing_activities' },
+      { label: 'Investing CF (Continuing)', key: 'net_cash_flow_from_investing_activities_continuing' },
+      { label: 'Financing Cash Flow', key: 'net_cash_flow_from_financing_activities' },
+      { label: 'Financing CF (Continuing)', key: 'net_cash_flow_from_financing_activities_continuing' },
+      { label: 'Net Cash Flow', key: 'net_cash_flow' },
+      { label: 'Net CF (Continuing)', key: 'net_cash_flow_continuing' }
     ];
     
     metrics.forEach(metric => {

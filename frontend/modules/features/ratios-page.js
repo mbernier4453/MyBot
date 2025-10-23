@@ -6,8 +6,9 @@
 import tickerGroups from '../core/ticker-groups.js';
 
 const RatiosPage = {
-  currentTicker: null,
-  currentGroup: 'A',
+  currentTickers: [],
+  currentTickerIndex: 0,
+  currentGroup: 'None',
 
   /**
    * Initialize the ratios page
@@ -16,49 +17,67 @@ const RatiosPage = {
     // Group selector
     const groupSelect = document.getElementById('ratiosGroupSelect');
     if (groupSelect) {
-      groupSelect.value = tickerGroups.getActiveGroup();
-      this.currentGroup = tickerGroups.getActiveGroup();
+      groupSelect.value = 'None';
+      this.currentGroup = 'None';
       
       groupSelect.addEventListener('change', (e) => {
         this.currentGroup = e.target.value;
-        tickerGroups.setActiveGroup(this.currentGroup);
+        if (this.currentGroup !== 'None') {
+          tickerGroups.setActiveGroup(this.currentGroup);
+        }
         
         // Load ticker for this group if it exists
-        const ticker = tickerGroups.getGroupTicker(this.currentGroup);
-        if (ticker) {
-          document.getElementById('ratiosTickerInput').value = ticker;
-          // Don't auto-load on group switch, just populate the input
+        if (this.currentGroup !== 'None') {
+          const ticker = tickerGroups.getGroupTicker(this.currentGroup);
+          if (ticker) {
+            document.getElementById('ratiosTickerInput').value = ticker;
+            // Don't auto-load on group switch, just populate the input
+          } else {
+            document.getElementById('ratiosTickerInput').value = '';
+          }
         } else {
           document.getElementById('ratiosTickerInput').value = '';
         }
       });
     }
     
-    // Subscribe to ticker changes for current group
-    tickerGroups.subscribe(this.currentGroup, (ticker) => {
-      const input = document.getElementById('ratiosTickerInput');
-      if (input && input.value !== ticker) {
-        input.value = ticker;
-        this.loadRatios(ticker);
-      }
-    });
+    // Subscribe to ticker changes for current group (only if not None)
+    if (this.currentGroup !== 'None') {
+      tickerGroups.subscribe(this.currentGroup, (ticker) => {
+        const input = document.getElementById('ratiosTickerInput');
+        if (input && input.value !== ticker) {
+          input.value = ticker;
+          this.loadRatios(ticker);
+        }
+      });
+    }
     
     // Load button
     document.getElementById('loadRatiosBtn')?.addEventListener('click', () => {
-      const ticker = document.getElementById('ratiosTickerInput').value.trim().toUpperCase();
-      if (ticker) {
-        tickerGroups.setGroupTicker(this.currentGroup, ticker);
-        this.loadRatios(ticker);
+      const input = document.getElementById('ratiosTickerInput').value.trim().toUpperCase();
+      const tickers = input.split(',').map(t => t.trim()).filter(t => t);
+      if (tickers.length > 0) {
+        this.currentTickers = tickers;
+        this.currentTickerIndex = 0;
+        if (this.currentGroup !== 'None') {
+          tickerGroups.setGroupTicker(this.currentGroup, tickers[0]);
+        }
+        this.loadRatios(tickers[0]);
       }
     });
 
     // Enter key on input
     document.getElementById('ratiosTickerInput')?.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
-        const ticker = e.target.value.trim().toUpperCase();
-        if (ticker) {
-          tickerGroups.setGroupTicker(this.currentGroup, ticker);
-          this.loadRatios(ticker);
+        const input = e.target.value.trim().toUpperCase();
+        const tickers = input.split(',').map(t => t.trim()).filter(t => t);
+        if (tickers.length > 0) {
+          this.currentTickers = tickers;
+          this.currentTickerIndex = 0;
+          if (this.currentGroup !== 'None') {
+            tickerGroups.setGroupTicker(this.currentGroup, tickers[0]);
+          }
+          this.loadRatios(tickers[0]);
         }
       }
     });
@@ -68,7 +87,6 @@ const RatiosPage = {
    * Load ratios for a ticker
    */
   async loadRatios(ticker) {
-    this.currentTicker = ticker;
     
     const dataSection = document.getElementById('ratiosDataSection');
     const tickerEl = document.getElementById('ratiosPageTicker');
@@ -76,9 +94,16 @@ const RatiosPage = {
     const errorEl = document.getElementById('ratiosPageError');
     const contentEl = document.getElementById('ratiosPageContent');
     
-    // Show section
+    // Show section and update ticker display
     dataSection.style.display = 'block';
-    tickerEl.textContent = ticker;
+    
+    // Show ticker count if multiple tickers
+    if (this.currentTickers.length > 1) {
+      tickerEl.textContent = `${ticker} (${this.currentTickerIndex + 1}/${this.currentTickers.length})`;
+    } else {
+      tickerEl.textContent = ticker;
+    }
+    
     loadingEl.style.display = 'block';
     errorEl.style.display = 'none';
     contentEl.innerHTML = '';

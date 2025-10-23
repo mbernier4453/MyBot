@@ -4927,7 +4927,7 @@ kbd {
 .financials-data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .financials-data-table th {
@@ -4935,15 +4935,16 @@ kbd {
   color: var(--text-primary);
   font-weight: 600;
   text-align: left;
-  padding: 12px 16px;
+  padding: 14px 18px;
   border-bottom: 2px solid var(--border-color);
   position: sticky;
   top: 0;
   z-index: 1;
+  font-size: 14px;
 }
 
 .financials-data-table td {
-  padding: 12px 16px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-secondary);
 }
@@ -4955,11 +4956,43 @@ kbd {
 .financials-data-table .metric-label {
   font-weight: 600;
   color: var(--text-primary);
+  font-size: 15px;
 }
 
 .financials-data-table .metric-value {
   text-align: right;
   font-family: 'Courier New', monospace;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* Ticker navigation */
+.ticker-navigation {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.ticker-nav-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s ease;
+}
+
+.ticker-nav-btn:hover:not(:disabled) {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+}
+
+.ticker-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 /* Ratios Page */

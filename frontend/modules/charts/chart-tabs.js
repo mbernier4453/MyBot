@@ -2299,14 +2299,8 @@ class ChartTab {
 }
 
 function createChartTab() {
-  // Get group from currently active tab, or default to 'A' if no tabs exist
-  let groupForNewTab = 'A';
-  if (activeChartTabId !== null) {
-    const activeTab = chartTabs.find(t => t.id === activeChartTabId);
-    if (activeTab) {
-      groupForNewTab = activeTab.group;
-    }
-  }
+  // Default to 'None' group for new tabs (no syncing)
+  let groupForNewTab = 'None';
   
   const tab = new ChartTab(nextChartTabId++, groupForNewTab);
   chartTabs.push(tab);
