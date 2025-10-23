@@ -843,7 +843,6 @@ ipcMain.handle('polygon-get-balance-sheet', async (event, ticker, options = {}) 
         res.on('end', () => {
           try {
             const response = JSON.parse(data);
-            console.log(`[MAIN] Balance sheet response status: ${response.status}, results: ${response.results?.length || 0}`);
             if (response.status === 'OK' && response.results) {
               // Filter to only balance sheet data
               const balanceSheets = response.results

@@ -83,22 +83,8 @@ const RatiosPage = {
     errorEl.style.display = 'none';
     contentEl.innerHTML = '';
     
-    try {
-      console.log(`[RatiosPage] Loading ratios for ${ticker}`);
-      
-      const result = await window.electronAPI.polygonGetRatios(ticker);
-      
-      console.log('[RatiosPage] API Response:', {
-        success: result.success,
-        hasResults: !!result.results,
-        count: result.results?.length
-      });
-      
-      if (result.results && result.results.length > 0) {
-        console.log('[RatiosPage] First result structure:', Object.keys(result.results[0]));
-      }
-      
-      loadingEl.style.display = 'none';
+      try {
+        const result = await window.electronAPI.polygonGetRatios(ticker);      loadingEl.style.display = 'none';
       
       if (result.success && result.results && result.results.length > 0) {
         this.renderRatios(result.results[0]);
@@ -121,28 +107,41 @@ const RatiosPage = {
   renderRatios(data) {
     const contentEl = document.getElementById('ratiosPageContent');
     
+    // Helper to extract numeric value from Polygon API nested structure
+    const getVal = (field) => field?.value ?? field ?? null;
+    
     // Calculate all ratios
     const ratios = [
       // Liquidity Ratios
       {
         category: 'Liquidity',
         label: 'Current Ratio',
-        value: data.total_current_assets && data.total_current_liabilities ? 
-          (data.total_current_assets / data.total_current_liabilities).toFixed(2) : 'N/A',
+        value: (() => {
+          const ca = getVal(data.current_assets);
+          const cl = getVal(data.current_liabilities);
+          return (ca && cl) ? (ca / cl).toFixed(2) : 'N/A';
+        })(),
         description: 'Ability to pay short-term obligations'
       },
       {
         category: 'Liquidity',
         label: 'Quick Ratio',
-        value: data.total_current_assets && data.inventories && data.total_current_liabilities ? 
-          ((data.total_current_assets - data.inventories) / data.total_current_liabilities).toFixed(2) : 'N/A',
+        value: (() => {
+          const ca = getVal(data.current_assets);
+          const inv = getVal(data.inventory);
+          const cl = getVal(data.current_liabilities);
+          return (ca && cl) ? ((ca - (inv || 0)) / cl).toFixed(2) : 'N/A';
+        })(),
         description: 'Ability to pay short-term debt without selling inventory'
       },
       {
         category: 'Liquidity',
         label: 'Cash Ratio',
-        value: data.cash_and_equivalents && data.total_current_liabilities ? 
-          (data.cash_and_equivalents / data.total_current_liabilities).toFixed(2) : 'N/A',
+        value: (() => {
+          const cash = getVal(data.cash);
+          const cl = getVal(data.current_liabilities);
+          return (cash && cl) ? (cash / cl).toFixed(2) : 'N/A';
+        })(),
         description: 'Most conservative liquidity measure'
       },
       
@@ -150,22 +149,31 @@ const RatiosPage = {
       {
         category: 'Leverage',
         label: 'Debt to Equity',
-        value: data.total_liabilities && data.total_equity ? 
-          (data.total_liabilities / data.total_equity).toFixed(2) : 'N/A',
+        value: (() => {
+          const liab = getVal(data.liabilities);
+          const eq = getVal(data.equity);
+          return (liab && eq) ? (liab / eq).toFixed(2) : 'N/A';
+        })(),
         description: 'Financial leverage and risk'
       },
       {
         category: 'Leverage',
         label: 'Debt to Assets',
-        value: data.total_liabilities && data.total_assets ? 
-          ((data.total_liabilities / data.total_assets) * 100).toFixed(1) + '%' : 'N/A',
+        value: (() => {
+          const liab = getVal(data.liabilities);
+          const assets = getVal(data.assets);
+          return (liab && assets) ? ((liab / assets) * 100).toFixed(1) + '%' : 'N/A';
+        })(),
         description: 'Percentage of assets financed by debt'
       },
       {
         category: 'Leverage',
         label: 'Equity Multiplier',
-        value: data.total_assets && data.total_equity ? 
-          (data.total_assets / data.total_equity).toFixed(2) : 'N/A',
+        value: (() => {
+          const assets = getVal(data.assets);
+          const eq = getVal(data.equity);
+          return (assets && eq) ? (assets / eq).toFixed(2) : 'N/A';
+        })(),
         description: 'Financial leverage ratio'
       },
       
@@ -173,36 +181,51 @@ const RatiosPage = {
       {
         category: 'Profitability',
         label: 'Gross Margin',
-        value: data.gross_profit && data.revenue ? 
-          ((data.gross_profit / data.revenue) * 100).toFixed(1) + '%' : 'N/A',
+        value: (() => {
+          const gp = getVal(data.gross_profit);
+          const rev = getVal(data.revenues);
+          return (gp && rev) ? ((gp / rev) * 100).toFixed(1) + '%' : 'N/A';
+        })(),
         description: 'Profitability after cost of goods sold'
       },
       {
         category: 'Profitability',
         label: 'Operating Margin',
-        value: data.operating_income && data.revenue ? 
-          ((data.operating_income / data.revenue) * 100).toFixed(1) + '%' : 'N/A',
+        value: (() => {
+          const oi = getVal(data.operating_income_loss);
+          const rev = getVal(data.revenues);
+          return (oi && rev) ? ((oi / rev) * 100).toFixed(1) + '%' : 'N/A';
+        })(),
         description: 'Operating efficiency'
       },
       {
         category: 'Profitability',
         label: 'Net Margin',
-        value: data.consolidated_net_income_loss && data.revenue ? 
-          ((data.consolidated_net_income_loss / data.revenue) * 100).toFixed(1) + '%' : 'N/A',
+        value: (() => {
+          const ni = getVal(data.net_income_loss);
+          const rev = getVal(data.revenues);
+          return (ni && rev) ? ((ni / rev) * 100).toFixed(1) + '%' : 'N/A';
+        })(),
         description: 'Bottom line profitability'
       },
       {
         category: 'Profitability',
         label: 'Return on Assets (ROA)',
-        value: data.consolidated_net_income_loss && data.total_assets ? 
-          ((data.consolidated_net_income_loss / data.total_assets) * 100).toFixed(1) + '%' : 'N/A',
+        value: (() => {
+          const ni = getVal(data.net_income_loss);
+          const assets = getVal(data.assets);
+          return (ni && assets) ? ((ni / assets) * 100).toFixed(1) + '%' : 'N/A';
+        })(),
         description: 'How efficiently assets generate profit'
       },
       {
         category: 'Profitability',
         label: 'Return on Equity (ROE)',
-        value: data.consolidated_net_income_loss && data.total_equity ? 
-          ((data.consolidated_net_income_loss / data.total_equity) * 100).toFixed(1) + '%' : 'N/A',
+        value: (() => {
+          const ni = getVal(data.net_income_loss);
+          const eq = getVal(data.equity);
+          return (ni && eq) ? ((ni / eq) * 100).toFixed(1) + '%' : 'N/A';
+        })(),
         description: 'Return generated on shareholders equity'
       },
       
@@ -210,15 +233,21 @@ const RatiosPage = {
       {
         category: 'Efficiency',
         label: 'Asset Turnover',
-        value: data.revenue && data.total_assets ? 
-          (data.revenue / data.total_assets).toFixed(2) : 'N/A',
+        value: (() => {
+          const rev = getVal(data.revenues);
+          const assets = getVal(data.assets);
+          return (rev && assets) ? (rev / assets).toFixed(2) : 'N/A';
+        })(),
         description: 'Revenue generated per dollar of assets'
       },
       {
         category: 'Efficiency',
         label: 'Inventory Turnover',
-        value: data.cost_of_revenue && data.inventories ? 
-          (data.cost_of_revenue / data.inventories).toFixed(2) : 'N/A',
+        value: (() => {
+          const cor = getVal(data.cost_of_revenue);
+          const inv = getVal(data.inventory);
+          return (cor && inv) ? (cor / inv).toFixed(2) : 'N/A';
+        })(),
         description: 'How quickly inventory is sold'
       },
       
@@ -226,15 +255,19 @@ const RatiosPage = {
       {
         category: 'Per Share',
         label: 'EPS (Basic)',
-        value: (data.basic_earnings_per_share != null && typeof data.basic_earnings_per_share === 'number') ? 
-          `$${data.basic_earnings_per_share.toFixed(2)}` : 'N/A',
+        value: (() => {
+          const eps = getVal(data.basic_earnings_per_share);
+          return (eps != null && typeof eps === 'number') ? `$${eps.toFixed(2)}` : 'N/A';
+        })(),
         description: 'Earnings per share (basic)'
       },
       {
         category: 'Per Share',
         label: 'EPS (Diluted)',
-        value: (data.diluted_earnings_per_share != null && typeof data.diluted_earnings_per_share === 'number') ? 
-          `$${data.diluted_earnings_per_share.toFixed(2)}` : 'N/A',
+        value: (() => {
+          const eps = getVal(data.diluted_earnings_per_share);
+          return (eps != null && typeof eps === 'number') ? `$${eps.toFixed(2)}` : 'N/A';
+        })(),
         description: 'Earnings per share (diluted)'
       }
     ];

@@ -116,44 +116,24 @@ const FinancialsPage = {
     try {
       const limit = this.currentTimeframe === 'quarterly' ? 8 : 5;
       
-      console.log(`[FinancialsPage] Loading data for ${ticker}, timeframe: ${this.currentTimeframe}, limit: ${limit}`);
-      
       const [balanceSheet, incomeStatement, cashFlow] = await Promise.all([
         window.electronAPI.polygonGetBalanceSheet(ticker, { timeframe: this.currentTimeframe, limit }),
         window.electronAPI.polygonGetIncomeStatement(ticker, { timeframe: this.currentTimeframe, limit }),
         window.electronAPI.polygonGetCashFlow(ticker, { timeframe: this.currentTimeframe, limit })
       ]);
       
-      console.log('[FinancialsPage] API Responses:', {
-        balanceSheet: { success: balanceSheet.success, count: balanceSheet.results?.length },
-        incomeStatement: { success: incomeStatement.success, count: incomeStatement.results?.length },
-        cashFlow: { success: cashFlow.success, count: cashFlow.results?.length }
-      });
-      
       loadingEl.style.display = 'none';
       
-      console.log('[FinancialsPage] Loading hidden, loadingEl display:', loadingEl.style.display);
-      console.log('[FinancialsPage] Data section display:', dataSection.style.display);
-      
       if (balanceSheet.success && balanceSheet.results && balanceSheet.results.length > 0) {
-        console.log('[FinancialsPage] Rendering balance sheet with', balanceSheet.results.length, 'periods');
         this.renderBalanceSheet(balanceSheet.results);
-      } else {
-        console.warn('[FinancialsPage] No balance sheet data:', balanceSheet);
       }
       
       if (incomeStatement.success && incomeStatement.results && incomeStatement.results.length > 0) {
-        console.log('[FinancialsPage] Rendering income statement with', incomeStatement.results.length, 'periods');
         this.renderIncomeStatement(incomeStatement.results);
-      } else {
-        console.warn('[FinancialsPage] No income statement data:', incomeStatement);
       }
       
       if (cashFlow.success && cashFlow.results && cashFlow.results.length > 0) {
-        console.log('[FinancialsPage] Rendering cash flow with', cashFlow.results.length, 'periods');
         this.renderCashFlow(cashFlow.results);
-      } else {
-        console.warn('No cash flow data');
       }
       
     } catch (error) {
@@ -176,9 +156,6 @@ const FinancialsPage = {
     
     const periods = data.reverse();
     
-    console.log('[FinancialsPage] Rendering balance sheet, periods:', periods.length);
-    console.log('[FinancialsPage] First period keys:', Object.keys(periods[0]));
-    
     let html = '<thead><tr><th>Metric</th>';
     periods.forEach(period => {
       const quarter = period.fiscal_quarter || period.fiscal_period || '';
@@ -189,7 +166,11 @@ const FinancialsPage = {
     });
     html += '</tr></thead><tbody>';
     
-    const fmt = (val) => val != null ? `$${(val / 1e9).toFixed(2)}B` : 'N/A';
+    const fmt = (val) => {
+      // Handle nested value objects from Polygon API
+      const numVal = val?.value ?? val;
+      return numVal != null ? `$${(numVal / 1e9).toFixed(2)}B` : 'N/A';
+    };
     
     const metrics = [
       { label: 'Total Assets', key: 'assets' },
@@ -216,10 +197,6 @@ const FinancialsPage = {
     
     html += '</tbody>';
     table.innerHTML = html;
-    
-    console.log('[FinancialsPage] Balance sheet HTML length:', html.length);
-    console.log('[FinancialsPage] Table element display:', window.getComputedStyle(table).display);
-    console.log('[FinancialsPage] Table parent display:', window.getComputedStyle(table.parentElement).display);
   },
 
   /**
@@ -239,7 +216,10 @@ const FinancialsPage = {
     });
     html += '</tr></thead><tbody>';
     
-    const fmt = (val) => val != null ? `$${(val / 1e9).toFixed(2)}B` : 'N/A';
+    const fmt = (val) => {
+      const numVal = val?.value ?? val;
+      return numVal != null ? `$${(numVal / 1e9).toFixed(2)}B` : 'N/A';
+    };
     
     const metrics = [
       { label: 'Revenue', key: 'revenue' },
@@ -253,16 +233,23 @@ const FinancialsPage = {
       { label: 'Income Before Tax', key: 'income_before_income_taxes' },
       { label: 'Income Tax', key: 'income_taxes' },
       { label: 'Net Income', key: 'consolidated_net_income_loss' },
-      { label: 'EPS (Basic)', key: 'basic_earnings_per_share', formatter: (v) => v != null && typeof v === 'number' ? `$${v.toFixed(2)}` : 'N/A' },
-      { label: 'EPS (Diluted)', key: 'diluted_earnings_per_share', formatter: (v) => v != null && typeof v === 'number' ? `$${v.toFixed(2)}` : 'N/A' }
+      { label: 'EPS (Basic)', key: 'basic_earnings_per_share', formatter: (v) => {
+        const numVal = v?.value ?? v;
+        return (numVal != null && typeof numVal === 'number') ? `$${numVal.toFixed(2)}` : 'N/A';
+      }},
+      { label: 'EPS (Diluted)', key: 'diluted_earnings_per_share', formatter: (v) => {
+        const numVal = v?.value ?? v;
+        return (numVal != null && typeof numVal === 'number') ? `$${numVal.toFixed(2)}` : 'N/A';
+      }}
     ];
     
     metrics.forEach(metric => {
       html += `<tr><td class="metric-label">${metric.label}</td>`;
       periods.forEach(period => {
         const val = period[metric.key];
+        const numVal = val?.value ?? val;
         const formatted = metric.formatter ? metric.formatter(val) : fmt(val);
-        const cssClass = val < 0 ? 'negative-value' : val > 0 ? 'positive-value' : '';
+        const cssClass = numVal < 0 ? 'negative-value' : numVal > 0 ? 'positive-value' : '';
         html += `<td class="metric-value ${cssClass}">${formatted}</td>`;
       });
       html += '</tr>';
@@ -289,7 +276,10 @@ const FinancialsPage = {
     });
     html += '</tr></thead><tbody>';
     
-    const fmt = (val) => val != null ? `$${(val / 1e9).toFixed(2)}B` : 'N/A';
+    const fmt = (val) => {
+      const numVal = val?.value ?? val;
+      return numVal != null ? `$${(numVal / 1e9).toFixed(2)}B` : 'N/A';
+    };
     
     const metrics = [
       { label: 'Operating Cash Flow', key: 'net_cash_from_operating_activities' },
@@ -307,7 +297,8 @@ const FinancialsPage = {
       html += `<tr><td class="metric-label">${metric.label}</td>`;
       periods.forEach(period => {
         const val = period[metric.key];
-        const cssClass = val < 0 ? 'negative-value' : 'positive-value';
+        const numVal = val?.value ?? val;
+        const cssClass = numVal < 0 ? 'negative-value' : 'positive-value';
         html += `<td class="metric-value ${cssClass}">${fmt(val)}</td>`;
       });
       html += '</tr>';
