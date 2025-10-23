@@ -10,11 +10,15 @@ const FinancialsPage = {
   currentTimeframe: 'quarterly',
   currentGroup: 'None',
   currentTickerIndex: 0,
+  currentData: null, // Store current data for export
 
   /**
    * Initialize the financials page
    */
   initialize() {
+    // Populate watchlist selector
+    this.populateWatchlistSelector();
+    
     // Group selector
     const groupSelect = document.getElementById('financialsGroupSelect');
     if (groupSelect) {
@@ -108,6 +112,111 @@ const FinancialsPage = {
         document.getElementById(tabId)?.classList.add('active');
       });
     });
+    
+    // Watchlist selector
+    document.getElementById('financialsWatchlistSelect')?.addEventListener('change', (e) => {
+      const watchlistId = parseInt(e.target.value);
+      if (watchlistId && this.watchlistsData) {
+        const watchlist = this.watchlistsData.find(w => w.id === watchlistId);
+        if (watchlist) {
+          const tickers = JSON.parse(watchlist.tickers_json || '[]');
+          if (tickers.length > 0) {
+            this.currentTickers = [...tickers];
+            this.currentTickerIndex = 0;
+            document.getElementById('financialsTickerInput').value = this.currentTickers.join(', ');
+            this.loadFinancials(this.currentTickers[0]);
+          }
+        }
+      }
+    });
+    
+    // Ticker navigation buttons
+    document.getElementById('financialsPrevBtn')?.addEventListener('click', () => {
+      if (this.currentTickerIndex > 0) {
+        this.currentTickerIndex--;
+        this.loadFinancials(this.currentTickers[this.currentTickerIndex]);
+      }
+    });
+    
+    document.getElementById('financialsNextBtn')?.addEventListener('click', () => {
+      if (this.currentTickerIndex < this.currentTickers.length - 1) {
+        this.currentTickerIndex++;
+        this.loadFinancials(this.currentTickers[this.currentTickerIndex]);
+      }
+    });
+    
+    // Download CSV button
+    document.getElementById('downloadFinancialsCSV')?.addEventListener('click', () => {
+      this.downloadCSV();
+    });
+  },
+
+  /**
+   * Populate watchlist selector
+   */
+  async populateWatchlistSelector() {
+    const select = document.getElementById('financialsWatchlistSelect');
+    if (!select) return;
+    
+    // Get watchlists from backend via IPC
+    try {
+      const result = await window.electronAPI.getWatchlists();
+      if (result.success) {
+        const watchlists = result.watchlists;
+        
+        // Clear and repopulate
+        select.innerHTML = '<option value="">-- Select Watchlist --</option>';
+        watchlists.forEach(w => {
+          const tickers = JSON.parse(w.tickers_json || '[]');
+          const option = document.createElement('option');
+          option.value = w.id;
+          option.textContent = `${w.name} (${tickers.length} stocks)`;
+          select.appendChild(option);
+        });
+        
+        // Store watchlists for later use
+        this.watchlistsData = watchlists;
+      }
+    } catch (error) {
+      console.error('Error loading watchlists:', error);
+    }
+  },
+
+  /**
+   * Create SVG sparkline
+   */
+  createSparkline(values, width = 100, height = 30) {
+    if (!values || values.length === 0) return '';
+    
+    const validValues = values.filter(v => v != null && !isNaN(v));
+    if (validValues.length === 0) return '';
+    
+    const min = Math.min(...validValues);
+    const max = Math.max(...validValues);
+    const range = max - min || 1;
+    
+    const points = validValues.map((val, i) => {
+      const x = (i / (validValues.length - 1)) * width;
+      const y = height - ((val - min) / range) * height;
+      return `${x},${y}`;
+    }).join(' ');
+    
+    const color = validValues[validValues.length - 1] >= validValues[0] ? '#2ecc71' : '#e74c3c';
+    
+    return `<svg width="${width}" height="${height}" class="sparkline">
+      <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2"/>
+    </svg>`;
+  },
+
+  /**
+   * Calculate CAGR (Compound Annual Growth Rate)
+   */
+  calculateCAGR(startValue, endValue, periods) {
+    if (!startValue || !endValue || startValue <= 0 || endValue <= 0 || periods <= 0) {
+      return null;
+    }
+    const years = this.currentTimeframe === 'quarterly' ? periods / 4 : periods;
+    return (Math.pow(endValue / startValue, 1 / years) - 1) * 100;
   },
 
   /**
@@ -119,15 +228,23 @@ const FinancialsPage = {
     const tickerEl = document.getElementById('financialsPageTicker');
     const loadingEl = document.getElementById('financialsPageLoading');
     const errorEl = document.getElementById('financialsPageError');
+    const prevBtn = document.getElementById('financialsPrevBtn');
+    const nextBtn = document.getElementById('financialsNextBtn');
     
     // Show section and update ticker display
     dataSection.style.display = 'block';
     
-    // Show ticker count if multiple tickers
+    // Show ticker count and navigation buttons if multiple tickers
     if (this.currentTickers.length > 1) {
       tickerEl.textContent = `${ticker} (${this.currentTickerIndex + 1}/${this.currentTickers.length})`;
+      prevBtn.style.display = 'inline-block';
+      nextBtn.style.display = 'inline-block';
+      prevBtn.disabled = this.currentTickerIndex === 0;
+      nextBtn.disabled = this.currentTickerIndex === this.currentTickers.length - 1;
     } else {
       tickerEl.textContent = ticker;
+      prevBtn.style.display = 'none';
+      nextBtn.style.display = 'none';
     }
     
     loadingEl.style.display = 'block';
@@ -149,6 +266,15 @@ const FinancialsPage = {
       ]);
       
       loadingEl.style.display = 'none';
+      
+      // Store data for export
+      this.currentData = {
+        ticker,
+        timeframe: this.currentTimeframe,
+        balanceSheet: balanceSheet.results || [],
+        incomeStatement: incomeStatement.results || [],
+        cashFlow: cashFlow.results || []
+      };
       
       if (balanceSheet.success && balanceSheet.results && balanceSheet.results.length > 0) {
         this.renderBalanceSheet(balanceSheet.results);
@@ -181,8 +307,9 @@ const FinancialsPage = {
     }
     
     const periods = data.reverse();
+    const growthLabel = this.currentTimeframe === 'quarterly' ? 'CQGR' : 'CAGR';
     
-    let html = '<thead><tr><th>Metric</th>';
+    let html = '<thead><tr><th>Metric</th><th>Trend</th><th>' + growthLabel + '</th>';
     periods.forEach(period => {
       const quarter = period.fiscal_quarter || period.fiscal_period || '';
       const label = this.currentTimeframe === 'quarterly' ? 
@@ -196,6 +323,10 @@ const FinancialsPage = {
       // Handle nested value objects from Polygon API
       const numVal = val?.value ?? val;
       return numVal != null ? `$${(numVal / 1e9).toFixed(2)}B` : 'N/A';
+    };
+    
+    const getVal = (val) => {
+      return val?.value ?? val ?? null;
     };
     
     const metrics = [
@@ -215,9 +346,26 @@ const FinancialsPage = {
     
     metrics.forEach(metric => {
       html += `<tr><td class="metric-label">${metric.label}</td>`;
+      
+      // Collect values for sparkline and CAGR
+      const values = periods.map(p => getVal(p[metric.key]));
+      
+      // Add sparkline (right after metric name)
+      html += `<td class="sparkline-cell">${this.createSparkline(values)}</td>`;
+      
+      // Add CAGR (right after sparkline)
+      const firstVal = values[0];
+      const lastVal = values[values.length - 1];
+      const cagr = this.calculateCAGR(firstVal, lastVal, values.length - 1);
+      const cagrText = cagr != null ? `${cagr > 0 ? '+' : ''}${cagr.toFixed(1)}%` : 'N/A';
+      const cagrClass = cagr != null ? (cagr >= 0 ? 'positive-value' : 'negative-value') : '';
+      html += `<td class="metric-value ${cagrClass}">${cagrText}</td>`;
+      
+      // Render period values (after trend and CAGR)
       periods.forEach(period => {
         html += `<td class="metric-value">${fmt(period[metric.key])}</td>`;
       });
+      
       html += '</tr>';
     });
     
@@ -231,8 +379,9 @@ const FinancialsPage = {
   renderIncomeStatement(data) {
     const table = document.getElementById('incomeStatementPageTable');
     const periods = data.reverse();
+    const growthLabel = this.currentTimeframe === 'quarterly' ? 'CQGR' : 'CAGR';
     
-    let html = '<thead><tr><th>Metric</th>';
+    let html = '<thead><tr><th>Metric</th><th>Trend</th><th>' + growthLabel + '</th>';
     periods.forEach(period => {
       const quarter = period.fiscal_quarter || period.fiscal_period || '';
       const label = this.currentTimeframe === 'quarterly' ? 
@@ -247,18 +396,22 @@ const FinancialsPage = {
       return numVal != null ? `$${(numVal / 1e9).toFixed(2)}B` : 'N/A';
     };
     
+    const getVal = (val) => {
+      return val?.value ?? val ?? null;
+    };
+    
     const metrics = [
-      { label: 'Revenue', key: 'revenue' },
+      { label: 'Revenue', key: 'revenues' },
       { label: 'Cost of Revenue', key: 'cost_of_revenue' },
       { label: 'Gross Profit', key: 'gross_profit' },
-      { label: 'R&D Expenses', key: 'research_development' },
-      { label: 'SG&A Expenses', key: 'selling_general_administrative' },
-      { label: 'Operating Expenses', key: 'total_operating_expenses' },
-      { label: 'Operating Income', key: 'operating_income' },
+      { label: 'R&D Expenses', key: 'research_and_development' },
+      { label: 'SG&A Expenses', key: 'selling_general_and_administrative_expenses' },
+      { label: 'Operating Expenses', key: 'operating_expenses' },
+      { label: 'Operating Income', key: 'operating_income_loss' },
       { label: 'Interest Expense', key: 'interest_expense' },
-      { label: 'Income Before Tax', key: 'income_before_income_taxes' },
-      { label: 'Income Tax', key: 'income_taxes' },
-      { label: 'Net Income', key: 'consolidated_net_income_loss' },
+      { label: 'Income Before Tax', key: 'income_loss_from_continuing_operations_before_tax' },
+      { label: 'Income Tax', key: 'income_tax_expense_benefit' },
+      { label: 'Net Income', key: 'net_income_loss' },
       { label: 'EPS (Basic)', key: 'basic_earnings_per_share', formatter: (v) => {
         const numVal = v?.value ?? v;
         return (numVal != null && typeof numVal === 'number') ? `$${numVal.toFixed(2)}` : 'N/A';
@@ -271,6 +424,22 @@ const FinancialsPage = {
     
     metrics.forEach(metric => {
       html += `<tr><td class="metric-label">${metric.label}</td>`;
+      
+      // Collect values for sparkline and CAGR
+      const values = periods.map(p => getVal(p[metric.key]));
+      
+      // Add sparkline (right after metric name)
+      html += `<td class="sparkline-cell">${this.createSparkline(values)}</td>`;
+      
+      // Add CAGR (right after sparkline)
+      const firstVal = values[0];
+      const lastVal = values[values.length - 1];
+      const cagr = this.calculateCAGR(firstVal, lastVal, values.length - 1);
+      const cagrText = cagr != null ? `${cagr > 0 ? '+' : ''}${cagr.toFixed(1)}%` : 'N/A';
+      const cagrClass = cagr != null ? (cagr >= 0 ? 'positive-value' : 'negative-value') : '';
+      html += `<td class="metric-value ${cagrClass}">${cagrText}</td>`;
+      
+      // Render period values (after trend and CAGR)
       periods.forEach(period => {
         const val = period[metric.key];
         const numVal = val?.value ?? val;
@@ -278,6 +447,7 @@ const FinancialsPage = {
         const cssClass = numVal < 0 ? 'negative-value' : numVal > 0 ? 'positive-value' : '';
         html += `<td class="metric-value ${cssClass}">${formatted}</td>`;
       });
+      
       html += '</tr>';
     });
     
@@ -291,8 +461,9 @@ const FinancialsPage = {
   renderCashFlow(data) {
     const table = document.getElementById('cashFlowPageTable');
     const periods = data.reverse();
+    const growthLabel = this.currentTimeframe === 'quarterly' ? 'CQGR' : 'CAGR';
     
-    let html = '<thead><tr><th>Metric</th>';
+    let html = '<thead><tr><th>Metric</th><th>Trend</th><th>' + growthLabel + '</th>';
     periods.forEach(period => {
       const quarter = period.fiscal_quarter || period.fiscal_period || '';
       const label = this.currentTimeframe === 'quarterly' ? 
@@ -305,6 +476,10 @@ const FinancialsPage = {
     const fmt = (val) => {
       const numVal = val?.value ?? val;
       return numVal != null ? `$${(numVal / 1e9).toFixed(2)}B` : 'N/A';
+    };
+    
+    const getVal = (val) => {
+      return val?.value ?? val ?? null;
     };
     
     // Updated field names based on actual Polygon API response structure
@@ -321,19 +496,156 @@ const FinancialsPage = {
     
     metrics.forEach(metric => {
       html += `<tr><td class="metric-label">${metric.label}</td>`;
+      
+      // Collect values for sparkline and CAGR
+      const values = periods.map(p => getVal(p[metric.key]));
+      
+      // Add sparkline (right after metric name)
+      html += `<td class="sparkline-cell">${this.createSparkline(values)}</td>`;
+      
+      // Add CAGR (right after sparkline)
+      const firstVal = values[0];
+      const lastVal = values[values.length - 1];
+      const cagr = this.calculateCAGR(firstVal, lastVal, values.length - 1);
+      const cagrText = cagr != null ? `${cagr > 0 ? '+' : ''}${cagr.toFixed(1)}%` : 'N/A';
+      const cagrClass = cagr != null ? (cagr >= 0 ? 'positive-value' : 'negative-value') : '';
+      html += `<td class="metric-value ${cagrClass}">${cagrText}</td>`;
+      
+      // Render period values (after trend and CAGR)
       periods.forEach(period => {
         const val = period[metric.key];
         const numVal = val?.value ?? val;
         const cssClass = numVal < 0 ? 'negative-value' : 'positive-value';
         html += `<td class="metric-value ${cssClass}">${fmt(val)}</td>`;
       });
+      
       html += '</tr>';
     });
     
     html += '</tbody>';
     table.innerHTML = html;
+  },
+
+  /**
+   * Download financials data as CSV
+   */
+  downloadCSV() {
+    if (!this.currentData || !this.currentData.ticker) {
+      alert('No data to export');
+      return;
+    }
+
+    const { ticker, timeframe, balanceSheet, incomeStatement, cashFlow } = this.currentData;
+    
+    // Create CSV content
+    let csv = `Financial Data for ${ticker} (${timeframe})\n\n`;
+    
+    // Helper to extract value
+    const getVal = (val) => val?.value ?? val ?? '';
+    
+    // Balance Sheet
+    if (balanceSheet.length > 0) {
+      csv += 'BALANCE SHEET\n';
+      csv += 'Metric,' + balanceSheet.map(p => {
+        const q = p.fiscal_quarter || p.fiscal_period || '';
+        return timeframe === 'quarterly' ? `${p.fiscal_year} Q${q}` : `FY ${p.fiscal_year}`;
+      }).join(',') + '\n';
+      
+      const bsMetrics = [
+        { label: 'Total Assets', key: 'assets' },
+        { label: 'Current Assets', key: 'current_assets' },
+        { label: 'Cash', key: 'cash' },
+        { label: 'Inventory', key: 'inventory' },
+        { label: 'Noncurrent Assets', key: 'noncurrent_assets' },
+        { label: 'Intangible Assets', key: 'intangible_assets' },
+        { label: 'Total Liabilities', key: 'liabilities' },
+        { label: 'Current Liabilities', key: 'current_liabilities' },
+        { label: 'Accounts Payable', key: 'accounts_payable' },
+        { label: 'Noncurrent Liabilities', key: 'noncurrent_liabilities' },
+        { label: 'Total Equity', key: 'equity' },
+        { label: 'Equity (Parent)', key: 'equity_attributable_to_parent' }
+      ];
+      
+      bsMetrics.forEach(m => {
+        csv += `${m.label},` + balanceSheet.map(p => getVal(p[m.key])).join(',') + '\n';
+      });
+      csv += '\n';
+    }
+    
+    // Income Statement
+    if (incomeStatement.length > 0) {
+      csv += 'INCOME STATEMENT\n';
+      csv += 'Metric,' + incomeStatement.map(p => {
+        const q = p.fiscal_quarter || p.fiscal_period || '';
+        return timeframe === 'quarterly' ? `${p.fiscal_year} Q${q}` : `FY ${p.fiscal_year}`;
+      }).join(',') + '\n';
+      
+      const isMetrics = [
+        { label: 'Revenues', key: 'revenues' },
+        { label: 'Cost of Revenue', key: 'cost_of_revenue' },
+        { label: 'Gross Profit', key: 'gross_profit' },
+        { label: 'Operating Expenses', key: 'operating_expenses' },
+        { label: 'R&D', key: 'research_and_development' },
+        { label: 'SG&A', key: 'selling_general_and_administrative_expenses' },
+        { label: 'Operating Income', key: 'operating_income_loss' },
+        { label: 'Interest Expense', key: 'interest_expense' },
+        { label: 'Income Before Tax', key: 'income_loss_from_continuing_operations_before_tax' },
+        { label: 'Income Tax', key: 'income_tax_expense_benefit' },
+        { label: 'Net Income', key: 'net_income_loss' },
+        { label: 'EPS Basic', key: 'basic_earnings_per_share' },
+        { label: 'EPS Diluted', key: 'diluted_earnings_per_share' }
+      ];
+      
+      isMetrics.forEach(m => {
+        csv += `${m.label},` + incomeStatement.map(p => getVal(p[m.key])).join(',') + '\n';
+      });
+      csv += '\n';
+    }
+    
+    // Cash Flow
+    if (cashFlow.length > 0) {
+      csv += 'CASH FLOW STATEMENT\n';
+      csv += 'Metric,' + cashFlow.map(p => {
+        const q = p.fiscal_quarter || p.fiscal_period || '';
+        return timeframe === 'quarterly' ? `${p.fiscal_year} Q${q}` : `FY ${p.fiscal_year}`;
+      }).join(',') + '\n';
+      
+      const cfMetrics = [
+        { label: 'Operating Cash Flow', key: 'net_cash_flow_from_operating_activities' },
+        { label: 'Operating CF (Continuing)', key: 'net_cash_flow_from_operating_activities_continuing' },
+        { label: 'Investing Cash Flow', key: 'net_cash_flow_from_investing_activities' },
+        { label: 'Investing CF (Continuing)', key: 'net_cash_flow_from_investing_activities_continuing' },
+        { label: 'Financing Cash Flow', key: 'net_cash_flow_from_financing_activities' },
+        { label: 'Financing CF (Continuing)', key: 'net_cash_flow_from_financing_activities_continuing' },
+        { label: 'Net Cash Flow', key: 'net_cash_flow' },
+        { label: 'Net CF (Continuing)', key: 'net_cash_flow_continuing' }
+      ];
+      
+      cfMetrics.forEach(m => {
+        csv += `${m.label},` + cashFlow.map(p => getVal(p[m.key])).join(',') + '\n';
+      });
+    }
+    
+    // Download
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${ticker}_financials_${timeframe}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 };
+
+// Listen for watchlist updates
+if (window.electronAPI && window.electronAPI.onWatchlistsUpdated) {
+  window.electronAPI.onWatchlistsUpdated(() => {
+    console.log('[FINANCIALS] Watchlists updated, repopulating selector...');
+    FinancialsPage.populateWatchlistSelector();
+  });
+}
 
 export default FinancialsPage;
 window.FinancialsPage = FinancialsPage;

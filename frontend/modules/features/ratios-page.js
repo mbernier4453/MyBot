@@ -14,6 +14,9 @@ const RatiosPage = {
    * Initialize the ratios page
    */
   initialize() {
+    // Populate watchlist selector
+    this.populateWatchlistSelector();
+    
     // Group selector
     const groupSelect = document.getElementById('ratiosGroupSelect');
     if (groupSelect) {
@@ -81,6 +84,69 @@ const RatiosPage = {
         }
       }
     });
+    
+    // Watchlist selector
+    document.getElementById('ratiosWatchlistSelect')?.addEventListener('change', (e) => {
+      const watchlistId = parseInt(e.target.value);
+      if (watchlistId && this.watchlistsData) {
+        const watchlist = this.watchlistsData.find(w => w.id === watchlistId);
+        if (watchlist) {
+          const tickers = JSON.parse(watchlist.tickers_json || '[]');
+          if (tickers.length > 0) {
+            this.currentTickers = [...tickers];
+            this.currentTickerIndex = 0;
+            document.getElementById('ratiosTickerInput').value = this.currentTickers.join(', ');
+            this.loadRatios(this.currentTickers[0]);
+          }
+        }
+      }
+    });
+    
+    // Ticker navigation buttons
+    document.getElementById('ratiosPrevBtn')?.addEventListener('click', () => {
+      if (this.currentTickerIndex > 0) {
+        this.currentTickerIndex--;
+        this.loadRatios(this.currentTickers[this.currentTickerIndex]);
+      }
+    });
+    
+    document.getElementById('ratiosNextBtn')?.addEventListener('click', () => {
+      if (this.currentTickerIndex < this.currentTickers.length - 1) {
+        this.currentTickerIndex++;
+        this.loadRatios(this.currentTickers[this.currentTickerIndex]);
+      }
+    });
+  },
+
+  /**
+   * Populate watchlist selector
+   */
+  async populateWatchlistSelector() {
+    const select = document.getElementById('ratiosWatchlistSelect');
+    if (!select) return;
+    
+    // Get watchlists from backend via IPC
+    try {
+      const result = await window.electronAPI.getWatchlists();
+      if (result.success) {
+        const watchlists = result.watchlists;
+        
+        // Clear and repopulate
+        select.innerHTML = '<option value="">-- Select Watchlist --</option>';
+        watchlists.forEach(w => {
+          const tickers = JSON.parse(w.tickers_json || '[]');
+          const option = document.createElement('option');
+          option.value = w.id;
+          option.textContent = `${w.name} (${tickers.length} stocks)`;
+          select.appendChild(option);
+        });
+        
+        // Store watchlists for later use
+        this.watchlistsData = watchlists;
+      }
+    } catch (error) {
+      console.error('Error loading watchlists:', error);
+    }
   },
 
   /**
@@ -93,15 +159,23 @@ const RatiosPage = {
     const loadingEl = document.getElementById('ratiosPageLoading');
     const errorEl = document.getElementById('ratiosPageError');
     const contentEl = document.getElementById('ratiosPageContent');
+    const prevBtn = document.getElementById('ratiosPrevBtn');
+    const nextBtn = document.getElementById('ratiosNextBtn');
     
     // Show section and update ticker display
     dataSection.style.display = 'block';
     
-    // Show ticker count if multiple tickers
+    // Show ticker count and navigation buttons if multiple tickers
     if (this.currentTickers.length > 1) {
       tickerEl.textContent = `${ticker} (${this.currentTickerIndex + 1}/${this.currentTickers.length})`;
+      prevBtn.style.display = 'inline-block';
+      nextBtn.style.display = 'inline-block';
+      prevBtn.disabled = this.currentTickerIndex === 0;
+      nextBtn.disabled = this.currentTickerIndex === this.currentTickers.length - 1;
     } else {
       tickerEl.textContent = ticker;
+      prevBtn.style.display = 'none';
+      nextBtn.style.display = 'none';
     }
     
     loadingEl.style.display = 'block';
@@ -313,6 +387,14 @@ const RatiosPage = {
     contentEl.innerHTML = html;
   }
 };
+
+// Listen for watchlist updates
+if (window.electronAPI && window.electronAPI.onWatchlistsUpdated) {
+  window.electronAPI.onWatchlistsUpdated(() => {
+    console.log('[RATIOS] Watchlists updated, repopulating selector...');
+    RatiosPage.populateWatchlistSelector();
+  });
+}
 
 export default RatiosPage;
 window.RatiosPage = RatiosPage;

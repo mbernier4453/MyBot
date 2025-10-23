@@ -234,16 +234,20 @@
                     <option value="D">D</option>
                   </select>
                 </div>
-                <input type="text" id="financialsTickerInput" placeholder="Enter ticker(s) - e.g., AAPL or AAPL,MSFT,GOOGL" class="ticker-input-large">
+                <input type="text" id="financialsTickerInput" placeholder="Enter ticker(s) or select watchlist below" class="ticker-input-large">
                 <button id="loadFinancialsBtn" class="btn-primary">Load Financials</button>
-                <select id="financialsWatchlistSelect" class="watchlist-select" style="display:none;">
-                  <option value="">Select Watchlist...</option>
+                <select id="financialsWatchlistSelect" class="watchlist-select">
+                  <option value="">-- Select Watchlist --</option>
                 </select>
               </div>
               
               <div id="financialsDataSection" class="financials-data-section" style="display: none;">
                 <div class="financials-page-header">
-                  <h2 id="financialsPageTicker" class="page-ticker">-</h2>
+                  <div class="ticker-nav-group">
+                    <button id="financialsPrevBtn" class="ticker-cycle-btn" style="display:none;" title="Previous ticker">← Prev</button>
+                    <h2 id="financialsPageTicker" class="page-ticker">-</h2>
+                    <button id="financialsNextBtn" class="ticker-cycle-btn" style="display:none;" title="Next ticker">Next →</button>
+                  </div>
                   <div class="timeframe-selector">
                     <label>
                       <input type="radio" name="financialsTimeframe" value="quarterly" checked> Quarterly
@@ -258,6 +262,7 @@
                   <button class="financials-page-tab active" data-statement="balance-sheet">Balance Sheet</button>
                   <button class="financials-page-tab" data-statement="income-statement">Income Statement</button>
                   <button class="financials-page-tab" data-statement="cash-flow">Cash Flow</button>
+                  <button id="downloadFinancialsCSV" class="btn-primary" style="margin-left: auto;">Download CSV</button>
                 </div>
                 
                 <div class="financials-page-content">
@@ -308,16 +313,20 @@
                     <option value="D">D</option>
                   </select>
                 </div>
-                <input type="text" id="ratiosTickerInput" placeholder="Enter ticker(s) - e.g., AAPL or AAPL,MSFT,GOOGL" class="ticker-input-large">
+                <input type="text" id="ratiosTickerInput" placeholder="Enter ticker(s) or select watchlist below" class="ticker-input-large">
                 <button id="loadRatiosBtn" class="btn-primary">Load Ratios</button>
-                <select id="ratiosWatchlistSelect" class="watchlist-select" style="display:none;">
-                  <option value="">Select Watchlist...</option>
+                <select id="ratiosWatchlistSelect" class="watchlist-select">
+                  <option value="">-- Select Watchlist --</option>
                 </select>
               </div>
               
               <div id="ratiosDataSection" class="ratios-data-section" style="display: none;">
                 <div class="ratios-page-header">
-                  <h2 id="ratiosPageTicker" class="page-ticker">-</h2>
+                  <div class="ticker-nav-group">
+                    <button id="ratiosPrevBtn" class="ticker-cycle-btn" style="display:none;" title="Previous ticker">← Prev</button>
+                    <h2 id="ratiosPageTicker" class="page-ticker">-</h2>
+                    <button id="ratiosNextBtn" class="ticker-cycle-btn" style="display:none;" title="Next ticker">Next →</button>
+                  </div>
                 </div>
                 
                 <div id="ratiosPageLoading" class="loading-message">Loading...</div>

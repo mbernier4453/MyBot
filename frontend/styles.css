@@ -4966,33 +4966,68 @@ kbd {
   font-weight: 500;
 }
 
-/* Ticker navigation */
-.ticker-navigation {
+/* Ticker navigation group */
+.ticker-nav-group {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 12px;
 }
 
-.ticker-nav-btn {
+.ticker-cycle-btn {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  padding: 8px 16px;
+  padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 13px;
+  font-weight: 500;
   transition: all 0.2s ease;
 }
 
-.ticker-nav-btn:hover:not(:disabled) {
+.ticker-cycle-btn:hover:not(:disabled) {
   background: var(--accent-color);
   border-color: var(--accent-color);
   color: white;
 }
 
-.ticker-nav-btn:disabled {
-  opacity: 0.3;
+.ticker-cycle-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* Watchlist selector */
+.watchlist-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  min-width: 200px;
+}
+
+.watchlist-select:hover {
+  border-color: var(--accent-color);
+}
+
+.watchlist-select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* Sparkline Charts */
+.sparkline-cell {
+  text-align: center;
+  vertical-align: middle;
+  padding: 8px !important;
+}
+
+.sparkline {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 /* Ratios Page */

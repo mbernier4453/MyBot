@@ -604,6 +604,11 @@ function initializeDOMElements() {
     loadFavorites().catch(err => {
       console.error('[INIT] Failed to load favorites on startup:', err);
     });
+    
+    // Load watchlists for financials and ratios pages
+    console.log('[INIT] Loading watchlist selectors...');
+    FinancialsPage.populateWatchlistSelector();
+    RatiosPage.populateWatchlistSelector();
   }, 100);
 }
 
