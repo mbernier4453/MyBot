@@ -538,8 +538,34 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('[SETTINGS] Initializing...');
   loadUserColors();
   
-  // Global keyboard shortcut handler
+  // Global keyboard shortcut handler (use capture phase to run before other handlers)
   document.addEventListener('keydown', (e) => {
+    // Ctrl+PageUp/PageDown: Always handle these first
+    if (e.ctrlKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
+      // Don't prevent default if user is typing in an input
+      if (document.activeElement.tagName === 'INPUT' || 
+          document.activeElement.tagName === 'TEXTAREA' ||
+          document.activeElement.tagName === 'SELECT') {
+        return;
+      }
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const currentIndex = MAIN_TABS.findIndex(tab => 
+        document.getElementById(`${tab}Page`)?.classList.contains('active')
+      );
+      
+      console.log(`[SHORTCUT] ${e.key}, current index:`, currentIndex);
+      
+      if (e.key === 'PageUp' && currentIndex > 0) {
+        switchMainTab(MAIN_TABS[currentIndex - 1]);
+      } else if (e.key === 'PageDown' && currentIndex < MAIN_TABS.length - 1) {
+        switchMainTab(MAIN_TABS[currentIndex + 1]);
+      }
+      return;
+    }
+    
     // Ctrl+, opens settings
     if (e.ctrlKey && e.key === ',') {
       e.preventDefault();
@@ -585,36 +611,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Don't handle shortcuts when typing in inputs (except specific modals)
+    // Don't handle remaining shortcuts when typing in inputs
     if (document.activeElement.tagName === 'INPUT' || 
         document.activeElement.tagName === 'TEXTAREA' ||
         document.activeElement.tagName === 'SELECT') {
-      return;
-    }
-    
-    // Ctrl+PageUp: Previous tab
-    if (e.ctrlKey && e.key === 'PageUp') {
-      e.preventDefault();
-      const currentIndex = MAIN_TABS.findIndex(tab => 
-        document.getElementById(`${tab}Page`)?.classList.contains('active')
-      );
-      console.log('[SHORTCUT] PageUp, current index:', currentIndex);
-      if (currentIndex > 0) {
-        switchMainTab(MAIN_TABS[currentIndex - 1]);
-      }
-      return;
-    }
-    
-    // Ctrl+PageDown: Next tab
-    if (e.ctrlKey && e.key === 'PageDown') {
-      e.preventDefault();
-      const currentIndex = MAIN_TABS.findIndex(tab => 
-        document.getElementById(`${tab}Page`)?.classList.contains('active')
-      );
-      console.log('[SHORTCUT] PageDown, current index:', currentIndex);
-      if (currentIndex < MAIN_TABS.length - 1) {
-        switchMainTab(MAIN_TABS[currentIndex + 1]);
-      }
       return;
     }
     
@@ -628,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return;
     }
-  });
+  }, { capture: true });  // Use capture phase to intercept before other handlers
   
   console.log('[SETTINGS] Keyboard shortcuts registered');
 });

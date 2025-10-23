@@ -2,6 +2,9 @@
  * Chart Tab System Module
  * Multi-tab charting interface with overlays and live updates
  */
+
+import tickerGroups from '../core/ticker-groups.js';
+
 // =====================================================
 // CHART TAB SYSTEM
 // =====================================================
@@ -15,8 +18,9 @@ let chartNewTabBtn = null;
 let sidebarToggleBtn = null;
 
 class ChartTab {
-  constructor(id) {
+  constructor(id, group = null) {
     this.id = id;
+    this.group = group || tickerGroups.getActiveGroup(); // Assign to current active group
     this.ticker = null;
     this.timeframe = '1Y';
     this.interval = 'day';
@@ -41,8 +45,59 @@ class ChartTab {
     // Initialize event listeners for this tab's controls
     this.initializeControls();
     
+    // Initialize group selector AFTER controls are initialized
+    this.initializeGroupSelector();
+    
     // Validate initial interval for the default 1Y timeframe
     this.validateIntervalForTimeframe();
+    
+    // Subscribe to ticker changes for this group AFTER DOM is created
+    this.groupSubscription = (ticker) => {
+      if (ticker && ticker !== this.ticker && this.tabElement && this.contentElement) {
+        this.setTicker(ticker, false); // Don't update group to prevent loops
+      }
+    };
+    tickerGroups.subscribe(this.group, this.groupSubscription);
+    
+    // Check if group already has a ticker
+    const groupTicker = tickerGroups.getGroupTicker(this.group);
+    if (groupTicker && this.tabElement && this.contentElement) {
+      this.ticker = groupTicker;
+      this.updateTabLabel();
+    }
+  }
+  
+  initializeGroupSelector() {
+    const groupSelect = this.contentElement.querySelector('.chart-tab-group-select');
+    if (!groupSelect) return;
+    
+    // Set initial value to this tab's group
+    groupSelect.value = this.group;
+    
+    // Handle group changes
+    groupSelect.addEventListener('change', (e) => {
+      const oldGroup = this.group;
+      const newGroup = e.target.value;
+      
+      // Unsubscribe from old group
+      if (this.groupSubscription) {
+        tickerGroups.unsubscribe(oldGroup, this.groupSubscription);
+      }
+      
+      // Update tab's group
+      this.group = newGroup;
+      
+      // Subscribe to new group
+      tickerGroups.subscribe(this.group, this.groupSubscription);
+      
+      // Load the new group's ticker if it exists
+      const groupTicker = tickerGroups.getGroupTicker(this.group);
+      if (groupTicker) {
+        this.setTicker(groupTicker, false); // Don't update group, just sync to it
+      }
+      
+      console.log(`Tab ${this.id} switched from group ${oldGroup} to ${newGroup}`);
+    });
   }
   
   createTabElement() {
@@ -462,24 +517,50 @@ class ChartTab {
     }
   }
   
-  setTicker(ticker) {
+  setTicker(ticker, updateGroup = true) {
+    console.log(`%c[ChartTab ${this.id}] setTicker`, 'color: cyan', 'ticker:', ticker, 'current:', this.ticker, 'updateGroup:', updateGroup, 'tabElement exists:', !!this.tabElement);
     this.ticker = ticker;
-    this.tabElement.querySelector('.chart-tab-label').textContent = ticker;
+    this.updateTabLabel();
+    
+    // Only update group ticker if requested (to avoid cascading updates)
+    if (updateGroup) {
+      tickerGroups.setGroupTicker(this.group, ticker);
+    }
+    
     this.updateLiveInfo();
     this.loadChart();
+  }
+  
+  updateTabLabel() {
+    console.log(`%c[ChartTab ${this.id}] updateTabLabel`, 'color: yellow', 'tabElement:', !!this.tabElement, 'ticker:', this.ticker, 'group:', this.group);
+    if (!this.tabElement) {
+      console.warn(`[ChartTab ${this.id}] updateTabLabel: No tabElement`);
+      return;
+    }
+    const label = this.tabElement.querySelector('.chart-tab-label');
+    console.log(`%c[ChartTab ${this.id}] label element:`, 'color: yellow', !!label);
+    if (label) {
+      const newText = this.ticker ? `${this.ticker} (${this.group})` : `Chart ${this.id}`;
+      console.log(`%c[ChartTab ${this.id}] Setting label text to:`, 'color: lime', newText);
+      label.textContent = newText;
+      console.log(`%c[ChartTab ${this.id}] Label text is now:`, 'color: lime', label.textContent);
+    } else {
+      console.warn(`[ChartTab ${this.id}] updateTabLabel: No label element found`);
+    }
   }
   
   updateLiveInfo() {
     if (!this.ticker) return;
     
     const content = this.contentElement;
+    
+    // ALWAYS update ticker display, even if no treemap data
+    const tickerEl = content.querySelector('.chart-live-ticker');
+    if (tickerEl) tickerEl.textContent = this.ticker;
+    
     const data = treemapData.get(this.ticker);
     
     if (data) {
-      // Update ticker display
-      const tickerEl = content.querySelector('.chart-live-ticker');
-      if (tickerEl) tickerEl.textContent = this.ticker;
-      
       // Update price
       const priceEl = content.querySelector('.chart-live-price');
       if (priceEl) priceEl.textContent = `$${data.close.toFixed(2)}`;
@@ -2218,7 +2299,16 @@ class ChartTab {
 }
 
 function createChartTab() {
-  const tab = new ChartTab(nextChartTabId++);
+  // Get group from currently active tab, or default to 'A' if no tabs exist
+  let groupForNewTab = 'A';
+  if (activeChartTabId !== null) {
+    const activeTab = chartTabs.find(t => t.id === activeChartTabId);
+    if (activeTab) {
+      groupForNewTab = activeTab.group;
+    }
+  }
+  
+  const tab = new ChartTab(nextChartTabId++, groupForNewTab);
   chartTabs.push(tab);
   
   // Add to DOM

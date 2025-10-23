@@ -821,6 +821,224 @@ ipcMain.handle('polygon-get-historical-bars', async (event, { ticker, from, to, 
   }
 });
 
+// Fundamentals API - Balance Sheet
+ipcMain.handle('polygon-get-balance-sheet', async (event, ticker, options = {}) => {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) {
+    console.error('[MAIN] No Polygon API key found in environment');
+    return { success: false, error: 'No API key' };
+  }
+  
+  try {
+    const https = require('https');
+    const { timeframe = 'quarterly', limit = 4 } = options;
+    const url = `https://api.polygon.io/vX/reference/financials?ticker=${ticker}&timeframe=${timeframe}&limit=${limit}&apiKey=${apiKey}`;
+    
+    console.log(`[MAIN] Fetching balance sheet for ${ticker}: ${url.replace(apiKey, 'API_KEY')}`);
+    
+    return new Promise((resolve) => {
+      https.get(url, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(data);
+            console.log(`[MAIN] Balance sheet response status: ${response.status}, results: ${response.results?.length || 0}`);
+            if (response.status === 'OK' && response.results) {
+              // Filter to only balance sheet data
+              const balanceSheets = response.results
+                .filter(r => r.financials && r.financials.balance_sheet)
+                .map(r => ({
+                  ...r.financials.balance_sheet,
+                  period_end: r.end_date,
+                  fiscal_year: r.fiscal_year,
+                  fiscal_quarter: r.fiscal_period,
+                  timeframe: r.timeframe,
+                  filing_date: r.filing_date,
+                  cik: r.cik,
+                  ticker: ticker
+                }));
+              resolve({ success: true, results: balanceSheets });
+            } else {
+              resolve({ success: false, error: response.error || 'No data available' });
+            }
+          } catch (error) {
+            resolve({ success: false, error: error.message });
+          }
+        });
+      }).on('error', (error) => {
+        resolve({ success: false, error: error.message });
+      });
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Fundamentals API - Cash Flow Statement
+ipcMain.handle('polygon-get-cash-flow', async (event, ticker, options = {}) => {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) {
+    return { success: false, error: 'No API key' };
+  }
+  
+  try {
+    const https = require('https');
+    const { timeframe = 'quarterly', limit = 4 } = options;
+    const url = `https://api.polygon.io/vX/reference/financials?ticker=${ticker}&timeframe=${timeframe}&limit=${limit}&apiKey=${apiKey}`;
+    
+    return new Promise((resolve) => {
+      https.get(url, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(data);
+            if (response.status === 'OK' && response.results) {
+              // Filter to only cash flow data
+              const cashFlows = response.results
+                .filter(r => r.financials && r.financials.cash_flow_statement)
+                .map(r => ({
+                  ...r.financials.cash_flow_statement,
+                  period_end: r.end_date,
+                  fiscal_year: r.fiscal_year,
+                  fiscal_quarter: r.fiscal_period,
+                  timeframe: r.timeframe,
+                  filing_date: r.filing_date,
+                  cik: r.cik,
+                  ticker: ticker
+                }));
+              resolve({ success: true, results: cashFlows });
+            } else {
+              resolve({ success: false, error: response.error || 'No data available' });
+            }
+          } catch (error) {
+            resolve({ success: false, error: error.message });
+          }
+        });
+      }).on('error', (error) => {
+        resolve({ success: false, error: error.message });
+      });
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Fundamentals API - Income Statement
+ipcMain.handle('polygon-get-income-statement', async (event, ticker, options = {}) => {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) {
+    return { success: false, error: 'No API key' };
+  }
+  
+  try {
+    const https = require('https');
+    const { timeframe = 'quarterly', limit = 4 } = options;
+    const url = `https://api.polygon.io/vX/reference/financials?ticker=${ticker}&timeframe=${timeframe}&limit=${limit}&apiKey=${apiKey}`;
+    
+    return new Promise((resolve) => {
+      https.get(url, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(data);
+            if (response.status === 'OK' && response.results) {
+              // Filter to only income statement data
+              const incomeStatements = response.results
+                .filter(r => r.financials && r.financials.income_statement)
+                .map(r => ({
+                  ...r.financials.income_statement,
+                  period_end: r.end_date,
+                  fiscal_year: r.fiscal_year,
+                  fiscal_quarter: r.fiscal_period,
+                  timeframe: r.timeframe,
+                  filing_date: r.filing_date,
+                  cik: r.cik,
+                  ticker: ticker
+                }));
+              resolve({ success: true, results: incomeStatements });
+            } else {
+              resolve({ success: false, error: response.error || 'No data available' });
+            }
+          } catch (error) {
+            resolve({ success: false, error: error.message });
+          }
+        });
+      }).on('error', (error) => {
+        resolve({ success: false, error: error.message });
+      });
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Fundamentals API - Financial Ratios
+ipcMain.handle('polygon-get-ratios', async (event, ticker) => {
+  const apiKey = process.env.POLYGON_API_KEY;
+  if (!apiKey) {
+    console.error('[MAIN] No Polygon API key found in environment');
+    return { success: false, error: 'No API key' };
+  }
+  
+  try {
+    const https = require('https');
+    // Use the same endpoint as other financials - just get the most recent one
+    const url = `https://api.polygon.io/vX/reference/financials?ticker=${ticker}&limit=1&apiKey=${apiKey}`;
+    
+    console.log(`[MAIN] Fetching ratios for ${ticker}: ${url.replace(apiKey, 'API_KEY')}`);
+    
+    return new Promise((resolve) => {
+      https.get(url, (res) => {
+        let data = '';
+        console.log(`[MAIN] Ratios API response status code: ${res.statusCode}`);
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            console.log(`[MAIN] Ratios raw response length: ${data.length} chars`);
+            const response = JSON.parse(data);
+            console.log(`[MAIN] Ratios response status: ${response.status}, results: ${response.results?.length || 0}`);
+            if (response.status !== 'OK') {
+              console.error('[MAIN] Ratios API error:', response.error || response.message || response.status || 'Unknown error');
+              console.error('[MAIN] Full response:', JSON.stringify(response).substring(0, 500));
+            }
+            if (response.status === 'OK' && response.results && response.results.length > 0) {
+              // Extract combined data from the most recent filing
+              const latest = response.results[0];
+              const combined = {
+                ticker: ticker,
+                date: latest.end_date,
+                fiscal_year: latest.fiscal_year,
+                fiscal_period: latest.fiscal_period,
+                // Combine all financial statement data
+                ...(latest.financials?.balance_sheet || {}),
+                ...(latest.financials?.income_statement || {}),
+                ...(latest.financials?.cash_flow_statement || {})
+              };
+              resolve({ success: true, results: [combined] });
+            } else {
+              console.error('[MAIN] Ratios: No valid data, response:', JSON.stringify(response).substring(0, 200));
+              resolve({ success: false, error: response.error || 'No data available' });
+            }
+          } catch (error) {
+            console.error('[MAIN] Ratios JSON parse error:', error.message);
+            console.error('[MAIN] Ratios raw data:', data.substring(0, 500));
+            resolve({ success: false, error: error.message });
+          }
+        });
+      }).on('error', (error) => {
+        console.error('[MAIN] Ratios HTTP error:', error.message);
+        resolve({ success: false, error: error.message });
+      });
+    });
+  } catch (error) {
+    console.error('[MAIN] Ratios outer error:', error.message);
+    return { success: false, error: error.message };
+  }
+});
+
 // IPC Handlers
 ipcMain.handle('select-db', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {

@@ -63,6 +63,54 @@
           <div id="treemapContainer" class="treemap-container-fullscreen">
             <svg id="treemap"></svg>
           </div>
+          
+          <!-- Fundamentals Panel -->
+          <div id="fundamentalsPanel" class="fundamentals-panel" style="display: none;">
+            <div class="fundamentals-header">
+              <h2 id="fundamentalsTicker" class="fundamentals-ticker">-</h2>
+              <button id="closeFundamentalsBtn" class="close-fundamentals-btn">✕</button>
+            </div>
+            
+            <div class="fundamentals-tabs">
+              <button class="fundamentals-tab active" data-tab="balance-sheet">Balance Sheet</button>
+              <button class="fundamentals-tab" data-tab="cash-flow">Cash Flow</button>
+              <button class="fundamentals-tab" data-tab="income-statement">Income Statement</button>
+              <button class="fundamentals-tab" data-tab="ratios">Ratios</button>
+            </div>
+            
+            <div class="fundamentals-content">
+              <div id="fundamentalsLoading" class="fundamentals-loading">Loading...</div>
+              <div id="fundamentalsError" class="fundamentals-error" style="display: none;"></div>
+              
+              <!-- Balance Sheet Tab -->
+              <div id="balanceSheetTab" class="fundamentals-tab-content active">
+                <div class="fundamentals-table-container">
+                  <table id="balanceSheetTable" class="fundamentals-table"></table>
+                </div>
+              </div>
+              
+              <!-- Cash Flow Tab -->
+              <div id="cashFlowTab" class="fundamentals-tab-content">
+                <div class="fundamentals-table-container">
+                  <table id="cashFlowTable" class="fundamentals-table"></table>
+                </div>
+              </div>
+              
+              <!-- Income Statement Tab -->
+              <div id="incomeStatementTab" class="fundamentals-tab-content">
+                <div class="fundamentals-table-container">
+                  <table id="incomeStatementTable" class="fundamentals-table"></table>
+                </div>
+              </div>
+              
+              <!-- Ratios Tab -->
+              <div id="ratiosTab" class="fundamentals-tab-content">
+                <div class="fundamentals-table-container">
+                  <table id="ratiosTable" class="fundamentals-table"></table>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -174,9 +222,63 @@
             <p class="page-subtitle">Financial statements and company data</p>
           </div>
           <div class="page-content">
-            <div class="empty-state">
-              <h3>🏗️ Coming Soon</h3>
-              <p>Financial data analysis features will be added here</p>
+            <div class="financials-page-container">
+              <div class="ticker-search-section">
+                <div class="group-selector">
+                  <label>Group:</label>
+                  <select id="financialsGroupSelect" class="group-select">
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                  </select>
+                </div>
+                <input type="text" id="financialsTickerInput" placeholder="Enter ticker symbol (e.g., AAPL)" class="ticker-input-large">
+                <button id="loadFinancialsBtn" class="btn-primary">Load Financials</button>
+              </div>
+              
+              <div id="financialsDataSection" class="financials-data-section" style="display: none;">
+                <div class="financials-page-header">
+                  <h2 id="financialsPageTicker" class="page-ticker">-</h2>
+                  <div class="timeframe-selector">
+                    <label>
+                      <input type="radio" name="financialsTimeframe" value="quarterly" checked> Quarterly
+                    </label>
+                    <label>
+                      <input type="radio" name="financialsTimeframe" value="annual"> Annual
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="financials-page-tabs">
+                  <button class="financials-page-tab active" data-statement="balance-sheet">Balance Sheet</button>
+                  <button class="financials-page-tab" data-statement="income-statement">Income Statement</button>
+                  <button class="financials-page-tab" data-statement="cash-flow">Cash Flow</button>
+                </div>
+                
+                <div class="financials-page-content">
+                  <div id="financialsPageLoading" class="loading-message">Loading...</div>
+                  <div id="financialsPageError" class="error-message" style="display: none;"></div>
+                  
+                  <div id="balanceSheetPageTab" class="financials-statement-content active">
+                    <div class="table-responsive">
+                      <table id="balanceSheetPageTable" class="financials-data-table"></table>
+                    </div>
+                  </div>
+                  
+                  <div id="incomeStatementPageTab" class="financials-statement-content">
+                    <div class="table-responsive">
+                      <table id="incomeStatementPageTable" class="financials-data-table"></table>
+                    </div>
+                  </div>
+                  
+                  <div id="cashFlowPageTab" class="financials-statement-content">
+                    <div class="table-responsive">
+                      <table id="cashFlowPageTable" class="financials-data-table"></table>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -190,9 +292,33 @@
             <p class="page-subtitle">Financial ratios and valuation metrics</p>
           </div>
           <div class="page-content">
-            <div class="empty-state">
-              <h3>🏗️ Coming Soon</h3>
-              <p>Financial ratio analysis features will be added here</p>
+            <div class="ratios-page-container">
+              <div class="ticker-search-section">
+                <div class="group-selector">
+                  <label>Group:</label>
+                  <select id="ratiosGroupSelect" class="group-select">
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                  </select>
+                </div>
+                <input type="text" id="ratiosTickerInput" placeholder="Enter ticker symbol (e.g., AAPL)" class="ticker-input-large">
+                <button id="loadRatiosBtn" class="btn-primary">Load Ratios</button>
+              </div>
+              
+              <div id="ratiosDataSection" class="ratios-data-section" style="display: none;">
+                <div class="ratios-page-header">
+                  <h2 id="ratiosPageTicker" class="page-ticker">-</h2>
+                </div>
+                
+                <div id="ratiosPageLoading" class="loading-message">Loading...</div>
+                <div id="ratiosPageError" class="error-message" style="display: none;"></div>
+                
+                <div id="ratiosPageContent" class="ratios-grid">
+                  <!-- Ratios will be rendered here -->
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -225,6 +351,15 @@
           <!-- Chart Header with Ticker Selector -->
           <div class="chart-header">
             <div class="chart-ticker-selector">
+              <div class="chart-group-badge">
+                <label>Group:</label>
+                <select class="chart-tab-group-select">
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
+                </select>
+              </div>
               <div class="ticker-display-group">
                 <span class="chart-live-ticker live-ticker-large" style="cursor: pointer; user-select: none;" title="Click to select ticker">Enter Ticker</span>
                 <button class="ticker-dropdown-btn" title="Change ticker">▼</button>

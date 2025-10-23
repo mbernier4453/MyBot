@@ -2,6 +2,7 @@
 import * as State from './modules/core/state.js';
 import * as Utils from './modules/core/utils.js';
 import * as API from './modules/core/api.js';
+import tickerGroups from './modules/core/ticker-groups.js';
 import * as DatabaseUI from './modules/ui/database.js';
 import * as TabsUI from './modules/ui/tabs.js';
 import * as StrategiesUI from './modules/results/strategies.js';
@@ -18,6 +19,8 @@ import TearsheetCharts from './modules/charts/tearsheet-charts.js';
 import TearsheetMetrics from './modules/results/tearsheet-metrics.js';
 import ConfigManagerModule from './modules/backtest/config-manager.js'; // Import early for color functions
 import PolygonTreemap from './modules/features/polygon-treemap.js';
+import FinancialsPage from './modules/features/financials-page.js';
+import RatiosPage from './modules/features/ratios-page.js';
 import ChartTabSystem from './modules/charts/chart-tabs.js';
 import CandlestickChart from './modules/charts/candlestick.js';
 import RSIDashboard from './modules/features/rsi-dashboard.js';
@@ -576,6 +579,12 @@ function initializeDOMElements() {
   // Initialize extracted modules
   console.log('[INIT] Initializing PolygonTreemap...');
   PolygonTreemap.initialize();
+  
+  console.log('[INIT] Initializing Financials Page...');
+  FinancialsPage.initialize();
+  
+  console.log('[INIT] Initializing Ratios Page...');
+  RatiosPage.initialize();
   
   console.log('[INIT] Initializing RSIDashboard...');
   RSIDashboard.initialize();

@@ -418,7 +418,17 @@ const PolygonTreemap = {
           .style('cursor', 'pointer')
           .on('click', (event, d) => {
             event.stopPropagation();
-            this.navigateToChart(d.data.name);
+            // Right-click or Ctrl+Click shows fundamentals, normal click navigates to chart
+            if (event.ctrlKey || event.button === 2) {
+              event.preventDefault();
+              this.showFundamentals(d.data.name);
+            } else {
+              this.navigateToChart(d.data.name);
+            }
+          })
+          .on('contextmenu', (event, d) => {
+            event.preventDefault();
+            this.showFundamentals(d.data.name);
           })
           .append('title')
           .text(d => {
@@ -474,7 +484,17 @@ const PolygonTreemap = {
           .style('cursor', 'pointer')
           .on('click', (event, d) => {
             event.stopPropagation();
-            this.navigateToChart(d.data.name);
+            // Right-click or Ctrl+Click shows fundamentals, normal click navigates to chart
+            if (event.ctrlKey || event.button === 2) {
+              event.preventDefault();
+              this.showFundamentals(d.data.name);
+            } else {
+              this.navigateToChart(d.data.name);
+            }
+          })
+          .on('contextmenu', (event, d) => {
+            event.preventDefault();
+            this.showFundamentals(d.data.name);
           })
           .append('title')
           .text(d => {
@@ -524,6 +544,279 @@ const PolygonTreemap = {
         .attr('font-size', '16px')
         .text(`Error: ${error.message}`);
     }
+  },
+
+  /**
+   * Show fundamentals panel for a ticker
+   */
+  async showFundamentals(ticker) {
+    const panel = document.getElementById('fundamentalsPanel');
+    const tickerEl = document.getElementById('fundamentalsTicker');
+    const loadingEl = document.getElementById('fundamentalsLoading');
+    const errorEl = document.getElementById('fundamentalsError');
+    
+    // Show panel and set ticker
+    panel.style.display = 'flex';
+    tickerEl.textContent = ticker;
+    loadingEl.style.display = 'block';
+    errorEl.style.display = 'none';
+    
+    // Clear previous data
+    document.querySelectorAll('.fundamentals-table').forEach(table => {
+      table.innerHTML = '';
+    });
+    
+    // Initialize tab handlers if not already done
+    if (!panel.dataset.initialized) {
+      this.initializeFundamentalsPanel();
+      panel.dataset.initialized = 'true';
+    }
+    
+    // Load all fundamentals data
+    try {
+      const [balanceSheet, cashFlow, incomeStatement, ratios] = await Promise.all([
+        window.electronAPI.polygonGetBalanceSheet(ticker, { timeframe: 'quarterly', limit: 4 }),
+        window.electronAPI.polygonGetCashFlow(ticker, { timeframe: 'quarterly', limit: 4 }),
+        window.electronAPI.polygonGetIncomeStatement(ticker, { timeframe: 'quarterly', limit: 4 }),
+        window.electronAPI.polygonGetRatios(ticker)
+      ]);
+      
+      console.log('Fundamentals data loaded:', { balanceSheet, cashFlow, incomeStatement, ratios });
+      
+      loadingEl.style.display = 'none';
+      
+      if (balanceSheet.success && balanceSheet.results && balanceSheet.results.length > 0) {
+        this.renderBalanceSheet(balanceSheet.results);
+      } else {
+        console.warn('No balance sheet data available');
+      }
+      
+      if (cashFlow.success && cashFlow.results && cashFlow.results.length > 0) {
+        this.renderCashFlow(cashFlow.results);
+      } else {
+        console.warn('No cash flow data available');
+      }
+      
+      if (incomeStatement.success && incomeStatement.results && incomeStatement.results.length > 0) {
+        this.renderIncomeStatement(incomeStatement.results);
+      } else {
+        console.warn('No income statement data available');
+      }
+      
+      if (ratios.success && ratios.results && ratios.results.length > 0) {
+        this.renderRatios(ratios.results);
+      } else {
+        console.warn('No ratios data available');
+      }
+      
+    } catch (error) {
+      console.error('Error loading fundamentals:', error);
+      loadingEl.style.display = 'none';
+      errorEl.textContent = `Error loading fundamentals: ${error.message}`;
+      errorEl.style.display = 'block';
+    }
+  },
+
+  /**
+   * Initialize fundamentals panel event handlers
+   */
+  initializeFundamentalsPanel() {
+    // Tab switching
+    document.querySelectorAll('.fundamentals-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        const tabName = e.target.dataset.tab;
+        
+        // Update tab buttons
+        document.querySelectorAll('.fundamentals-tab').forEach(t => t.classList.remove('active'));
+        e.target.classList.add('active');
+        
+        // Convert kebab-case to camelCase for ID (balance-sheet -> balanceSheet)
+        const tabId = tabName.replace(/-./g, x => x[1].toUpperCase());
+        
+        // Update tab content
+        document.querySelectorAll('.fundamentals-tab-content').forEach(c => c.classList.remove('active'));
+        const targetTab = document.getElementById(`${tabId}Tab`);
+        if (targetTab) {
+          targetTab.classList.add('active');
+        }
+      });
+    });
+    
+    // Close button
+    document.getElementById('closeFundamentalsBtn').addEventListener('click', () => {
+      document.getElementById('fundamentalsPanel').style.display = 'none';
+    });
+  },
+
+  /**
+   * Render balance sheet data
+   */
+  renderBalanceSheet(data) {
+    if (!data || data.length === 0) return;
+    
+    const table = document.getElementById('balanceSheetTable');
+    const periods = data.slice(0, 4).reverse(); // Show oldest to newest, max 4 quarters
+    
+    // Create header
+    let html = '<thead><tr><th>Metric</th>';
+    periods.forEach(period => {
+      const quarter = period.fiscal_quarter || period.fiscal_period || '';
+      html += `<th>${period.fiscal_year} Q${quarter}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+    
+    // Helper to format currency
+    const fmt = (val) => val != null ? `$${(val / 1e9).toFixed(2)}B` : 'N/A';
+    
+    // Key metrics - using actual Polygon API field names
+    const metrics = [
+      { label: 'Total Assets', key: 'total_assets' },
+      { label: 'Current Assets', key: 'total_current_assets' },
+      { label: 'Cash & Equivalents', key: 'cash_and_equivalents' },
+      { label: 'Total Liabilities', key: 'total_liabilities' },
+      { label: 'Current Liabilities', key: 'total_current_liabilities' },
+      { label: 'Long-term Debt', key: 'long_term_debt_and_capital_lease_obligations' },
+      { label: 'Total Equity', key: 'total_equity' },
+      { label: 'Retained Earnings', key: 'retained_earnings_deficit' }
+    ];
+    
+    metrics.forEach(metric => {
+      html += `<tr><td class="metric-label">${metric.label}</td>`;
+      periods.forEach(period => {
+        const value = period[metric.key];
+        html += `<td class="metric-value">${fmt(value)}</td>`;
+      });
+      html += '</tr>';
+    });
+    
+    html += '</tbody>';
+    table.innerHTML = html;
+  },
+
+  /**
+   * Render cash flow statement data
+   */
+  renderCashFlow(data) {
+    if (!data || data.length === 0) return;
+    
+    const table = document.getElementById('cashFlowTable');
+    const periods = data.slice(0, 4).reverse();
+    
+    let html = '<thead><tr><th>Metric</th>';
+    periods.forEach(period => {
+      const quarter = period.fiscal_quarter || period.fiscal_period || '';
+      html += `<th>${period.fiscal_year} Q${quarter}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+    
+    const fmt = (val) => val != null ? `$${(val / 1e9).toFixed(2)}B` : 'N/A';
+    
+    // Using actual Polygon API field names
+    const metrics = [
+      { label: 'Operating Cash Flow', key: 'net_cash_from_operating_activities' },
+      { label: 'Investing Cash Flow', key: 'net_cash_from_investing_activities' },
+      { label: 'Financing Cash Flow', key: 'net_cash_from_financing_activities' },
+      { label: 'Net Cash Flow', key: 'net_cash_from_operating_activities' }, // Could calculate this
+      { label: 'CapEx', key: 'purchase_of_property_plant_and_equipment' },
+      { label: 'Dividends Paid', key: 'dividends' }
+    ];
+    
+    metrics.forEach(metric => {
+      html += `<tr><td class="metric-label">${metric.label}</td>`;
+      periods.forEach(period => {
+        const value = period[metric.key];
+        const cssClass = value < 0 ? 'negative-value' : 'positive-value';
+        html += `<td class="metric-value ${cssClass}">${fmt(value)}</td>`;
+      });
+      html += '</tr>';
+    });
+    
+    html += '</tbody>';
+    table.innerHTML = html;
+  },
+
+  /**
+   * Render income statement data
+   */
+  renderIncomeStatement(data) {
+    if (!data || data.length === 0) return;
+    
+    const table = document.getElementById('incomeStatementTable');
+    const periods = data.slice(0, 4).reverse();
+    
+    let html = '<thead><tr><th>Metric</th>';
+    periods.forEach(period => {
+      const quarter = period.fiscal_quarter || period.fiscal_period || '';
+      html += `<th>${period.fiscal_year} Q${quarter}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+    
+    const fmt = (val) => val != null ? `$${(val / 1e9).toFixed(2)}B` : 'N/A';
+    
+    // Using actual Polygon API field names
+    const metrics = [
+      { label: 'Revenue', key: 'revenue' },
+      { label: 'Cost of Revenue', key: 'cost_of_revenue' },
+      { label: 'Gross Profit', key: 'gross_profit' },
+      { label: 'Operating Expenses', key: 'total_operating_expenses' },
+      { label: 'Operating Income', key: 'operating_income' },
+      { label: 'Net Income', key: 'consolidated_net_income_loss' },
+      { label: 'EPS (Basic)', key: 'basic_earnings_per_share', formatter: (v) => v != null ? `$${v.toFixed(2)}` : 'N/A' },
+      { label: 'EPS (Diluted)', key: 'diluted_earnings_per_share', formatter: (v) => v != null ? `$${v.toFixed(2)}` : 'N/A' }
+    ];
+    
+    metrics.forEach(metric => {
+      html += `<tr><td class="metric-label">${metric.label}</td>`;
+      periods.forEach(period => {
+        const value = period[metric.key];
+        const formatted = metric.formatter ? metric.formatter(value) : fmt(value);
+        const cssClass = value < 0 ? 'negative-value' : value > 0 ? 'positive-value' : '';
+        html += `<td class="metric-value ${cssClass}">${formatted}</td>`;
+      });
+      html += '</tr>';
+    });
+    
+    html += '</tbody>';
+    table.innerHTML = html;
+  },
+
+  /**
+   * Render financial ratios
+   */
+  renderRatios(data) {
+    if (!data || data.length === 0) return;
+    
+    const table = document.getElementById('ratiosTable');
+    const latest = data[0];
+    
+    let html = '<thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>';
+    
+    // Calculate ratios from balance sheet and income statement data using actual Polygon field names
+    const ratios = [
+      { label: 'Current Ratio', value: latest.total_current_assets && latest.total_current_liabilities ? 
+        (latest.total_current_assets / latest.total_current_liabilities).toFixed(2) : 'N/A' },
+      { label: 'Quick Ratio', value: latest.total_current_assets && latest.inventories && latest.total_current_liabilities ? 
+        ((latest.total_current_assets - latest.inventories) / latest.total_current_liabilities).toFixed(2) : 'N/A' },
+      { label: 'Debt to Equity', value: latest.total_liabilities && latest.total_equity ? 
+        (latest.total_liabilities / latest.total_equity).toFixed(2) : 'N/A' },
+      { label: 'Return on Assets', value: latest.consolidated_net_income_loss && latest.total_assets ? 
+        ((latest.consolidated_net_income_loss / latest.total_assets) * 100).toFixed(2) + '%' : 'N/A' },
+      { label: 'Return on Equity', value: latest.consolidated_net_income_loss && latest.total_equity ? 
+        ((latest.consolidated_net_income_loss / latest.total_equity) * 100).toFixed(2) + '%' : 'N/A' },
+      { label: 'Gross Margin', value: latest.gross_profit && latest.revenue ? 
+        ((latest.gross_profit / latest.revenue) * 100).toFixed(2) + '%' : 'N/A' },
+      { label: 'Operating Margin', value: latest.operating_income && latest.revenue ? 
+        ((latest.operating_income / latest.revenue) * 100).toFixed(2) + '%' : 'N/A' },
+      { label: 'Net Margin', value: latest.consolidated_net_income_loss && latest.revenue ? 
+        ((latest.consolidated_net_income_loss / latest.revenue) * 100).toFixed(2) + '%' : 'N/A' }
+    ];
+    
+    ratios.forEach(ratio => {
+      html += `<tr><td class="metric-label">${ratio.label}</td><td class="metric-value">${ratio.value}</td></tr>`;
+    });
+    
+    html += '</tbody>';
+    table.innerHTML = html;
   }
 };
 
