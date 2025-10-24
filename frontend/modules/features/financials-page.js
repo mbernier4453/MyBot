@@ -115,17 +115,14 @@ const FinancialsPage = {
     
     // Watchlist selector
     document.getElementById('financialsWatchlistSelect')?.addEventListener('change', (e) => {
-      const watchlistId = parseInt(e.target.value);
+      const watchlistId = e.target.value;
       if (watchlistId && this.watchlistsData) {
-        const watchlist = this.watchlistsData.find(w => w.id === watchlistId);
-        if (watchlist) {
-          const tickers = JSON.parse(watchlist.tickers_json || '[]');
-          if (tickers.length > 0) {
-            this.currentTickers = [...tickers];
-            this.currentTickerIndex = 0;
-            document.getElementById('financialsTickerInput').value = this.currentTickers.join(', ');
-            this.loadFinancials(this.currentTickers[0]);
-          }
+        const watchlist = this.watchlistsData.find(w => (w.id || w.name) === watchlistId);
+        if (watchlist && watchlist.tickers && watchlist.tickers.length > 0) {
+          this.currentTickers = [...watchlist.tickers];
+          this.currentTickerIndex = 0;
+          document.getElementById('financialsTickerInput').value = this.currentTickers.join(', ');
+          this.loadFinancials(this.currentTickers[0]);
         }
       }
     });
@@ -158,27 +155,38 @@ const FinancialsPage = {
     const select = document.getElementById('financialsWatchlistSelect');
     if (!select) return;
     
-    // Get watchlists from backend via IPC
     try {
-      const result = await window.electronAPI.getWatchlists();
-      if (result.success) {
-        const watchlists = result.watchlists;
-        
-        // Clear and repopulate
-        select.innerHTML = '<option value="">-- Select Watchlist --</option>';
+      // Load watchlists from localStorage (same as chart-tabs.js)
+      const stored = localStorage.getItem('watchlists');
+      let watchlists = [];
+      
+      if (stored) {
+        try {
+          watchlists = JSON.parse(stored);
+        } catch (error) {
+          console.error('Error parsing watchlists from localStorage:', error);
+        }
+      }
+      
+      // Clear and repopulate
+      select.innerHTML = '<option value="">-- Select Watchlist --</option>';
+      
+      if (Array.isArray(watchlists) && watchlists.length > 0) {
         watchlists.forEach(w => {
-          const tickers = JSON.parse(w.tickers_json || '[]');
           const option = document.createElement('option');
-          option.value = w.id;
-          option.textContent = `${w.name} (${tickers.length} stocks)`;
+          option.value = w.id || w.name;
+          option.textContent = `${w.name} (${w.tickers.length} stocks)`;
           select.appendChild(option);
         });
         
         // Store watchlists for later use
         this.watchlistsData = watchlists;
+      } else {
+        select.innerHTML = '<option value="">No watchlists found</option>';
       }
     } catch (error) {
       console.error('Error loading watchlists:', error);
+      select.innerHTML = '<option value="">Error loading watchlists</option>';
     }
   },
 
@@ -201,7 +209,11 @@ const FinancialsPage = {
       return `${x},${y}`;
     }).join(' ');
     
-    const color = validValues[validValues.length - 1] >= validValues[0] ? '#2ecc71' : '#e74c3c';
+    // Get colors from CSS variables
+    const isPositive = validValues[validValues.length - 1] >= validValues[0];
+    const positiveColor = getComputedStyle(document.documentElement).getPropertyValue('--positive').trim() || '#00cc55';
+    const negativeColor = getComputedStyle(document.documentElement).getPropertyValue('--negative').trim() || '#ff4444';
+    const color = isPositive ? positiveColor : negativeColor;
     
     return `<svg width="${width}" height="${height}" class="sparkline">
       <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2"/>
@@ -210,13 +222,41 @@ const FinancialsPage = {
 
   /**
    * Calculate CAGR (Compound Annual Growth Rate)
+   * Handles negative values by calculating growth rate even when crossing zero
    */
   calculateCAGR(startValue, endValue, periods) {
-    if (!startValue || !endValue || startValue <= 0 || endValue <= 0 || periods <= 0) {
+    // Need valid numbers and periods
+    if (startValue == null || endValue == null || !isFinite(startValue) || !isFinite(endValue) || periods <= 0) {
       return null;
     }
+    
+    // Both zero or very close to zero
+    if (Math.abs(startValue) < 0.01 && Math.abs(endValue) < 0.01) {
+      return null;
+    }
+    
     const years = this.currentTimeframe === 'quarterly' ? periods / 4 : periods;
-    return (Math.pow(endValue / startValue, 1 / years) - 1) * 100;
+    
+    // If start is zero or near-zero but end isn't, can't calculate traditional CAGR
+    if (Math.abs(startValue) < 0.01) {
+      return null;
+    }
+    
+    // Traditional CAGR only works when both values have the same sign
+    if ((startValue > 0 && endValue > 0) || (startValue < 0 && endValue < 0)) {
+      // For negative values, calculate on absolute values
+      const absStart = Math.abs(startValue);
+      const absEnd = Math.abs(endValue);
+      const growthRate = (Math.pow(absEnd / absStart, 1 / years) - 1) * 100;
+      
+      // If both negative, a decrease in absolute value is good (less negative)
+      return startValue < 0 ? -growthRate : growthRate;
+    } else {
+      // Values crossed zero - calculate simple annualized change
+      const totalChange = endValue - startValue;
+      const avgValue = Math.abs(startValue);
+      return (totalChange / avgValue / years) * 100;
+    }
   },
 
   /**
@@ -230,9 +270,16 @@ const FinancialsPage = {
     const errorEl = document.getElementById('financialsPageError');
     const prevBtn = document.getElementById('financialsPrevBtn');
     const nextBtn = document.getElementById('financialsNextBtn');
+    const sourceLink = document.getElementById('polygonSourceLink');
     
     // Show section and update ticker display
     dataSection.style.display = 'block';
+    
+    // Update Polygon.io source link for fact-checking
+    if (sourceLink) {
+      sourceLink.href = `https://polygon.io/quote/${ticker}`;
+      sourceLink.style.display = 'inline';
+    }
     
     // Show ticker count and navigation buttons if multiple tickers
     if (this.currentTickers.length > 1) {

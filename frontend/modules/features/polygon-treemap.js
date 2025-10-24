@@ -112,6 +112,16 @@ const PolygonTreemap = {
       this.drawTreemap();
     });
 
+    // Data source selector
+    document.getElementById('treemapDataSource')?.addEventListener('change', (e) => {
+      this.updateGroupByOptions(e.target.value);
+      this.drawTreemap();
+    });
+
+    // Initialize group options based on initial data source
+    const initialDataSource = document.getElementById('treemapDataSource')?.value || 'sp500';
+    this.updateGroupByOptions(initialDataSource);
+
     // Update the "last updated" text every second
     setInterval(() => this.updateLastUpdateDisplay(), 1000);
 
@@ -258,9 +268,112 @@ const PolygonTreemap = {
   },
 
   /**
+   * Update group-by options based on data source
+   */
+  updateGroupByOptions(dataSource) {
+    const groupBySelect = document.getElementById('treemapGroupBy');
+    if (!groupBySelect) return;
+
+    const currentValue = groupBySelect.value;
+    
+    // Clear existing options
+    groupBySelect.innerHTML = '';
+    
+    if (dataSource === 'sp500') {
+      // S&P 500: By Sector or No Grouping
+      groupBySelect.innerHTML = `
+        <option value="sector">By Sector</option>
+        <option value="none">No Grouping</option>
+      `;
+      // Set to sector if current was watchlist, otherwise keep current
+      groupBySelect.value = (currentValue === 'sector' || currentValue === 'none') ? currentValue : 'sector';
+    } else if (dataSource === 'watchlists') {
+      // Watchlists: By Watchlist or No Grouping
+      groupBySelect.innerHTML = `
+        <option value="watchlist">By Watchlist</option>
+        <option value="none">No Grouping</option>
+      `;
+      // Set to watchlist if current was sector, otherwise keep current
+      groupBySelect.value = (currentValue === 'watchlist' || currentValue === 'none') ? currentValue : 'watchlist';
+    }
+  },
+
+  /**
+   * Get watchlist data for treemap
+   */
+  async getWatchlistData() {
+    try {
+      // Load watchlists from localStorage (same as chart-tabs.js)
+      const stored = localStorage.getItem('watchlists');
+      let watchlists = [];
+      
+      if (stored) {
+        try {
+          watchlists = JSON.parse(stored);
+        } catch (error) {
+          console.error('Error parsing watchlists from localStorage:', error);
+          return [];
+        }
+      }
+
+      if (!Array.isArray(watchlists) || watchlists.length === 0) {
+        console.log('[TREEMAP] No watchlists found in localStorage');
+        return [];
+      }
+
+      const allTickers = new Set();
+      const tickerToWatchlist = new Map();
+
+      // Collect all unique tickers and map them to watchlists
+      watchlists.forEach(watchlist => {
+        if (watchlist.tickers && Array.isArray(watchlist.tickers)) {
+          watchlist.tickers.forEach(ticker => {
+            allTickers.add(ticker);
+            // If ticker is in multiple watchlists, use the first one
+            if (!tickerToWatchlist.has(ticker)) {
+              tickerToWatchlist.set(ticker, watchlist.name);
+            }
+          });
+        }
+      });
+
+      // Request market data for these tickers if not already loaded
+      const tickersToFetch = Array.from(allTickers).filter(ticker => !treemapData.has(ticker));
+      if (tickersToFetch.length > 0) {
+        console.log(`[TREEMAP] Fetching data for ${tickersToFetch.length} watchlist tickers...`);
+        try {
+          await window.electronAPI.polygonFetchTickers(tickersToFetch);
+          // Give it a moment to receive the data
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.error('[TREEMAP] Error fetching watchlist tickers:', error);
+        }
+      }
+
+      // Get market data for these tickers
+      const dataArray = [];
+      allTickers.forEach(ticker => {
+        const data = treemapData.get(ticker);
+        if (data && data.changePercent !== null) {
+          dataArray.push({
+            ...data,
+            watchlistName: tickerToWatchlist.get(ticker)
+          });
+        }
+      });
+
+      console.log(`[TREEMAP] Loaded ${dataArray.length} stocks from ${watchlists.length} watchlists`);
+      return dataArray;
+    } catch (error) {
+      console.error('Error loading watchlist data for treemap:', error);
+      return [];
+    }
+  },
+
+  /**
    * Draw the treemap visualization
    */
-  drawTreemap() {
+  async drawTreemap() {
     try {
       const container = document.getElementById('treemapContainer');
       if (!container) {
@@ -268,8 +381,20 @@ const PolygonTreemap = {
         return;
       }
     
-      // Get data array from map
-      const dataArray = Array.from(treemapData.values()).filter(d => d.changePercent !== null);
+      // Get data source (S&P 500 or watchlists)
+      const dataSource = document.getElementById('treemapDataSource')?.value || 'sp500';
+      
+      let dataArray;
+      if (dataSource === 'watchlists') {
+        // Get data from watchlists
+        dataArray = await this.getWatchlistData();
+      } else {
+        // Get data from S&P 500 only (filter to only show S&P 500 stocks)
+        dataArray = Array.from(treemapData.values()).filter(d => {
+          // Only include if it's in the S&P 500 sector data
+          return d.changePercent !== null && sp500SectorData && sp500SectorData[d.ticker];
+        });
+      }
       
       if (dataArray.length === 0) {
         // Show loading message
@@ -281,7 +406,7 @@ const PolygonTreemap = {
           .attr('text-anchor', 'middle')
           .attr('fill', '#666')
           .attr('font-size', '18px')
-          .text('Waiting for market data...');
+          .text(dataSource === 'watchlists' ? 'No watchlist data available...' : 'Waiting for market data...');
         return;
       }
       
@@ -297,7 +422,7 @@ const PolygonTreemap = {
         .attr('width', width)
         .attr('height', height);
       
-      // Get sizing method
+      // Get sizing method and grouping
       const sizeBy = document.getElementById('treemapSizeBy')?.value || 'marketcap';
       const groupBy = document.getElementById('treemapGroupBy')?.value || 'sector';
       
@@ -342,6 +467,45 @@ const PolygonTreemap = {
         .sum(d => d.value)
         .sort((a, b) => (b.value || 0) - (a.value || 0));
         
+      } else if (groupBy === 'watchlist') {
+        // Group by watchlist
+        const watchlistData = {};
+        dataArray.forEach(d => {
+          const watchlistName = d.watchlistName || 'Unknown';
+          if (!watchlistData[watchlistName]) {
+            watchlistData[watchlistName] = [];
+          }
+          
+          let value = 1;
+          if (sizeBy === 'marketcap' && d.marketCap) {
+            value = Math.abs(d.marketCap);
+          } else if (sizeBy === 'volume' && d.volume) {
+            value = Math.abs(d.volume);
+          }
+          
+          watchlistData[watchlistName].push({
+            name: d.ticker,
+            value: value,
+            percent: d.changePercent,
+            change: d.change,
+            close: d.close,
+            volume: d.volume,
+            marketCap: d.marketCap,
+            watchlist: watchlistName,
+            data: d
+          });
+        });
+        
+        // Build hierarchical data
+        root = d3.hierarchy({
+          children: Object.entries(watchlistData).map(([watchlist, stocks]) => ({
+            name: watchlist,
+            children: stocks
+          }))
+        })
+        .sum(d => d.value)
+        .sort((a, b) => (b.value || 0) - (a.value || 0));
+        
       } else {
         // No grouping - flat structure
         root = d3.hierarchy({
@@ -372,38 +536,39 @@ const PolygonTreemap = {
       // Create treemap layout
       const treemap = d3.treemap()
         .size([width, height])
-        .paddingInner(groupBy === 'sector' ? 3 : 2)
-        .paddingOuter(groupBy === 'sector' ? 3 : 2)
-        .paddingTop(groupBy === 'sector' ? 25 : 2)
+        .paddingInner((groupBy === 'sector' || groupBy === 'watchlist') ? 3 : 2)
+        .paddingOuter((groupBy === 'sector' || groupBy === 'watchlist') ? 3 : 2)
+        .paddingTop((groupBy === 'sector' || groupBy === 'watchlist') ? 25 : 2)
         .round(true);
       
       treemap(root);
       
-      if (groupBy === 'sector') {
-        // Draw sector groups
-        const sectorGroups = svg.selectAll('.sector')
+      if (groupBy === 'sector' || groupBy === 'watchlist') {
+        // Draw sector/watchlist groups
+        const groups = svg.selectAll('.group')
           .data(root.children)
           .join('g')
-          .attr('class', 'sector');
+          .attr('class', 'group');
         
-        // Sector background rectangles
-        sectorGroups.append('rect')
-          .attr('class', 'sector-group')
+        // Group background rectangles
+        groups.append('rect')
+          .attr('class', 'group-bg')
           .attr('x', d => d.x0)
           .attr('y', d => d.y0)
           .attr('width', d => d.x1 - d.x0)
           .attr('height', d => d.y1 - d.y0)
           .attr('fill', 'rgba(0, 0, 0, 0.2)');
         
-        // Sector labels
-        sectorGroups.append('text')
-          .attr('class', 'sector-label')
+        // Group labels (sector name or watchlist name)
+        groups.append('text')
+          .attr('class', 'group-label')
           .attr('x', d => d.x0 + 8)
           .attr('y', d => d.y0 + 18)
+          .attr('fill', getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#e0e0e0')
           .text(d => d.data.name);
         
-        // Draw stocks within sectors
-        const cells = sectorGroups.selectAll('.stock-cell')
+        // Draw stocks within groups
+        const cells = groups.selectAll('.stock-cell')
           .data(d => d.leaves())
           .join('g')
           .attr('class', 'stock-cell')

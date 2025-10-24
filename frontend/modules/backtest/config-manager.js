@@ -423,6 +423,102 @@ function resetAllColors() {
 }
 window.resetAllColors = resetAllColors;
 
+// Save color preset
+function saveColorPreset() {
+  const colors = {};
+  Object.keys(DEFAULT_COLORS).forEach(colorName => {
+    const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
+    const picker = document.getElementById(pickerName);
+    if (picker) {
+      colors[colorName] = picker.value;
+    }
+  });
+  localStorage.setItem('colorPreset', JSON.stringify(colors));
+  alert('Color preset saved!');
+}
+window.saveColorPreset = saveColorPreset;
+
+// Load color preset
+function loadColorPreset() {
+  const saved = localStorage.getItem('colorPreset');
+  if (!saved) {
+    alert('No saved preset found!');
+    return;
+  }
+  
+  try {
+    const colors = JSON.parse(saved);
+    Object.keys(colors).forEach(colorName => {
+      const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
+      const picker = document.getElementById(pickerName);
+      if (picker) {
+        const textInput = picker.nextElementSibling;
+        const value = colors[colorName];
+        
+        picker.value = value;
+        textInput.value = value;
+        
+        const cssVarName = `--${colorName}`;
+        document.documentElement.style.setProperty(cssVarName, value);
+      }
+    });
+    saveUserColors();
+    alert('Color preset loaded!');
+  } catch (e) {
+    alert('Error loading preset: ' + e.message);
+  }
+}
+window.loadColorPreset = loadColorPreset;
+
+// Export color preset to clipboard
+function exportColorPreset() {
+  const colors = {};
+  Object.keys(DEFAULT_COLORS).forEach(colorName => {
+    const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
+    const picker = document.getElementById(pickerName);
+    if (picker) {
+      colors[colorName] = picker.value;
+    }
+  });
+  const json = JSON.stringify(colors, null, 2);
+  navigator.clipboard.writeText(json).then(() => {
+    alert('Color preset copied to clipboard!');
+  }).catch(err => {
+    alert('Failed to copy: ' + err.message);
+  });
+}
+window.exportColorPreset = exportColorPreset;
+
+// Import color preset from clipboard
+function importColorPreset() {
+  navigator.clipboard.readText().then(text => {
+    try {
+      const colors = JSON.parse(text);
+      Object.keys(colors).forEach(colorName => {
+        const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
+        const picker = document.getElementById(pickerName);
+        if (picker) {
+          const textInput = picker.nextElementSibling;
+          const value = colors[colorName];
+          
+          picker.value = value;
+          textInput.value = value;
+          
+          const cssVarName = `--${colorName}`;
+          document.documentElement.style.setProperty(cssVarName, value);
+        }
+      });
+      saveUserColors();
+      alert('Color preset imported!');
+    } catch (e) {
+      alert('Invalid preset format: ' + e.message);
+    }
+  }).catch(err => {
+    alert('Failed to read clipboard: ' + err.message);
+  });
+}
+window.importColorPreset = importColorPreset;
+
 // Save user colors to localStorage
 function saveUserColors() {
   const colors = {};

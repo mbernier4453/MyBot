@@ -44,7 +44,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   polygonGetBalanceSheet: (ticker, options) => ipcRenderer.invoke('polygon-get-balance-sheet', ticker, options),
   polygonGetCashFlow: (ticker, options) => ipcRenderer.invoke('polygon-get-cash-flow', ticker, options),
   polygonGetIncomeStatement: (ticker, options) => ipcRenderer.invoke('polygon-get-income-statement', ticker, options),
-  polygonGetRatios: (ticker) => ipcRenderer.invoke('polygon-get-ratios', ticker),
+  polygonGetRatios: (ticker, options) => ipcRenderer.invoke('polygon-get-ratios', ticker, options),
   onPolygonUpdate: (callback) => ipcRenderer.on('polygon-update', (event, data) => callback(data)),
   onPolygonStatus: (callback) => ipcRenderer.on('polygon-status', (event, status) => callback(status)),
   onPolygonError: (callback) => ipcRenderer.on('polygon-error', (event, error) => callback(error)),

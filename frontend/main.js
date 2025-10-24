@@ -975,7 +975,7 @@ ipcMain.handle('polygon-get-income-statement', async (event, ticker, options = {
 });
 
 // Fundamentals API - Financial Ratios
-ipcMain.handle('polygon-get-ratios', async (event, ticker) => {
+ipcMain.handle('polygon-get-ratios', async (event, ticker, options = {}) => {
   const apiKey = process.env.POLYGON_API_KEY;
   if (!apiKey) {
     console.error('[MAIN] No Polygon API key found in environment');
@@ -984,8 +984,10 @@ ipcMain.handle('polygon-get-ratios', async (event, ticker) => {
   
   try {
     const https = require('https');
-    // Use the same endpoint as other financials - just get the most recent one
-    const url = `https://api.polygon.io/vX/reference/financials?ticker=${ticker}&limit=1&apiKey=${apiKey}`;
+    // Get historical data - 20 quarters by default
+    const limit = options.limit || 20;
+    const timeframe = options.timeframe || 'quarterly';
+    const url = `https://api.polygon.io/vX/reference/financials?ticker=${ticker}&timeframe=${timeframe}&limit=${limit}&apiKey=${apiKey}`;
     
     console.log(`[MAIN] Fetching ratios for ${ticker}: ${url.replace(apiKey, 'API_KEY')}`);
     
@@ -1003,28 +1005,15 @@ ipcMain.handle('polygon-get-ratios', async (event, ticker) => {
               console.error('[MAIN] Ratios API error:', response.error || response.message || response.status || 'Unknown error');
               console.error('[MAIN] Full response:', JSON.stringify(response).substring(0, 500));
             }
-            if (response.status === 'OK' && response.results && response.results.length > 0) {
-              // Extract combined data from the most recent filing
-              const latest = response.results[0];
-              const combined = {
-                ticker: ticker,
-                date: latest.end_date,
-                fiscal_year: latest.fiscal_year,
-                fiscal_period: latest.fiscal_period,
-                // Combine all financial statement data
-                ...(latest.financials?.balance_sheet || {}),
-                ...(latest.financials?.income_statement || {}),
-                ...(latest.financials?.cash_flow_statement || {})
-              };
-              resolve({ success: true, results: [combined] });
+            if (response.status === 'OK' && response.results) {
+              resolve({ success: true, results: response.results, ticker: ticker });
             } else {
-              console.error('[MAIN] Ratios: No valid data, response:', JSON.stringify(response).substring(0, 200));
-              resolve({ success: false, error: response.error || 'No data available' });
+              resolve({ success: false, error: response.error || 'No data' });
             }
-          } catch (error) {
-            console.error('[MAIN] Ratios JSON parse error:', error.message);
+          } catch (parseError) {
+            console.error('[MAIN] Ratios JSON parse error:', parseError.message);
             console.error('[MAIN] Ratios raw data:', data.substring(0, 500));
-            resolve({ success: false, error: error.message });
+            resolve({ success: false, error: parseError.message });
           }
         });
       }).on('error', (error) => {
