@@ -303,6 +303,8 @@ export function addWatermark(layout) {
       size: 40,
       color: 'rgba(150, 150, 150, 0.1)',
       family: 'Arial Black, sans-serif'
-    }
+    },
+    captureevents: false,
+    editable: false
   });
 }

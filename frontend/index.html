@@ -265,7 +265,7 @@
                       <input type="radio" name="financialsTimeframe" value="annual"> Annual
                     </label>
                     <a id="polygonSourceLink" href="#" target="_blank" style="margin-left: 15px; color: #3498db; text-decoration: none; font-size: 12px; display: none;" title="View source data on Polygon.io">
-                      📊 Verify on Polygon.io
+                      Verify on Polygon.io
                     </a>
                   </div>
                 </div>
@@ -371,9 +371,17 @@
             <button class="chart-new-tab-btn" id="chartNewTabBtn" title="New Chart Tab">+</button>
           </div>
 
-          <!-- Main chart area with tab content -->
+          <!-- Main chart area with drawing toolbar and tab content -->
           <div class="chart-main-area">
-            <!-- Chart tab contents will be added here dynamically -->
+            <!-- Toolbar toggle button (visible when toolbar is hidden) -->
+            <button class="drawing-toolbar-toggle-btn" id="drawingToolbarToggleBtn" title="Show Tools">
+              <span>☰</span>
+            </button>
+            
+            <!-- Drawing toolbar will be inserted here by JS -->
+            <div id="drawingToolbarContainer"></div>
+            
+            <!-- Chart tab contents -->
             <div id="chartTabContents" class="chart-tab-contents">
               <!-- Each tab will have its own content container -->
             </div>
