@@ -21,6 +21,7 @@ import ConfigManagerModule from './modules/backtest/config-manager.js'; // Impor
 import PolygonTreemap from './modules/features/polygon-treemap.js';
 import FinancialsPage from './modules/features/financials-page.js';
 import RatiosPage from './modules/features/ratios-page.js';
+import { MarketBreadth } from './modules/features/market-breadth.js';
 import ChartTabSystem from './modules/charts/chart-tabs.js';
 import CandlestickChart from './modules/charts/candlestick.js';
 import RSIDashboard from './modules/features/rsi-dashboard.js';
@@ -585,6 +586,9 @@ function initializeDOMElements() {
   
   console.log('[INIT] Initializing Ratios Page...');
   RatiosPage.initialize();
+  
+  console.log('[INIT] Initializing Market Breadth...');
+  window.marketBreadth = new MarketBreadth();
   
   console.log('[INIT] Initializing RSIDashboard...');
   RSIDashboard.initialize();

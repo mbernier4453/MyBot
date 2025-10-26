@@ -2021,6 +2021,200 @@ ipcMain.handle('delete-watchlist', async (event, id) => {
 });
 
 // ============================================
+// Market Breadth Indicators
+// ============================================
+
+ipcMain.handle('breadth-get-ad-line', async (event, { days = 252, forceRefresh = false }) => {
+  return new Promise((resolve, reject) => {
+    console.log(`[BREADTH] Fetching A/D Line data (${days} days, refresh: ${forceRefresh})`);
+    
+    const pythonCommand = getPythonExecutable();
+    const scriptPath = path.join(__dirname, '..', 'backend', 'market_breadth_cli.py');
+    
+    const pythonProcess = spawn(pythonCommand, [scriptPath, 'ad-line', '--days', days.toString()], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      console.log(`[BREADTH] A/D Line process exited with code: ${code}`);
+      console.log(`[BREADTH] A/D Line stdout length: ${stdout.length}`);
+      console.log(`[BREADTH] A/D Line stderr length: ${stderr.length}`);
+      
+      if (code !== 0) {
+        console.error('[BREADTH] A/D Line error code:', code);
+        console.error('[BREADTH] A/D Line stderr:', stderr);
+        console.error('[BREADTH] A/D Line stdout:', stdout);
+        resolve({ success: false, error: stderr || stdout || 'Process failed' });
+      } else {
+        try {
+          console.log('[BREADTH] A/D Line stdout preview:', stdout.substring(0, 200));
+          const result = JSON.parse(stdout);
+          console.log(`[BREADTH] A/D Line data loaded: ${result.data?.length || 0} records`);
+          resolve(result);
+        } catch (e) {
+          console.error('[BREADTH] JSON parse error:', e.message);
+          console.error('[BREADTH] Raw stdout:', stdout.substring(0, 500));
+          resolve({ success: false, error: `Parse error: ${e.message}` });
+        }
+      }
+    });
+  });
+});
+
+ipcMain.handle('breadth-get-tick-proxy', async (event, { date = null, forceRefresh = false }) => {
+  return new Promise((resolve, reject) => {
+    console.log(`[BREADTH] Fetching TICK proxy data (date: ${date || 'today'}, refresh: ${forceRefresh})`);
+    
+    const pythonCommand = getPythonExecutable();
+    const scriptPath = path.join(__dirname, '..', 'backend', 'market_breadth_cli.py');
+    const args = ['tick'];
+    if (date) args.push('--date', date);
+    
+    const pythonProcess = spawn(pythonCommand, [scriptPath, ...args], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error('[BREADTH] TICK proxy error:', stderr);
+        resolve({ success: false, error: stderr || 'Process failed' });
+      } else {
+        try {
+          const result = JSON.parse(stdout);
+          console.log(`[BREADTH] TICK proxy data loaded: ${result.data?.length || 0} records`);
+          resolve(result);
+        } catch (e) {
+          console.error('[BREADTH] JSON parse error:', e.message);
+          resolve({ success: false, error: 'Failed to parse response' });
+        }
+      }
+    });
+  });
+});
+
+ipcMain.handle('breadth-get-highs-lows', async (event, { days = 252, forceRefresh = false }) => {
+  return new Promise((resolve, reject) => {
+    console.log(`[BREADTH] Fetching Highs/Lows data (${days} days, refresh: ${forceRefresh})`);
+    
+    const pythonCommand = getPythonExecutable();
+    const scriptPath = path.join(__dirname, '..', 'backend', 'market_breadth_cli.py');
+    
+    const pythonProcess = spawn(pythonCommand, [scriptPath, 'highs-lows', '--days', days.toString()], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      console.log(`[BREADTH] Highs/Lows process exited with code: ${code}`);
+      console.log(`[BREADTH] Highs/Lows stdout length: ${stdout.length}`);
+      console.log(`[BREADTH] Highs/Lows stderr length: ${stderr.length}`);
+      
+      if (code !== 0) {
+        console.error('[BREADTH] Highs/Lows error code:', code);
+        console.error('[BREADTH] Highs/Lows stderr:', stderr);
+        console.error('[BREADTH] Highs/Lows stdout:', stdout);
+        resolve({ success: false, error: stderr || stdout || 'Process failed' });
+      } else {
+        try {
+          console.log('[BREADTH] Highs/Lows stdout preview:', stdout.substring(0, 200));
+          const result = JSON.parse(stdout);
+          console.log(`[BREADTH] Highs/Lows data loaded: ${result.data?.length || 0} records`);
+          resolve(result);
+        } catch (e) {
+          console.error('[BREADTH] JSON parse error:', e.message);
+          console.error('[BREADTH] Raw stdout:', stdout.substring(0, 500));
+          resolve({ success: false, error: `Parse error: ${e.message}` });
+        }
+      }
+    });
+  });
+});
+
+ipcMain.handle('breadth-get-percent-ma', async (event, { days = 252, forceRefresh = false }) => {
+  return new Promise((resolve, reject) => {
+    console.log(`[BREADTH] Fetching Percent Above MA data (${days} days, refresh: ${forceRefresh})`);
+    
+    const pythonCommand = getPythonExecutable();
+    const scriptPath = path.join(__dirname, '..', 'backend', 'market_breadth_cli.py');
+    
+    const pythonProcess = spawn(pythonCommand, [scriptPath, 'percent-ma', '--days', days.toString()], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      console.log(`[BREADTH] Percent MA process exited with code: ${code}`);
+      console.log(`[BREADTH] Percent MA stdout length: ${stdout.length}`);
+      console.log(`[BREADTH] Percent MA stderr length: ${stderr.length}`);
+      
+      if (code !== 0) {
+        console.error('[BREADTH] Percent MA error code:', code);
+        console.error('[BREADTH] Percent MA stderr:', stderr);
+        console.error('[BREADTH] Percent MA stdout:', stdout);
+        resolve({ success: false, error: stderr || stdout || 'Process failed' });
+      } else {
+        try {
+          console.log('[BREADTH] Percent MA stdout preview:', stdout.substring(0, 200));
+          const result = JSON.parse(stdout);
+          console.log(`[BREADTH] Percent MA data loaded: ${result.data?.length || 0} records`);
+          resolve(result);
+        } catch (e) {
+          console.error('[BREADTH] JSON parse error:', e.message);
+          console.error('[BREADTH] Raw stdout:', stdout.substring(0, 500));
+          resolve({ success: false, error: `Parse error: ${e.message}` });
+        }
+      }
+    });
+  });
+});
+
+// ============================================
 // Backtester - Direct Python Subprocess
 // ============================================
 

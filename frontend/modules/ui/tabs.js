@@ -57,6 +57,16 @@ export function initializeTabManagement(elements) {
         if (targetPageEl) {
           targetPageEl.classList.add('active');
           console.log('[TABS] Switched to page:', targetPage);
+          
+          // Initialize Market Breadth page when first accessed
+          if (targetPage === 'breadth' && window.marketBreadth) {
+            const container = document.getElementById('market-breadth-container');
+            if (container && !container.hasAttribute('data-initialized')) {
+              console.log('[TABS] Initializing Market Breadth page');
+              window.marketBreadth.initialize();
+              container.setAttribute('data-initialized', 'true');
+            }
+          }
         } else {
           console.warn('[TABS] Target page not found:', `${targetPage}Page`);
         }

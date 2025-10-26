@@ -50,6 +50,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPolygonError: (callback) => ipcRenderer.on('polygon-error', (event, error) => callback(error)),
   onPolygonInitialLoad: (callback) => ipcRenderer.on('polygon-initial-load-complete', (event, data) => callback(data)),
   
+  // Market Breadth
+  breadthGetADLine: (params) => ipcRenderer.invoke('breadth-get-ad-line', params),
+  breadthGetTickProxy: (params) => ipcRenderer.invoke('breadth-get-tick-proxy', params),
+  breadthGetHighsLows: (params) => ipcRenderer.invoke('breadth-get-highs-lows', params),
+  breadthGetPercentMA: (params) => ipcRenderer.invoke('breadth-get-percent-ma', params),
+  
   // Backtester
   backtestRun: (config) => ipcRenderer.invoke('backtest-run', config),
   onBacktestProgress: (callback) => ipcRenderer.on('backtest-progress', (event, data) => callback(data)),

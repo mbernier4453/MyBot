@@ -488,7 +488,7 @@ const RatiosPage = {
     
     // Set canvas size - make it bigger
     const width = canvas.offsetWidth;
-    const height = 150; // Increased from 80
+    const height = 180; // Increased for Y-axis labels
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     canvas.style.width = `${width}px`;
@@ -511,6 +511,10 @@ const RatiosPage = {
     const validValues = validIndices.map(i => values[i]);
     const validLabels = validIndices.map(i => labels[i]);
     
+    // REVERSE DATA SO OLDEST IS ON LEFT, NEWEST ON RIGHT
+    validValues.reverse();
+    validLabels.reverse();
+    
     if (validValues.length === 0) {
       // No data to render
       ctx.fillStyle = textColor;
@@ -524,9 +528,40 @@ const RatiosPage = {
     const minValue = Math.min(...validValues);
     const maxValue = Math.max(...validValues);
     const range = maxValue - minValue;
-    const padding = { top: 15, bottom: 30, left: 5, right: 5 }; // Increased for bigger chart
+    const padding = { top: 20, bottom: 50, left: 50, right: 15 }; // More space for Y-axis and rotated labels
     const chartHeight = height - padding.top - padding.bottom;
-    const barWidth = (width - padding.left - padding.right) / validValues.length;
+    const chartWidth = width - padding.left - padding.right;
+    const barWidth = chartWidth / validValues.length;
+    
+    // Draw Y-axis
+    ctx.strokeStyle = textColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, padding.top);
+    ctx.lineTo(padding.left, height - padding.bottom);
+    ctx.stroke();
+    
+    // Draw Y-axis labels and grid lines
+    ctx.fillStyle = textColor;
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'right';
+    const numYLabels = 5;
+    for (let i = 0; i <= numYLabels; i++) {
+      const value = minValue + (range * i / numYLabels);
+      const y = padding.top + chartHeight * (1 - i / numYLabels);
+      
+      // Draw grid line
+      ctx.strokeStyle = 'rgba(128, 128, 128, 0.2)';
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(width - padding.right, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // Draw label
+      ctx.fillText(value.toFixed(2), padding.left - 5, y + 4);
+    }
     
     // Draw bars
     validValues.forEach((value, i) => {
@@ -536,14 +571,14 @@ const RatiosPage = {
       
       // Choose color based on value
       ctx.fillStyle = value >= 0 ? positiveColor : negativeColor;
-      ctx.fillRect(x + 1, y, barWidth - 2, barHeight);
+      ctx.fillRect(x + 2, y, barWidth - 4, barHeight);
     });
     
     // Draw zero line if range crosses zero
     if (minValue < 0 && maxValue > 0) {
       const zeroY = padding.top + chartHeight * (maxValue / range);
       ctx.strokeStyle = textColor;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.5;
       ctx.setLineDash([2, 2]);
       ctx.beginPath();
       ctx.moveTo(padding.left, zeroY);
@@ -552,21 +587,30 @@ const RatiosPage = {
       ctx.setLineDash([]);
     }
     
-    // Draw labels - larger font for bigger chart
+    // Draw X-axis labels - ROTATED for better spacing
     ctx.fillStyle = textColor;
-    ctx.font = '11px system-ui';
-    ctx.textAlign = 'center';
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'right';
+    ctx.save();
     
-    // For quarterly data with 20 periods, show every 3rd label to avoid crowding
-    // For annual data with 10 periods, show every other label
-    const labelInterval = timeframe === 'quarterly' ? 3 : 2;
+    // Show every label for quarterly, every other for annual
+    const labelInterval = timeframe === 'quarterly' ? 1 : 1;
     
     validLabels.forEach((label, i) => {
-      if (i % labelInterval === 0 || i === validLabels.length - 1) {
+      if (i % labelInterval === 0) {
         const x = padding.left + i * barWidth + barWidth / 2;
-        ctx.fillText(label, x, height - 8);
+        const y = height - padding.bottom + 10;
+        
+        // Rotate and draw label
+        ctx.translate(x, y);
+        ctx.rotate(-Math.PI / 4); // 45 degree rotation
+        ctx.fillText(label, 0, 0);
+        ctx.rotate(Math.PI / 4);
+        ctx.translate(-x, -y);
       }
     });
+    
+    ctx.restore();
   }
 };
 
