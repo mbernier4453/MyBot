@@ -229,24 +229,16 @@ class ChartTab {
       }
     });
     
-    // Crosshair lock
-    const crosshairLockToggle = content.querySelector('.chart-crosshair-lock-toggle');
-    crosshairLockToggle.addEventListener('change', (e) => {
-      this.crosshairLocked = e.target.checked;
-      const chartCanvas = content.querySelector('.chart-canvas');
-      
-      if (this.crosshairLocked) {
-        // Lock crosshair
-        Plotly.relayout(chartCanvas, {
-          'yaxis.showspikes': false,
-          'hovermode': 'x'
-        });
-      } else {
-        // Unlock crosshair
-        Plotly.relayout(chartCanvas, {
-          'yaxis.showspikes': true,
-          'hovermode': 'closest'
-        });
+    // Legend toggle
+    const legendToggle = content.querySelector('.chart-legend-toggle');
+    legendToggle.addEventListener('change', (e) => {
+      const legendEl = content.querySelector('.custom-chart-legend');
+      if (legendEl) {
+        if (e.target.checked) {
+          legendEl.classList.remove('hidden');
+        } else {
+          legendEl.classList.add('hidden');
+        }
       }
     });
     
@@ -1118,7 +1110,7 @@ class ChartTab {
       margin: { l: 60, r: 40, t: 10, b: 80 },
       hovermode: 'x',
       hoverlabel: {
-        bgcolor: 'rgba(26, 26, 26, 0.95)',
+        bgcolor: 'rgba(26, 26, 26, 0.85)',
         bordercolor: '#444',
         font: { color: '#e0e0e0', size: 12 },
         align: 'left',
@@ -1566,6 +1558,64 @@ class ChartTab {
     return Plotly.newPlot(chartCanvas, traces, layout, config).then(() => {
       // Store reference for drawing tools
       chartCanvas.plotlyChart = chartCanvas;
+      
+      // Create custom legend element
+      let legendEl = chartCanvas.parentElement.querySelector('.custom-chart-legend');
+      if (!legendEl) {
+        legendEl = document.createElement('div');
+        legendEl.className = 'custom-chart-legend';
+        chartCanvas.parentElement.style.position = 'relative';
+        chartCanvas.parentElement.appendChild(legendEl);
+      }
+      
+      // Add hover handler for custom legend
+      chartCanvas.on('plotly_hover', (data) => {
+        if (!data.points || data.points.length === 0) return;
+        
+        const point = data.points[0];
+        const xIndex = point.pointIndex;
+        
+        let html = '';
+        
+        // Always show main OHLC first
+        traces.forEach((trace, idx) => {
+          if (trace.type === 'candlestick' && trace.name === this.ticker) {
+            html += `<div style="font-weight: bold; margin-bottom: 4px;">${trace.name}</div>`;
+            if (trace.open && trace.open[xIndex] !== undefined) {
+              html += `<div>O: $${trace.open[xIndex].toFixed(2)}</div>`;
+              html += `<div>H: $${trace.high[xIndex].toFixed(2)}</div>`;
+              html += `<div>L: $${trace.low[xIndex].toFixed(2)}</div>`;
+              html += `<div>C: $${trace.close[xIndex].toFixed(2)}</div>`;
+            }
+          }
+        });
+        
+        // Show overlay stocks OHLC
+        traces.forEach((trace, idx) => {
+          if (trace.type === 'candlestick' && trace.name !== this.ticker) {
+            html += `<div style="font-weight: bold; margin-top: 8px; margin-bottom: 4px;">${trace.name}</div>`;
+            if (trace.open && trace.open[xIndex] !== undefined) {
+              html += `<div>O: $${trace.open[xIndex].toFixed(2)}</div>`;
+              html += `<div>H: $${trace.high[xIndex].toFixed(2)}</div>`;
+              html += `<div>L: $${trace.low[xIndex].toFixed(2)}</div>`;
+              html += `<div>C: $${trace.close[xIndex].toFixed(2)}</div>`;
+            }
+          }
+        });
+        
+        // Then show indicators in order
+        traces.forEach((trace, idx) => {
+          if (trace.type === 'scatter' && trace.yaxis === 'y' && trace.y && trace.y[xIndex] !== undefined && trace.y[xIndex] !== null) {
+            html += `<div style="margin-top: 4px;">${trace.name}: ${trace.y[xIndex].toFixed(2)}</div>`;
+          }
+        });
+        
+        legendEl.innerHTML = html || '<div>No data</div>';
+      });
+      
+      chartCanvas.on('plotly_unhover', () => {
+        legendEl.innerHTML = '<div style="color: #666;">Hover over chart</div>';
+      });
       
       // Initialize drawing tools mouse handlers after chart is ready
       if (window.drawingTools) {
