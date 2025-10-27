@@ -482,6 +482,7 @@ class ChartTab {
       '5D': ['5', '15', '30', '60', '240'],
       '1M': ['15', '30', '60', '240', 'day'],
       '3M': ['15', '30', '60', '240', 'day'],
+      'YTD': ['day'],
       '1Y': ['day', 'week'],
       '2Y': ['day', 'week'],
       '5Y': ['day', 'week', 'month'],
@@ -785,6 +786,12 @@ class ChartTab {
         break;
       case '3M':
         from.setMonth(from.getMonth() - 3);
+        break;
+      case 'YTD':
+        // Set to January 1st of current year
+        from.setMonth(0); // January
+        from.setDate(1);
+        from.setHours(0, 0, 0, 0);
         break;
       case '1Y':
         from.setFullYear(from.getFullYear() - 1);
