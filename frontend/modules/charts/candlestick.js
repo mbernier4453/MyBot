@@ -669,6 +669,26 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
     modeBarButtonsToRemove: ['lasso2d', 'select2d'],
     displaylogo: false,
     scrollZoom: true,
+    editable: false,
+    edits: {
+      annotationPosition: false,
+      annotationTail: false,
+      annotationText: false,
+      axisTitleText: false,
+      colorbarPosition: false,
+      colorbarTitleText: false,
+      legendPosition: false,
+      legendText: false,
+      shapePosition: false,
+      titleText: false
+    },
+    toImageButtonOptions: {
+      format: 'png',
+      filename: 'chart',
+      height: 1080,
+      width: 1920,
+      scale: 2
+    },
     modeBarButtonsToAdd: [{
       name: 'Pan',
       icon: Plotly.Icons.pan,
@@ -680,6 +700,17 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
   
   // Set default drag mode to pan
   layout.dragmode = 'pan';
+  layout.modebar = {
+    ...layout.modebar,
+    remove: ['select2d', 'lasso2d']
+  };
+  // Make all annotations non-editable
+  if (layout.annotations) {
+    layout.annotations.forEach(ann => {
+      ann.editable = false;
+      ann.captureevents = false;
+    });
+  }
   
   // Choose trace based on chart type
   let mainTrace;
@@ -706,7 +737,24 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
   // Update volume trace hover
   volumeTrace.hovertemplate = 'Volume: %{y:,.0f}<extra></extra>';
   
-  Plotly.newPlot('candlestickChart', [mainTrace, volumeTrace], layout, config);
+  Plotly.newPlot('candlestickChart', [mainTrace, volumeTrace], layout, config).then(() => {
+    const chartDiv = document.getElementById('candlestickChart');
+    
+    // Completely disable annotation dragging
+    chartDiv._fullLayout._editing = false;
+    
+    // Also set pointer-events none on ALL annotations
+    setTimeout(() => {
+      const infoLayer = chartDiv.querySelector('.infolayer');
+      if (infoLayer) {
+        const annotations = infoLayer.querySelectorAll('g.annotation');
+        annotations.forEach(ann => {
+          ann.style.pointerEvents = 'none';
+          ann.style.cursor = 'default';
+        });
+      }
+    }, 100);
+  });
   
   // Custom hover positioning to top-left
   // Use requestAnimationFrame to continuously reposition while hovering

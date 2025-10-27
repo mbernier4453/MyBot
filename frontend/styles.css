@@ -2315,10 +2315,516 @@ textarea.form-input {
 .chart-main-area {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   overflow: hidden;
   width: 100%;
   height: 100%;
+  position: relative; /* For absolute positioned toolbar */
+}
+
+/* Drawing Toolbar */
+.drawing-toolbar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 200px;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease;
+  overflow: hidden;
+  flex-shrink: 0;
+  transform: translateX(-100%);
+  z-index: 200;
+}
+
+.drawing-toolbar.expanded {
+  transform: translateX(0);
+}
+
+.drawing-toolbar-header {
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--bg-tertiary);
+}
+
+.drawing-toolbar-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.drawing-toolbar-toggle {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  transition: color 0.2s;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drawing-toolbar-toggle:hover {
+  color: var(--text-primary);
+}
+
+.drawing-toolbar-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+}
+
+.drawing-tool-section {
+  margin-bottom: 16px;
+}
+
+.drawing-tool-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 8px;
+  margin-bottom: 4px;
+}
+
+.drawing-tool-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.drawing-tool-btn {
+  width: 100%;
+  height: 44px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.drawing-tool-btn:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--accent-blue);
+}
+
+.drawing-tool-btn.active {
+  background-color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.drawing-tool-btn .tool-icon {
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.drawing-tool-btn.active .tool-icon {
+  color: #ffffff;
+}
+
+/* Tooltip on hover */
+.drawing-tool-btn::after {
+  content: attr(title);
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: var(--bg-tooltip);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  margin-left: 8px;
+  transition: opacity 0.2s;
+  z-index: 1000;
+}
+
+.drawing-tool-btn:hover::after {
+  opacity: 1;
+}
+
+.drawing-tool-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.drawing-action-btn {
+  padding: 8px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.drawing-action-btn:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  border-color: var(--accent-blue);
+}
+
+.drawing-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.drawing-style-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.drawing-style-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drawing-style-control label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.drawing-style-control input[type="color"] {
+  width: 100%;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: var(--bg-tertiary);
+}
+
+.drawing-style-control input[type="range"] {
+  width: 100%;
+}
+
+.drawing-style-control span {
+  font-size: 11px;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+/* Chart tab contents wrapper */
+.chart-tab-contents {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Toolbar toggle button (floating) */
+.drawing-toolbar-toggle-btn {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 80px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  z-index: 150;
+  transition: all 0.2s;
+  opacity: 0.7;
+}
+
+.drawing-toolbar-toggle-btn:hover {
+  opacity: 1;
+  background-color: var(--bg-hover);
+  border-color: var(--accent-blue);
+}
+
+.drawing-toolbar.expanded ~ .drawing-toolbar-toggle-btn {
+  display: none;
+}
+
+/* Hide Plotly modebar */
+.modebar {
+  display: none !important;
+}
+
+/* Disable dragging on watermark annotation - target by text content */
+g.annotation-text-g text:has-text("Alpharhythm"),
+g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
+  pointer-events: none !important;
+}
+
+/* Alternative: disable all annotation dragging */
+.infolayer .annotation {
+  pointer-events: none !important;
+}
+
+/* Drawing Context Menu */
+.drawing-context-menu {
+  position: fixed;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+}
+
+.context-menu-section {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+}
+
+.context-menu-section:last-of-type {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.context-menu-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  padding: 0 4px;
+}
+
+.context-menu-colors {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.color-option {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.color-option:hover {
+  transform: scale(1.1);
+  border-color: var(--accent-blue);
+}
+
+.context-menu-widths,
+.context-menu-styles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.width-option,
+.style-option {
+  padding: 6px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  text-align: center;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-primary);
+}
+
+.width-option:hover,
+.style-option:hover {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 8px 0;
+}
+
+.context-menu-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.context-menu-item.danger {
+  color: #f44336;
+}
+
+.context-menu-item.danger:hover {
+  background: rgba(244, 67, 54, 0.1);
+}
+
+.drawing-context-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawing-context-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.drawing-context-menu-item.danger {
+  color: #f44336;
+}
+
+.drawing-context-menu-item input[type="color"] {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.drawing-context-menu-item input[type="number"] {
+  width: 50px;
+  padding: 2px 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+
+/* Text Input Modal */
+.text-input-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.text-input-modal-content {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 300px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.text-input-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.text-input-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.text-input-modal-close:hover {
+  color: var(--text-primary);
+}
+
+.text-input-field {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  margin-bottom: 15px;
+}
+
+.text-input-field:focus {
+  outline: none;
+  border-color: #2196F3;
+}
+
+.text-input-modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.text-input-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.text-input-cancel {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.text-input-cancel:hover {
+  background: var(--bg-hover);
+}
+
+.text-input-ok {
+  background: #2196F3;
+  color: white;
+}
+
+.text-input-ok:hover {
+  background: #1976D2;
 }
 
 /* Chart Header with Ticker Selector */
@@ -2787,6 +3293,15 @@ textarea.form-input {
   width: 100%;
   flex-shrink: 0; /* Prevent shrinking when content exceeds parent */
   min-height: 600px;
+}
+
+/* Override Plotly cursor when drawing */
+.chart-canvas.drawing-mode {
+  cursor: crosshair !important;
+}
+
+.chart-canvas.drawing-mode * {
+  cursor: crosshair !important;
 }
 
 .chart-loading,

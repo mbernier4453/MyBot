@@ -4,6 +4,7 @@
  */
 
 import tickerGroups from '../core/ticker-groups.js';
+import drawingTools from './drawing-tools.js';
 
 // =====================================================
 // CHART TAB SYSTEM
@@ -1115,7 +1116,7 @@ class ChartTab {
         showticklabels: false
       },
       margin: { l: 60, r: 40, t: 10, b: 80 },
-      hovermode: 'closest',
+      hovermode: 'x',
       hoverlabel: {
         bgcolor: 'rgba(26, 26, 26, 0.95)',
         bordercolor: '#444',
@@ -1131,17 +1132,11 @@ class ChartTab {
     
     const config = {
       responsive: true,
-      displayModeBar: true,
-      modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+      displayModeBar: false, // Hide the modebar completely
       displaylogo: false,
       scrollZoom: false, // Disable default scroll zoom, we'll handle it with Ctrl
-      modeBarButtonsToAdd: [{
-        name: 'Pan',
-        icon: Plotly.Icons.pan,
-        click: function(gd) {
-          Plotly.relayout(gd, 'dragmode', 'pan');
-        }
-      }]
+      editable: false,
+      staticPlot: false
     };
     
     let mainTrace;
@@ -1567,7 +1562,18 @@ class ChartTab {
     }
     layout.height = chartHeight;
     
-    Plotly.newPlot(chartCanvas, traces, layout, config);
+    // Return the promise so we can chain handlers
+    return Plotly.newPlot(chartCanvas, traces, layout, config).then(() => {
+      // Store reference for drawing tools
+      chartCanvas.plotlyChart = chartCanvas;
+      
+      // Initialize drawing tools mouse handlers after chart is ready
+      if (window.drawingTools) {
+        drawingTools.initializeChartMouseEvents();
+        drawingTools.enableShapeEditing(chartCanvas);
+        console.log('[CHART] Drawing tools initialized for chart with shape editing enabled');
+      }
+    });
     
     // Enable Ctrl+scroll zoom (zoom around mouse position) with improved performance
     let zoomTimeout = null;
@@ -2345,6 +2351,23 @@ function activateChartTab(tabId) {
     tab.tabElement.classList.toggle('active', isActive);
     tab.contentElement.classList.toggle('active', isActive);
   });
+  
+  // Redraw the active tab's chart after a short delay to fix sizing issues
+  // This ensures the canvas has the correct dimensions after tab switch
+  const activeTab = chartTabs.find(t => t.id === tabId);
+  if (activeTab && activeTab.chartData) {
+    setTimeout(() => {
+      activeTab.drawChart(activeTab.chartData).then(() => {
+        // Reinitialize mouse handlers for new chart after redraw
+        if (window.drawingTools) {
+          const chartCanvas = document.querySelector('.chart-tab-content.active .chart-canvas');
+          drawingTools.initializeChartMouseEvents();
+          drawingTools.enableShapeEditing(chartCanvas);
+          console.log('[CHART] Drawing tools reinitialized after tab switch with shape editing');
+        }
+      });
+    }, 10);
+  }
 }
 
 function closeChartTab(tabId) {
@@ -2383,6 +2406,23 @@ function initializeChartTabs() {
   chartNewTabBtn = document.getElementById('chartNewTabBtn');
   sidebarToggleBtn = document.getElementById('sidebarToggle');
   
+  // Initialize drawing toolbar
+  const toolbarContainer = document.getElementById('drawingToolbarContainer');
+  if (toolbarContainer) {
+    const toolbar = drawingTools.createToolbar();
+    toolbarContainer.appendChild(toolbar);
+    
+    // Don't initialize mouse handlers here - they'll be initialized after each chart is created
+  }
+  
+  // Setup toolbar toggle button
+  const toggleBtn = document.getElementById('drawingToolbarToggleBtn');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      drawingTools.expand();
+    });
+  }
+  
   // New tab button
   chartNewTabBtn?.addEventListener('click', () => {
     createChartTab();
@@ -2407,6 +2447,7 @@ export const ChartTabSystem = {
   closeTab: closeChartTab,
   getActiveTab: getActiveChartTab,
   getAllTabs: () => chartTabs,
+  drawingTools: drawingTools,
   ChartTab
 };
 
@@ -2415,6 +2456,7 @@ window.ChartTabSystem = ChartTabSystem;
 window.createChartTab = createChartTab;
 window.activateChartTab = activateChartTab;
 window.closeChartTab = closeChartTab;
+window.drawingTools = drawingTools;
 window.getActiveChartTab = getActiveChartTab;
 window.initializeChartTabs = initializeChartTabs;
 window.selectChartTicker = (ticker) => {
