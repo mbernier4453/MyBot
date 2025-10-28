@@ -253,6 +253,18 @@ class ChartTab {
       console.error('Add Overlay button not found in content');
     }
     
+    // Run Regression button
+    const runRegressionBtn = content.querySelector('.chart-run-regression-btn');
+    if (runRegressionBtn) {
+      runRegressionBtn.addEventListener('click', () => {
+        console.log('Run Regression button clicked');
+        this.runRegression();
+      });
+    }
+    
+    // Update regression button visibility
+    this.updateRegressionButtonVisibility();
+    
     // Add Indicator button
     const addIndicatorBtn = content.querySelector('.chart-add-indicator-btn');
     if (addIndicatorBtn) {
@@ -1910,6 +1922,9 @@ class ChartTab {
       if (this.chartData) {
         this.drawChart(this.chartData);
       }
+
+      // Update regression button visibility
+      this.updateRegressionButtonVisibility();
       
     } catch (error) {
       // Remove loading indicator
@@ -1919,6 +1934,9 @@ class ChartTab {
       if (this.overlays.length === 0) {
         overlaysList.style.display = 'none';
       }
+
+      // Update regression button visibility
+      this.updateRegressionButtonVisibility();
       
       alert(`Error adding overlay: ${error.message}`);
     }
@@ -1954,6 +1972,9 @@ class ChartTab {
     if (this.chartData) {
       this.drawChart(this.chartData);
     }
+
+    // Update regression button visibility
+    this.updateRegressionButtonVisibility();
   }
   
   getRandomColor() {
@@ -1963,6 +1984,349 @@ class ChartTab {
       '#ee5a6f', '#c44569', '#f368e0', '#ff9ff3', '#a29bfe'
     ];
     return colors[Math.floor(Math.random() * colors.length)];
+  }
+
+  updateRegressionButtonVisibility() {
+    const content = this.contentElement;
+    const runRegressionBtn = content.querySelector('.chart-run-regression-btn');
+    if (runRegressionBtn) {
+      if (this.overlays && this.overlays.length > 0) {
+        runRegressionBtn.style.display = 'block';
+      } else {
+        runRegressionBtn.style.display = 'none';
+      }
+    }
+  }
+
+  async runRegression() {
+    if (!this.chartData || !this.overlays || this.overlays.length === 0) {
+      alert('No overlay tickers available for regression analysis.');
+      return;
+    }
+
+    try {
+      const content = this.contentElement;
+      const runRegressionBtn = content.querySelector('.chart-run-regression-btn');
+      
+      // Show loading state
+      const originalText = runRegressionBtn.textContent;
+      runRegressionBtn.textContent = 'Running Regression...';
+      runRegressionBtn.disabled = true;
+      
+      const mainTicker = this.ticker;
+      
+      // Prepare main data from bars array
+      const mainData = {
+        timestamps: this.chartData.map(bar => bar.t),
+        closes: this.chartData.map(bar => bar.c)
+      };
+      
+      // Prepare overlay data with already loaded data
+      const overlayData = this.overlays.map(overlay => ({
+        ticker: overlay.ticker,
+        color: overlay.color,
+        timestamps: overlay.data.map(bar => bar.t),
+        closes: overlay.data.map(bar => bar.c)
+      }));
+
+      // Call backend for regression calculation
+      const result = await window.electronAPI.calculateRegression(mainTicker, mainData, overlayData);
+      
+      // Reset button state
+      runRegressionBtn.textContent = originalText;
+      runRegressionBtn.disabled = false;
+      
+      if (!result.success) {
+        alert(`Regression failed: ${result.error}`);
+        return;
+      }
+
+      // Display results
+      console.log('[REGRESSION] Result from backend:', result);
+      console.log('[REGRESSION] Number of results:', result.results?.length);
+      result.results?.forEach((r, idx) => {
+        console.log(`[REGRESSION] Result ${idx}:`, {
+          ticker: r.ticker,
+          beta: r.beta,
+          spreadLength: r.spread?.length,
+          spreadSample: r.spread?.slice(0, 5)
+        });
+      });
+      this.displayRegressionResults(result);
+      
+      // Scroll to regression results
+      setTimeout(() => {
+        const regressionSection = content.querySelector('.regression-results-section');
+        if (regressionSection) {
+          regressionSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+
+    } catch (error) {
+      console.error('Error running regression:', error);
+      alert('An error occurred during regression analysis.');
+      
+      // Reset button state on error
+      const content = this.contentElement;
+      const runRegressionBtn = content.querySelector('.chart-run-regression-btn');
+      if (runRegressionBtn) {
+        runRegressionBtn.textContent = 'Run Regression';
+        runRegressionBtn.disabled = false;
+      }
+    }
+  }
+
+  displayRegressionResults(result) {
+    const { mainTicker, results, dataPoints } = result;
+    const content = this.contentElement;
+    
+    console.log('[DISPLAY] Displaying regression results:', { mainTicker, resultCount: results?.length, dataPoints });
+    
+    // Remove any existing regression results
+    const existingResults = content.querySelector('.regression-results-section');
+    if (existingResults) {
+      existingResults.remove();
+    }
+    
+    // Generate unique IDs using tab ID
+    const tabId = this.id;
+    
+    // Create results section HTML
+    const resultsHtml = `
+      <div class="regression-results-section">
+        <div class="regression-header">
+          <h3>Regression Analysis: ${mainTicker} vs Overlays (${dataPoints} data points)</h3>
+        </div>
+        
+        <div class="regression-summary-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Beta (β)</th>
+                <th>Alpha (α)</th>
+                <th>R²</th>
+                <th>Correlation</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${results.map(r => `
+                <tr>
+                  <td style="color: ${r.color}; font-weight: bold;">${r.ticker}</td>
+                  <td>${r.beta.toFixed(4)}</td>
+                  <td>${r.alpha.toFixed(4)}</td>
+                  <td>${r.r_squared.toFixed(4)}</td>
+                  <td>${r.correlation.toFixed(4)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="regression-charts-grid">
+          ${results.map((r, idx) => `
+            <div class="regression-chart-wrapper">
+              <div class="regression-chart" id="regression-scatter-tab${tabId}-${idx}"></div>
+            </div>
+          `).join('')}
+        </div>
+        
+        <div class="spread-section">
+          <h3>Regression Residuals - ${mainTicker} vs Overlays</h3>
+          <p style="color: #999; font-size: 12px; margin: 5px 0 15px 0;">
+            Residual = Actual - Predicted = ${mainTicker} - (α + β × Overlay)
+          </p>
+          <div class="spread-charts-grid">
+            ${results.map((r, idx) => `
+              <div class="spread-chart-wrapper">
+                <div class="spread-chart" id="spread-chart-tab${tabId}-${idx}"></div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Find the chart canvas and insert results after it
+    const chartCanvas = content.querySelector('.chart-canvas');
+    chartCanvas.insertAdjacentHTML('afterend', resultsHtml);
+    
+    // Plot regression scatter charts with unique IDs
+    results.forEach((r, idx) => {
+      this.plotRegressionChart(`regression-scatter-tab${tabId}-${idx}`, mainTicker, r);
+      this.plotSpreadChart(`spread-chart-tab${tabId}-${idx}`, mainTicker, r);
+    });
+  }
+
+  plotRegressionChart(containerId, mainTicker, result) {
+    const { ticker, color, alpha, beta, x_data, y_data } = result;
+
+    // Calculate regression line points
+    const xMin = Math.min(...x_data);
+    const xMax = Math.max(...x_data);
+    const yMin = alpha + beta * xMin;
+    const yMax = alpha + beta * xMax;
+
+    // Darken the color for regression line
+    const darkerColor = this.darkenColor(color, 0.4);
+
+    const scatterTrace = {
+      x: x_data,
+      y: y_data,
+      mode: 'markers',
+      type: 'scatter',
+      name: 'Data Points',
+      marker: {
+        color: color,
+        size: 4,
+        opacity: 0.5
+      }
+    };
+
+    const regressionTrace = {
+      x: [xMin, xMax],
+      y: [yMin, yMax],
+      mode: 'lines',
+      type: 'scatter',
+      name: `β = ${beta.toFixed(4)}`,
+      line: {
+        color: darkerColor,
+        width: 3
+      }
+    };
+
+    const layout = {
+      title: `${mainTicker} vs ${ticker} (β=${beta.toFixed(4)}, R²=${result.r_squared.toFixed(4)})`,
+      xaxis: {
+        title: `${ticker} Price`,
+        gridcolor: '#2a2a2a',
+        zerolinecolor: '#444'
+      },
+      yaxis: {
+        title: `${mainTicker} Price`,
+        gridcolor: '#2a2a2a',
+        zerolinecolor: '#444'
+      },
+      plot_bgcolor: '#1a1a1a',
+      paper_bgcolor: '#1a1a1a',
+      font: { color: '#e0e0e0', size: 11 },
+      showlegend: true,
+      legend: {
+        x: 0.02,
+        y: 0.98,
+        bgcolor: 'rgba(26, 26, 26, 0.8)',
+        bordercolor: '#444',
+        borderwidth: 1
+      },
+      margin: { l: 60, r: 20, t: 40, b: 60 }
+    };
+
+    const config = {
+      responsive: true,
+      displayModeBar: false,
+      displaylogo: false
+    };
+
+    window.Plotly.newPlot(containerId, [scatterTrace, regressionTrace], layout, config);
+  }
+
+  plotSpreadChart(containerId, mainTicker, result) {
+    const { ticker, color, alpha, beta, spread, timestamps } = result;
+    
+    if (!spread || !timestamps || spread.length === 0) {
+      console.error('[SPREAD CHART] Missing or empty spread/timestamps data for', ticker);
+      return;
+    }
+    
+    // Convert timestamps to dates (timestamps are already in milliseconds from Python)
+    const dates = timestamps.map(ts => new Date(ts));
+    
+    // Calculate spread statistics for y-axis range
+    const maxSpread = Math.max(...spread);
+    const minSpread = Math.min(...spread);
+    const spreadRange = maxSpread - minSpread;
+    const yPadding = spreadRange * 0.1; // 10% padding
+    
+    const spreadTrace = {
+      x: dates,
+      y: spread,
+      mode: 'lines',
+      type: 'scatter',
+      name: `Residual`,
+      line: {
+        color: color,
+        width: 2
+      }
+    };
+    
+    // Add zero line
+    const zeroLine = {
+      x: [dates[0], dates[dates.length - 1]],
+      y: [0, 0],
+      mode: 'lines',
+      type: 'scatter',
+      name: 'Zero',
+      line: {
+        color: '#ff6b6b',
+        width: 2,
+        dash: 'dash'
+      },
+      showlegend: false
+    };
+    
+    const layout = {
+      title: `Residual: ${mainTicker} - (${alpha.toFixed(2)} + ${beta.toFixed(4)} × ${ticker})`,
+      xaxis: {
+        title: 'Date',
+        gridcolor: '#2a2a2a',
+        zerolinecolor: '#444',
+        type: 'date'
+      },
+      yaxis: {
+        title: 'Residual ($)',
+        gridcolor: '#2a2a2a',
+        zerolinecolor: '#ff6b6b',
+        zeroline: true,
+        zerolinewidth: 2,
+        range: [minSpread - yPadding, maxSpread + yPadding]
+      },
+      plot_bgcolor: '#1a1a1a',
+      paper_bgcolor: '#1a1a1a',
+      font: { color: '#e0e0e0', size: 11 },
+      showlegend: true,
+      legend: {
+        x: 0.02,
+        y: 0.98,
+        bgcolor: 'rgba(26, 26, 26, 0.8)',
+        bordercolor: '#444',
+        borderwidth: 1
+      },
+      margin: { l: 60, r: 20, t: 40, b: 60 }
+    };
+    
+    const config = {
+      responsive: true,
+      displayModeBar: false,
+      displaylogo: false
+    };
+    
+    window.Plotly.newPlot(containerId, [spreadTrace, zeroLine], layout, config);
+  }
+
+  darkenColor(color, factor) {
+    // Convert hex to RGB
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+
+    // Darken
+    const newR = Math.floor(r * (1 - factor));
+    const newG = Math.floor(g * (1 - factor));
+    const newB = Math.floor(b * (1 - factor));
+
+    // Convert back to hex
+    return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
   }
   
   showIndicatorDialog() {

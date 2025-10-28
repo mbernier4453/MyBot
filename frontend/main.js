@@ -1678,14 +1678,85 @@ ipcMain.handle('calculate-capm', async (event, strategyEquity, benchmarkEquity) 
           }
         }
       });
+    });
+  } catch (error) {
+    console.error('[BACKEND] Error in calculate-capm:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Calculate regression analysis
+ipcMain.handle('calculate-regression', async (event, mainTicker, mainData, overlayData) => {
+  console.log('[BACKEND] calculate-regression called for', mainTicker);
+  console.log('[BACKEND] Main data points:', mainData.timestamps?.length || 0);
+  console.log('[BACKEND] Overlay data:', overlayData.map(o => `${o.ticker}: ${o.timestamps?.length || 0} points`));
+  
+  try {
+    const { spawn } = require('child_process');
+    const pythonPath = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
+    const scriptPath = path.join(__dirname, '..', 'backend', 'regression.py');
+    
+    console.log('[BACKEND] Python path:', pythonPath);
+    console.log('[BACKEND] Script path:', scriptPath);
+    console.log('[BACKEND] Python exists:', fs.existsSync(pythonPath));
+    console.log('[BACKEND] Script exists:', fs.existsSync(scriptPath));
+    
+    return new Promise((resolve, reject) => {
+      const python = spawn(pythonPath, [scriptPath]);
+      
+      let stdout = '';
+      let stderr = '';
+      
+      // Send data as JSON to Python stdin
+      const inputData = {
+        mainTicker: mainTicker,
+        mainData: mainData,
+        overlayData: overlayData
+      };
+      console.log('[BACKEND] Sending to Python:', JSON.stringify(inputData).substring(0, 200) + '...');
+      python.stdin.write(JSON.stringify(inputData));
+      python.stdin.end();
+      
+      python.stdout.on('data', (data) => {
+        const chunk = data.toString();
+        console.log('[BACKEND] Python stdout:', chunk);
+        stdout += chunk;
+      });
+      
+      python.stderr.on('data', (data) => {
+        const chunk = data.toString();
+        console.error('[BACKEND] Python stderr:', chunk);
+        stderr += chunk;
+      });
+      
+      python.on('close', (code) => {
+        console.log('[BACKEND] Python process closed with code:', code);
+        console.log('[BACKEND] Full stdout:', stdout);
+        console.log('[BACKEND] Full stderr:', stderr);
+        
+        if (code !== 0) {
+          console.error('[BACKEND] Regression calculation failed with code', code);
+          resolve({ success: false, error: stderr || `Process exited with code ${code}` });
+        } else {
+          try {
+            const result = JSON.parse(stdout);
+            console.log('[BACKEND] Regression result:', result);
+            resolve(result);
+          } catch (e) {
+            console.error('[BACKEND] Failed to parse regression result:', e);
+            console.error('[BACKEND] Raw output was:', stdout);
+            resolve({ success: false, error: `Failed to parse result: ${e.message}` });
+          }
+        }
+      });
       
       python.on('error', (err) => {
-        console.error('[BACKEND] Failed to spawn Python process:', err);
+        console.error('[BACKEND] Failed to spawn Python process for regression:', err);
         resolve({ success: false, error: err.message });
       });
     });
   } catch (error) {
-    console.error('[BACKEND] Error in calculate-capm:', error);
+    console.error('[BACKEND] Error in calculate-regression:', error);
     return { success: false, error: error.message };
   }
 });

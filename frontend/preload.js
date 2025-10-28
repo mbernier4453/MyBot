@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getComparisonData: (runIds) => ipcRenderer.invoke('get-comparison-data', runIds),
   getStrategyDetails: (strategyId) => ipcRenderer.invoke('get-strategy-details', strategyId),
   calculateCapm: (strategyEquity, benchmarkEquity) => ipcRenderer.invoke('calculate-capm', strategyEquity, benchmarkEquity),
+  calculateRegression: (mainTicker, mainData, overlayData) => ipcRenderer.invoke('calculate-regression', mainTicker, mainData, overlayData),
   deleteRun: (runId) => ipcRenderer.invoke('delete-run', runId),
   
   // Favorites
