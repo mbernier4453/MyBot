@@ -270,6 +270,14 @@ class ChartTab {
     // Update regression button visibility
     this.updateRegressionButtonVisibility();
     
+    // Export button
+    const exportBtn = content.querySelector('.chart-export-btn');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        this.showExportDialog();
+      });
+    }
+    
     // Add Indicator button
     const addIndicatorBtn = content.querySelector('.chart-add-indicator-btn');
     if (addIndicatorBtn) {
@@ -2149,6 +2157,203 @@ class ChartTab {
         runRegressionBtn.textContent = 'Run Regression';
         runRegressionBtn.disabled = false;
       }
+    }
+  }
+
+  showExportDialog() {
+    if (!this.chartData) {
+      alert('No chart data available to export.');
+      return;
+    }
+
+    const modal = document.getElementById('exportModal');
+    if (!modal) {
+      console.error('Export modal not found');
+      return;
+    }
+
+    // Show modal
+    modal.style.display = 'flex';
+
+    // Get buttons
+    const pngBtn = document.getElementById('exportPngBtn');
+    const csvBtn = document.getElementById('exportCsvBtn');
+
+    // Remove any existing listeners
+    const newPngBtn = pngBtn.cloneNode(true);
+    const newCsvBtn = csvBtn.cloneNode(true);
+    pngBtn.parentNode.replaceChild(newPngBtn, pngBtn);
+    csvBtn.parentNode.replaceChild(newCsvBtn, csvBtn);
+
+    // Add click handlers
+    newPngBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+      this.exportAsPNG();
+    });
+
+    newCsvBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+      this.exportAsCSV();
+    });
+  }
+
+  exportAsPNG() {
+    const content = this.contentElement;
+    const chartCanvas = content.querySelector('.chart-canvas');
+    
+    if (!chartCanvas) {
+      alert('Chart not found.');
+      return;
+    }
+
+    // Find the Plotly div - it's the chartCanvas itself
+    if (chartCanvas && typeof Plotly !== 'undefined') {
+      Plotly.downloadImage(chartCanvas, {
+        format: 'png',
+        width: 1920,
+        height: 1080,
+        filename: `${this.ticker}_chart_${new Date().toISOString().split('T')[0]}`
+      }).catch(err => {
+        console.error('PNG export error:', err);
+        alert('Failed to export chart as PNG.');
+      });
+    } else {
+      alert('Chart not ready for export.');
+    }
+  }
+
+  exportAsCSV() {
+    try {
+      const rows = [];
+      
+      // Build header row
+      const headers = ['Date', 'Time'];
+      
+      // Main ticker columns
+      headers.push(
+        `${this.ticker}_Open`,
+        `${this.ticker}_High`,
+        `${this.ticker}_Low`,
+        `${this.ticker}_Close`,
+        `${this.ticker}_Volume`
+      );
+      
+      // Overlay ticker columns
+      this.overlays.forEach(overlay => {
+        headers.push(
+          `${overlay.ticker}_Open`,
+          `${overlay.ticker}_High`,
+          `${overlay.ticker}_Low`,
+          `${overlay.ticker}_Close`,
+          `${overlay.ticker}_Volume`
+        );
+      });
+      
+      // Indicator columns
+      this.indicators.forEach(ind => {
+        const paramStr = Object.values(ind.params || {}).join(',');
+        const indicatorName = `${ind.type}(${paramStr})`;
+        
+        // Main ticker indicator
+        headers.push(`${this.ticker}_${indicatorName}`);
+        
+        // Overlay indicators
+        this.overlays.forEach(overlay => {
+          headers.push(`${overlay.ticker}_${indicatorName}`);
+        });
+      });
+      
+      rows.push(headers);
+      
+      // Build data rows
+      for (let i = 0; i < this.chartData.length; i++) {
+        const bar = this.chartData[i];
+        const date = new Date(bar.t);
+        const row = [
+          date.toISOString().split('T')[0],
+          date.toTimeString().split(' ')[0]
+        ];
+        
+        // Main ticker data
+        row.push(bar.o, bar.h, bar.l, bar.c, bar.v);
+        
+        // Overlay data
+        this.overlays.forEach(overlay => {
+          const overlayBar = overlay.data[i];
+          if (overlayBar) {
+            row.push(overlayBar.o, overlayBar.h, overlayBar.l, overlayBar.c, overlayBar.v);
+          } else {
+            row.push('', '', '', '', '');
+          }
+        });
+        
+        // Indicator data
+        this.indicators.forEach(ind => {
+          // Calculate indicator for main ticker
+          const mainValue = this.calculateIndicatorValue(ind, this.chartData, i);
+          row.push(mainValue !== null ? mainValue : '');
+          
+          // Calculate indicator for overlays
+          this.overlays.forEach(overlay => {
+            const overlayValue = this.calculateIndicatorValue(ind, overlay.data, i);
+            row.push(overlayValue !== null ? overlayValue : '');
+          });
+        });
+        
+        rows.push(row);
+      }
+      
+      // Convert to CSV string
+      const csvContent = rows.map(row => row.join(',')).join('\n');
+      
+      // Download file
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${this.ticker}_chart_data_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      console.log(`Exported ${rows.length - 1} rows of data to CSV`);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      alert('Failed to export CSV: ' + error.message);
+    }
+  }
+
+  calculateIndicatorValue(indicator, data, index) {
+    // Simple calculation for common indicators
+    // For more complex indicators, this would need to be expanded
+    const { type, params } = indicator;
+    
+    if (index < 0 || index >= data.length) return null;
+    
+    switch (type) {
+      case 'SMA':
+      case 'EMA': {
+        const period = params.period || 20;
+        if (index < period - 1) return null;
+        
+        let sum = 0;
+        for (let i = 0; i < period; i++) {
+          sum += data[index - i].c;
+        }
+        return (sum / period).toFixed(2);
+      }
+      case 'RSI': {
+        const period = params.period || 14;
+        if (index < period) return null;
+        // Simplified RSI calculation would go here
+        return null;
+      }
+      case 'VWAP': {
+        return ((data[index].h + data[index].l + data[index].c) / 3).toFixed(2);
+      }
+      default:
+        return null;
     }
   }
 

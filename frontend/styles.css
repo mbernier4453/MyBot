@@ -3124,6 +3124,31 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
   opacity: 0.7;
 }
 
+/* Export button - same style as overlay button */
+.chart-export-btn {
+  padding: 8px 16px;
+  background-color: var(--accent-blue);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.chart-export-btn:hover {
+  background-color: #3a8eef;
+  box-shadow: 0 4px 8px rgba(74, 158, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.chart-export-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
 /* Indicator button - same style as overlay button */
 .chart-add-indicator-btn {
   padding: 8px 16px;
