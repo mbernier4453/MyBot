@@ -2,6 +2,9 @@
  * RSI Dashboard Module
  * RSI analysis and basket screening functionality
  */
+
+import tickerGroups from '../core/ticker-groups.js';
+
 // ========================================
 // RSI Dashboard Functions
 // ========================================
@@ -194,9 +197,13 @@ function initializeRSIDashboard() {
   const sourceSelect = document.getElementById('rsiSourceSelect');
   const watchlistGroup = document.getElementById('rsiWatchlistGroup');
   const tickerGroup = document.getElementById('rsiTickerGroup');
+  const groupSelectGroup = document.getElementById('rsiGroupSelectGroup');
   const watchlistSelect = document.getElementById('rsiWatchlistSelect');
+  const groupSelect = document.getElementById('rsiGroupSelect');
   const refreshBtn = document.getElementById('rsiRefreshBtn');
-  const tickerBtn = document.getElementById('rsiTickerBtn');
+  const tickerInput = document.getElementById('rsiTickerInput');
+
+  let currentGroupSubscription = null;
 
   // Populate watchlist dropdown
   const watchlists = JSON.parse(localStorage.getItem('watchlists')) || [];
@@ -208,15 +215,59 @@ function initializeRSIDashboard() {
     watchlistSelect.appendChild(option);
   });
 
+  // Subscribe to group ticker changes
+  function subscribeToGroup(group, loadExisting = false) {
+    // Unsubscribe from previous group
+    if (currentGroupSubscription) {
+      tickerGroups.unsubscribe(currentGroupSubscription.group, currentGroupSubscription.callback);
+    }
+
+    if (group && group !== 'None') {
+      const callback = (ticker) => {
+        // Only load if in single ticker mode and ticker changed
+        if (ticker && sourceSelect.value === 'single' && tickerInput.value !== ticker) {
+          console.log(`[RSI] Group ${group} changed to ticker ${ticker}`);
+          tickerInput.value = ticker;
+          loadRSISingleTicker(ticker, group);
+        }
+      };
+      
+      tickerGroups.subscribe(group, callback);
+      currentGroupSubscription = { group, callback };
+      
+      // Only load existing ticker if explicitly requested
+      if (loadExisting) {
+        const existingTicker = tickerGroups.getGroupTicker(group);
+        if (existingTicker && existingTicker !== tickerInput.value) {
+          console.log(`[RSI] Loading existing ticker ${existingTicker} from group ${group}`);
+          tickerInput.value = existingTicker;
+          loadRSISingleTicker(existingTicker, group);
+        }
+      }
+    } else {
+      currentGroupSubscription = null;
+    }
+  }
+
   // Toggle between watchlist and single ticker mode
   sourceSelect.addEventListener('change', () => {
     if (sourceSelect.value === 'watchlist') {
       watchlistGroup.style.display = 'flex';
       tickerGroup.style.display = 'none';
+      groupSelectGroup.style.display = 'none';
     } else {
       watchlistGroup.style.display = 'none';
       tickerGroup.style.display = 'flex';
+      groupSelectGroup.style.display = 'flex';
+      // Subscribe to current group when switching to single ticker mode (but don't auto-load)
+      subscribeToGroup(groupSelect.value, false);
     }
+  });
+
+  // Group selection change
+  groupSelect.addEventListener('change', () => {
+    // When user changes group, load the ticker if it exists
+    subscribeToGroup(groupSelect.value, true);
   });
 
   // Load watchlist data
@@ -233,23 +284,20 @@ function initializeRSIDashboard() {
     } else if (sourceSelect.value === 'single') {
       const ticker = document.getElementById('rsiTickerInput').value.trim().toUpperCase();
       if (ticker) {
-        loadRSISingleTicker(ticker);
+        const group = groupSelect.value;
+        loadRSISingleTicker(ticker, group);
       }
-    }
-  });
-
-  // Single ticker load button
-  tickerBtn.addEventListener('click', () => {
-    const ticker = document.getElementById('rsiTickerInput').value.trim().toUpperCase();
-    if (ticker) {
-      loadRSISingleTicker(ticker);
     }
   });
 
   // Enter key for ticker input
   document.getElementById('rsiTickerInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
-      tickerBtn.click();
+      const ticker = document.getElementById('rsiTickerInput').value.trim().toUpperCase();
+      if (ticker) {
+        const group = groupSelect.value;
+        loadRSISingleTicker(ticker, group);
+      }
     }
   });
 
@@ -266,7 +314,8 @@ function initializeRSIDashboard() {
     } else if (sourceSelect.value === 'single') {
       const ticker = document.getElementById('rsiTickerInput').value.trim().toUpperCase();
       if (ticker) {
-        await loadRSISingleTicker(ticker);
+        const group = document.getElementById('rsiGroupSelect')?.value || 'None';
+        await loadRSISingleTicker(ticker, group);
       }
     }
     
@@ -404,9 +453,20 @@ async function loadRSIWatchlistData(watchlistName) {
   document.getElementById('rsiBasketCount').textContent = `${rsiBasketData.length} symbols`;
 }
 
+// Track loading state to prevent duplicate requests
+let currentLoadingTicker = null;
+
 // Load RSI data for a single ticker
-async function loadRSISingleTicker(ticker) {
-  console.log('Loading RSI data for single ticker:', ticker);
+async function loadRSISingleTicker(ticker, group = 'None') {
+  console.log('Loading RSI data for single ticker:', ticker, 'Group:', group);
+  
+  // Prevent duplicate concurrent loads
+  if (currentLoadingTicker === ticker) {
+    console.log(`[RSI] Already loading ${ticker}, skipping duplicate request`);
+    return;
+  }
+  
+  currentLoadingTicker = ticker;
   
   // Get selected RSI period
   const rsiPeriodSelect = document.getElementById('rsiPeriod');
@@ -438,11 +498,18 @@ async function loadRSISingleTicker(ticker) {
         
         rsiBasketData = [{
           ticker,
+          group,  // Store the group with the ticker
           rsi: currentRSI,
           data: data,
           rsiValues: rsiValues,
           bollingerStatus: bollingerStatus
         }];
+        
+        // Set the ticker in the group so it syncs to other tabs
+        if (group && group !== 'None') {
+          tickerGroups.setGroupTicker(group, ticker);
+          console.log(`[RSI] Set ticker ${ticker} for group ${group}`);
+        }
         
         updateRSIHeaders();
         renderRSIBasketTable();
@@ -451,6 +518,9 @@ async function loadRSISingleTicker(ticker) {
     }
   } catch (error) {
     console.error(`Error fetching RSI for ${ticker}:`, error);
+  } finally {
+    // Clear loading state
+    currentLoadingTicker = null;
   }
 }
 

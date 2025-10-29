@@ -3653,19 +3653,21 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 
 .rsi-controls {
   display: flex;
-  gap: 15px;
+  gap: 10px;
   align-items: flex-end;
   padding: 15px;
   background: var(--card-bg);
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
 
 .rsi-controls .control-group {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  flex-shrink: 0;
 }
 
 .rsi-controls .control-group label {
@@ -3675,13 +3677,14 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 }
 
 .rsi-controls .form-input {
-  padding: 8px 12px;
+  padding: 8px 10px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
-  min-width: 180px;
+  min-width: 120px;
+  flex-shrink: 0;
 }
 
 .rsi-controls .btn {
@@ -3720,6 +3723,49 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
   border-radius: 50%;
   cursor: pointer;
   border: none;
+}
+
+/* RSI Group badge styling to match chart page */
+.rsi-group-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.rsi-group-badge label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.rsi-group-select {
+  padding: 4px 8px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--accent-blue);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  min-width: 50px;
+  transition: all 0.2s;
+}
+
+.rsi-group-select:hover {
+  border-color: var(--accent-blue);
+  background-color: var(--bg-tertiary);
+}
+
+.rsi-group-select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.1);
 }
 
 .rsi-dashboard-grid {
