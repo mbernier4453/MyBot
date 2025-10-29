@@ -37,6 +37,11 @@ class ChartTab {
     this.overlays = []; // Array to store overlay tickers
     this.indicators = []; // Array to store indicators {type, params, id}
     
+    // Custom colors for this chart tab (null = use theme colors)
+    this.customUpColor = null;
+    this.customDownColor = null;
+    this.customLineColor = null;
+    
     // Create tab element
     this.tabElement = this.createTabElement();
     
@@ -291,6 +296,56 @@ class ChartTab {
     
     // Ticker selector dropdown
     this.initializeTickerSelector();
+    
+    // Main ticker color inputs
+    const mainUpColorInput = content.querySelector('.main-up-color-input');
+    const mainDownColorInput = content.querySelector('.main-down-color-input');
+    const mainLineColorInput = content.querySelector('.main-line-color-input');
+    
+    // Function to update color picker values with current theme colors
+    const updateColorPickers = () => {
+      if (mainUpColorInput && !this.customUpColor) {
+        mainUpColorInput.value = window.getPositiveColor();
+      }
+      if (mainDownColorInput && !this.customDownColor) {
+        mainDownColorInput.value = window.getNegativeColor();
+      }
+      if (mainLineColorInput && !this.customLineColor) {
+        mainLineColorInput.value = '#4a9eff';
+      }
+    };
+    
+    // Initialize immediately
+    updateColorPickers();
+    
+    // Also update after a short delay to catch CSS variables after they're loaded
+    setTimeout(updateColorPickers, 100);
+    
+    // Add event listeners
+    if (mainUpColorInput) {
+      mainUpColorInput.addEventListener('change', (e) => {
+        this.customUpColor = e.target.value;
+        if (this.chartData) {
+          this.drawChart(this.chartData);
+        }
+      });
+    }
+    if (mainDownColorInput) {
+      mainDownColorInput.addEventListener('change', (e) => {
+        this.customDownColor = e.target.value;
+        if (this.chartData) {
+          this.drawChart(this.chartData);
+        }
+      });
+    }
+    if (mainLineColorInput) {
+      mainLineColorInput.addEventListener('change', (e) => {
+        this.customLineColor = e.target.value;
+        if (this.chartData) {
+          this.drawChart(this.chartData);
+        }
+      });
+    }
   }
   
   initializeTickerSelector() {
@@ -592,6 +647,29 @@ class ChartTab {
     }
   }
   
+  updateCandlePercentage(bars) {
+    if (!bars || bars.length === 0) return;
+    
+    const content = this.contentElement;
+    const candleChangeEl = content.querySelector('.chart-candle-change');
+    if (!candleChangeEl) return;
+    
+    // Calculate percentage from first to last candle
+    const firstClose = bars[0].c;
+    const lastClose = bars[bars.length - 1].c;
+    const changePercent = ((lastClose - firstClose) / firstClose) * 100;
+    
+    // Update display
+    candleChangeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+    if (changePercent >= 0) {
+      candleChangeEl.style.backgroundColor = '#00aa55';
+      candleChangeEl.style.color = 'white';
+    } else {
+      candleChangeEl.style.backgroundColor = '#ff4444';
+      candleChangeEl.style.color = 'white';
+    }
+  }
+  
   async loadChart(retryCount = 0) {
     if (!this.ticker) return;
     
@@ -760,11 +838,6 @@ class ChartTab {
       
       // Clear existing overlays
       this.overlays = [];
-      const content = this.contentElement;
-      const overlaysContainer = content.querySelector('.chart-overlays-container');
-      const overlaysList = content.querySelector('.chart-overlays-list');
-      overlaysContainer.innerHTML = '';
-      overlaysList.style.display = 'none';
       
       // Reload each overlay with new settings
       for (const ticker of overlayTickers) {
@@ -1015,9 +1088,9 @@ class ChartTab {
     // Check if normalization produced null values (e.g., z-score with insufficient data)
     const hasNulls = normalizedClose.some(v => v === null);
     
-    // Get theme colors for base candlestick
-    const positiveColor = getPositiveColor();
-    const negativeColor = getNegativeColor();
+    // Get colors - use custom colors if set, otherwise use theme colors
+    const positiveColor = this.customUpColor || window.getPositiveColor();
+    const negativeColor = this.customDownColor || window.getNegativeColor();
     
     const candlestickTrace = {
       type: 'candlestick',
@@ -1154,13 +1227,16 @@ class ChartTab {
         return '%{x}<br>Value: %{y:.2f}<extra></extra>';
       };
       
+      // Use custom line color if set, otherwise default blue
+      const lineColor = this.customLineColor || '#4a9eff';
+      
       mainTrace = {
         type: 'scatter',
         mode: 'lines',
         x: dates,
         y: normalizedClose,
         name: this.ticker,
-        line: { color: '#4a9eff', width: 2 },
+        line: { color: lineColor, width: 2 },
         xaxis: 'x',
         yaxis: 'y',
         hovertemplate: getHoverTemplate()
@@ -1174,24 +1250,16 @@ class ChartTab {
     
     // Add overlay traces
     if (this.overlays && this.overlays.length > 0) {
-      // Show legend if we have overlays
-      layout.showlegend = true;
-      layout.legend = {
-        x: 0,
-        y: 1,
-        bgcolor: 'rgba(26, 26, 26, 0.8)',
-        bordercolor: '#444',
-        borderwidth: 1,
-        font: { color: '#e0e0e0', size: 11 }
-      };
+      // Hide Plotly legend - we use custom legend instead
+      layout.showlegend = false;
       
-      // Add name to main trace for legend
+      // Add name to main trace for hover
       if (this.chartType === 'line') {
         mainTrace.name = this.ticker;
-        mainTrace.showlegend = true;
+        mainTrace.showlegend = false;
       } else {
         mainTrace.name = this.ticker;
-        mainTrace.showlegend = true;
+        mainTrace.showlegend = false;
       }
       
       // Add each overlay with the same chart type as main
@@ -1237,23 +1305,14 @@ class ChartTab {
             x: overlayDates,
             y: normalizedOverlayClose,
             name: overlay.ticker,
-            line: { color: overlay.color, width: 2 },
+            line: { color: overlay.lineColor, width: 2 },
             xaxis: 'x',
             yaxis: 'y',
             hovertemplate: getOverlayHoverTemplate(),
-            showlegend: true
+            showlegend: false
           };
         } else {
-          // Candlestick chart - lighten colors progressively
-          // Each overlay gets progressively lighter green/red based on theme colors
-          const lightenFactor = (overlayIndex + 1) * 0.25; // 25%, 50%, 75%, etc. (more visible)
-          
-          // Get theme colors and lighten them
-          const basePositiveColor = getPositiveColor();
-          const baseNegativeColor = getNegativeColor();
-          const increasingColor = lightenColor(basePositiveColor, lightenFactor);
-          const decreasingColor = lightenColor(baseNegativeColor, lightenFactor);
-          
+          // Candlestick chart - use the stored up/down colors
           overlayTrace = {
             type: 'candlestick',
             x: overlayDates,
@@ -1263,12 +1322,12 @@ class ChartTab {
             close: normalizedOverlayClose,
             name: overlay.ticker,
             increasing: { 
-              line: { color: increasingColor, width: 1 },
-              fillcolor: increasingColor
+              line: { color: overlay.upColor, width: 1 },
+              fillcolor: overlay.upColor
             },
             decreasing: { 
-              line: { color: decreasingColor, width: 1 },
-              fillcolor: decreasingColor
+              line: { color: overlay.downColor, width: 1 },
+              fillcolor: overlay.downColor
             },
             xaxis: 'x',
             yaxis: 'y',
@@ -1288,7 +1347,7 @@ class ChartTab {
                 return `${overlay.ticker}<br>${date}<br>O: ${formatValue(normalizedOverlayOpen[i])}<br>H: ${formatValue(normalizedOverlayHigh[i])}<br>L: ${formatValue(normalizedOverlayLow[i])}<br>C: ${formatValue(normalizedOverlayClose[i])}`;
               }
             }),
-            showlegend: true
+            showlegend: false
           };
         }
         
@@ -1310,7 +1369,7 @@ class ChartTab {
             ticker: overlay.ticker,
             bars: overlay.data,
             isMain: false,
-            color: overlay.color
+            color: overlay.lineColor  // Use line color for indicator inheritance
           });
         });
       }
@@ -1336,8 +1395,17 @@ class ChartTab {
           const dates = source.bars.map(b => formatDate(b.t));
           const baseColor = indicator.color || '#9b59b6'; // Use indicator's saved color
           
-          // Use overlay color for overlays, indicator color for main
-          const color = source.isMain ? baseColor : source.color;
+          // Use overlay-specific color if set, otherwise fall back to overlay's line color or indicator color
+          let color;
+          if (source.isMain) {
+            color = baseColor;
+          } else {
+            // Check for overlay-specific indicator color
+            color = (indicator.overlayColors && indicator.overlayColors[source.ticker]) 
+                    ? indicator.overlayColors[source.ticker] 
+                    : source.color;
+          }
+          
           const tickerLabel = source.isMain ? '' : ` (${source.ticker})`;
           const opacity = source.isMain ? 1.0 : 0.6;
           
@@ -1568,6 +1636,9 @@ class ChartTab {
     
     // Return the promise so we can chain handlers
     return Plotly.newPlot(chartCanvas, traces, layout, config).then(() => {
+      // Update candle percentage display
+      this.updateCandlePercentage(bars);
+      
       // Store reference for drawing tools
       chartCanvas.plotlyChart = chartCanvas;
       
@@ -1589,38 +1660,76 @@ class ChartTab {
         
         let html = '';
         
-        // Always show main OHLC first
+        // Get main ticker color (from candlestick)
+        const mainColor = close[xIndex] >= open[xIndex] ? getPositiveColor() : getNegativeColor();
+        
+        // Always show main OHLC first with color indicator
         traces.forEach((trace, idx) => {
           if (trace.type === 'candlestick' && trace.name === this.ticker) {
-            html += `<div style="font-weight: bold; margin-bottom: 4px;">${trace.name}</div>`;
+            html += `<div style="display: flex; align-items: center; margin-bottom: 4px;">
+              <div style="width: 12px; height: 12px; background: ${mainColor}; border-radius: 2px; margin-right: 6px;"></div>
+              <span style="font-weight: bold;">${trace.name}</span>
+            </div>`;
             if (trace.open && trace.open[xIndex] !== undefined) {
-              html += `<div>O: $${trace.open[xIndex].toFixed(2)}</div>`;
-              html += `<div>H: $${trace.high[xIndex].toFixed(2)}</div>`;
-              html += `<div>L: $${trace.low[xIndex].toFixed(2)}</div>`;
-              html += `<div>C: $${trace.close[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">O: $${trace.open[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">H: $${trace.high[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">L: $${trace.low[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">C: $${trace.close[xIndex].toFixed(2)}</div>`;
             }
           }
         });
         
-        // Show overlay stocks OHLC
-        traces.forEach((trace, idx) => {
-          if (trace.type === 'candlestick' && trace.name !== this.ticker) {
-            html += `<div style="font-weight: bold; margin-top: 8px; margin-bottom: 4px;">${trace.name}</div>`;
-            if (trace.open && trace.open[xIndex] !== undefined) {
-              html += `<div>O: $${trace.open[xIndex].toFixed(2)}</div>`;
-              html += `<div>H: $${trace.high[xIndex].toFixed(2)}</div>`;
-              html += `<div>L: $${trace.low[xIndex].toFixed(2)}</div>`;
-              html += `<div>C: $${trace.close[xIndex].toFixed(2)}</div>`;
+        // Show overlay stocks OHLC with their colors
+        if (this.overlays && this.overlays.length > 0) {
+          this.overlays.forEach(overlay => {
+            const overlayTrace = traces.find(t => t.type === 'candlestick' && t.name === overlay.ticker);
+            if (overlayTrace && overlayTrace.open && overlayTrace.open[xIndex] !== undefined) {
+              // Determine if this candle is up or down
+              const isUp = overlayTrace.close[xIndex] >= overlayTrace.open[xIndex];
+              const candleColor = isUp ? overlay.upColor : overlay.downColor;
+              
+              html += `<div style="display: flex; align-items: center; margin-top: 8px; margin-bottom: 4px;">
+                <div style="width: 12px; height: 12px; background: ${candleColor}; border-radius: 2px; margin-right: 6px;"></div>
+                <span style="font-weight: bold;">${overlay.ticker}</span>
+              </div>`;
+              html += `<div style="margin-left: 18px;">O: $${overlayTrace.open[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">H: $${overlayTrace.high[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">L: $${overlayTrace.low[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">C: $${overlayTrace.close[xIndex].toFixed(2)}</div>`;
+            } else {
+              // For line charts, use the line color
+              const lineTrace = traces.find(t => t.type === 'scatter' && t.name === overlay.ticker);
+              if (lineTrace && lineTrace.y && lineTrace.y[xIndex] !== undefined) {
+                html += `<div style="display: flex; align-items: center; margin-top: 8px; margin-bottom: 4px;">
+                  <div style="width: 12px; height: 12px; background: ${overlay.lineColor}; border-radius: 2px; margin-right: 6px;"></div>
+                  <span style="font-weight: bold;">${overlay.ticker}: ${lineTrace.y[xIndex].toFixed(2)}</span>
+                </div>`;
+              }
             }
-          }
-        });
+          });
+        }
         
-        // Then show indicators in order
-        traces.forEach((trace, idx) => {
-          if (trace.type === 'scatter' && trace.yaxis === 'y' && trace.y && trace.y[xIndex] !== undefined && trace.y[xIndex] !== null) {
-            html += `<div style="margin-top: 4px;">${trace.name}: ${trace.y[xIndex].toFixed(2)}</div>`;
-          }
-        });
+        // Then show indicators in order with their colors
+        if (this.indicators && this.indicators.length > 0) {
+          this.indicators.forEach(ind => {
+            // Find all traces for this indicator (might be multiple for main + overlays)
+            const indTraces = traces.filter(t => 
+              t.type === 'scatter' && 
+              t.name && 
+              t.name.includes(ind.type) &&
+              t.y && 
+              t.y[xIndex] !== undefined && 
+              t.y[xIndex] !== null
+            );
+            
+            indTraces.forEach(indTrace => {
+              html += `<div style="display: flex; align-items: center; margin-top: 4px;">
+                <div style="width: 12px; height: 12px; background: ${ind.color}; border-radius: 2px; margin-right: 6px;"></div>
+                <span>${indTrace.name}: ${indTrace.y[xIndex].toFixed(2)}</span>
+              </div>`;
+            });
+          });
+        }
         
         legendEl.innerHTML = html || '<div>No data</div>';
       });
@@ -1850,18 +1959,12 @@ class ChartTab {
   
   async addOverlay(ticker) {
     const content = this.contentElement;
-    const overlaysList = content.querySelector('.chart-overlays-list');
-    const overlaysContainer = content.querySelector('.chart-overlays-container');
     
-    // Show loading indicator
-    const loadingItem = document.createElement('div');
-    loadingItem.className = 'overlay-item overlay-loading';
-    loadingItem.innerHTML = `
-      <span class="overlay-ticker">${ticker}</span>
-      <span style="color: #666; font-size: 11px; margin-left: auto;">Loading...</span>
-    `;
-    overlaysContainer.appendChild(loadingItem);
-    overlaysList.style.display = 'block';
+    // Check if already added
+    if (this.overlays.find(o => o.ticker === ticker)) {
+      alert(`${ticker} is already added as an overlay`);
+      return;
+    }
     
     try {
       // Subscribe to live updates for this overlay ticker
@@ -1885,38 +1988,33 @@ class ChartTab {
         includeExtendedHours: this.extendedHoursEnabled
       });
       
-      // Remove loading indicator
-      loadingItem.remove();
-      
       if (!result.success || !result.bars || result.bars.length === 0) {
         throw new Error('No data available for this ticker');
       }
       
-      // Generate a random color for this overlay
-      const color = this.getRandomColor();
+      // Calculate auto-lightened colors based on overlay index
+      const overlayIndex = this.overlays.length;
+      const lightenFactor = (overlayIndex + 1) * 0.25; // 25%, 50%, 75%, etc.
       
-      // Add to overlays array
+      const basePositiveColor = getPositiveColor();
+      const baseNegativeColor = getNegativeColor();
+      const increasingColor = lightenColor(basePositiveColor, lightenFactor);
+      const decreasingColor = lightenColor(baseNegativeColor, lightenFactor);
+      
+      // Generate line color (random but can be changed by user)
+      const lineColor = this.getRandomColor();
+      
+      // Add to overlays array with three separate colors
       this.overlays.push({
         ticker: ticker,
         data: result.bars,
-        color: color
+        upColor: increasingColor,
+        downColor: decreasingColor,
+        lineColor: lineColor
       });
       
-      // Add to UI
-      const overlayItem = document.createElement('div');
-      overlayItem.className = 'overlay-item';
-      overlayItem.innerHTML = `
-        <span class="overlay-color-box" style="background-color: ${color};"></span>
-        <span class="overlay-ticker">${ticker}</span>
-        <button class="overlay-remove-btn" data-ticker="${ticker}">X—</button>
-      `;
-      
-      overlayItem.querySelector('.overlay-remove-btn').addEventListener('click', () => {
-        this.removeOverlay(ticker);
-      });
-      
-      overlaysContainer.appendChild(overlayItem);
-      overlaysList.style.display = 'block';
+      // Update the Fields list (includes both overlays and indicators)
+      this.updateIndicatorsList();
       
       // Redraw chart with overlays
       if (this.chartData) {
@@ -1927,14 +2025,6 @@ class ChartTab {
       this.updateRegressionButtonVisibility();
       
     } catch (error) {
-      // Remove loading indicator
-      loadingItem.remove();
-      
-      // Hide overlay list if no overlays
-      if (this.overlays.length === 0) {
-        overlaysList.style.display = 'none';
-      }
-
       // Update regression button visibility
       this.updateRegressionButtonVisibility();
       
@@ -1943,10 +2033,6 @@ class ChartTab {
   }
   
   removeOverlay(ticker) {
-    const content = this.contentElement;
-    const overlaysContainer = content.querySelector('.chart-overlays-container');
-    const overlaysList = content.querySelector('.chart-overlays-list');
-    
     // Unsubscribe from live updates
     window.electronAPI.polygonUnsubscribeTickers([ticker])
       .then(() => console.log(`[CHART] Unsubscribed from overlay ${ticker}`))
@@ -1955,18 +2041,8 @@ class ChartTab {
     // Remove from array
     this.overlays = this.overlays.filter(o => o.ticker !== ticker);
     
-    // Remove from UI
-    const overlayItem = Array.from(overlaysContainer.children).find(
-      item => item.querySelector('.overlay-remove-btn').dataset.ticker === ticker
-    );
-    if (overlayItem) {
-      overlayItem.remove();
-    }
-    
-    // Hide list if no overlays
-    if (this.overlays.length === 0) {
-      overlaysList.style.display = 'none';
-    }
+    // Update the Fields list
+    this.updateIndicatorsList();
     
     // Redraw chart
     if (this.chartData) {
@@ -2024,7 +2100,7 @@ class ChartTab {
       // Prepare overlay data with already loaded data
       const overlayData = this.overlays.map(overlay => ({
         ticker: overlay.ticker,
-        color: overlay.color,
+        color: overlay.lineColor,  // Use lineColor for regression plots
         timestamps: overlay.data.map(bar => bar.t),
         closes: overlay.data.map(bar => bar.c)
       }));
@@ -2510,14 +2586,79 @@ class ChartTab {
     
     if (!indicatorsList || !indicatorsContainer) return;
     
-    if (this.indicators.length === 0) {
+    const hasFieldsToShow = this.indicators.length > 0 || (this.overlays && this.overlays.length > 0);
+    
+    if (!hasFieldsToShow) {
       indicatorsList.style.display = 'none';
       indicatorsContainer.innerHTML = '';
       return;
     }
     
     indicatorsList.style.display = 'block';
-    indicatorsContainer.innerHTML = this.indicators.map(ind => {
+    
+    let html = '';
+    
+    // Add overlay tickers first
+    if (this.overlays && this.overlays.length > 0) {
+      html += this.overlays.map(overlay => {
+        const upColor = overlay.upColor || getPositiveColor();
+        const downColor = overlay.downColor || getNegativeColor();
+        const lineColor = overlay.lineColor || '#4ecdc4';
+        
+        return `
+          <div class="indicator-row" style="
+            display: flex;
+            align-items: center;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-left: 3px solid ${lineColor};
+            border-radius: 4px;
+            padding: 6px 10px;
+            margin-bottom: 6px;
+          ">
+            <span style="font-weight: 600; font-size: 12px; color: var(--text-primary); margin-right: 12px; min-width: 50px;">
+              ${overlay.ticker}
+            </span>
+            <div style="display: flex; gap: 4px; align-items: center; margin-right: 8px;">
+              <div style="display: flex; flex-direction: column; align-items: center;">
+                <input type="color" class="overlay-color-input" data-overlay-ticker="${overlay.ticker}" data-color-type="up"
+                       value="${upColor}" 
+                       style="width: 24px; height: 20px; border: none; border-radius: 2px; cursor: pointer;"
+                       title="Up candle color">
+                <span style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">▲</span>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: center;">
+                <input type="color" class="overlay-color-input" data-overlay-ticker="${overlay.ticker}" data-color-type="down"
+                       value="${downColor}" 
+                       style="width: 24px; height: 20px; border: none; border-radius: 2px; cursor: pointer;"
+                       title="Down candle color">
+                <span style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">▼</span>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: center;">
+                <input type="color" class="overlay-color-input" data-overlay-ticker="${overlay.ticker}" data-color-type="line"
+                       value="${lineColor}" 
+                       style="width: 24px; height: 20px; border: none; border-radius: 2px; cursor: pointer;"
+                       title="Line color">
+                <span style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">─</span>
+              </div>
+            </div>
+            <span style="font-size: 11px; color: var(--text-secondary); margin-left: auto; margin-right: 8px;">Overlay</span>
+            <button class="overlay-remove-btn" data-overlay-ticker="${overlay.ticker}" style="
+              background: none;
+              border: none;
+              color: var(--text-secondary);
+              cursor: pointer;
+              padding: 0;
+              font-size: 18px;
+              line-height: 1;
+            " title="Remove overlay">×</button>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    // Add indicators
+    html += this.indicators.map(ind => {
       const color = ind.color || '#9b59b6'; // Use saved color or default
       
       let paramsHTML = '';
@@ -2585,6 +2726,28 @@ class ChartTab {
         `;
       }
       
+      // Build overlay color pickers for this indicator
+      let overlayColorsHTML = '';
+      if (this.overlays && this.overlays.length > 0) {
+        overlayColorsHTML = this.overlays.map(overlay => {
+          // Get or initialize color for this indicator on this overlay
+          if (!ind.overlayColors) ind.overlayColors = {};
+          const overlayColor = ind.overlayColors[overlay.ticker] || overlay.lineColor;
+          
+          return `
+            <div style="display: flex; flex-direction: column; align-items: center; margin-left: 4px;">
+              <input type="color" class="indicator-overlay-color-input" 
+                     data-indicator-id="${ind.id}" 
+                     data-overlay-ticker="${overlay.ticker}"
+                     value="${overlayColor}" 
+                     style="width: 20px; height: 18px; border: none; border-radius: 2px; cursor: pointer;"
+                     title="Color for ${overlay.ticker}">
+              <span style="font-size: 8px; color: var(--text-secondary); margin-top: 1px;">${overlay.ticker}</span>
+            </div>
+          `;
+        }).join('');
+      }
+      
       return `
         <div class="indicator-row" style="
           display: flex;
@@ -2599,11 +2762,12 @@ class ChartTab {
           <input type="color" class="indicator-color-input" data-indicator-id="${ind.id}" 
                  value="${color}" 
                  style="width: 30px; height: 24px; border: none; border-radius: 3px; cursor: pointer; margin-right: 8px;"
-                 title="Change color">
+                 title="Main ticker color">
           <span style="font-weight: 600; font-size: 12px; color: var(--text-primary); margin-right: 12px; min-width: 50px;">
             ${ind.type}
           </span>
           ${paramsHTML}
+          ${overlayColorsHTML}
           <button class="indicator-remove-btn" data-indicator-id="${ind.id}" style="
             background: none;
             border: none;
@@ -2617,6 +2781,47 @@ class ChartTab {
         </div>
       `;
     }).join('');
+    
+    indicatorsContainer.innerHTML = html;
+    
+    // Add overlay color change listeners
+    indicatorsList.querySelectorAll('.overlay-color-input').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const ticker = e.target.dataset.overlayTicker;
+        const colorType = e.target.dataset.colorType; // 'up', 'down', or 'line'
+        const color = e.target.value;
+        
+        // Update overlay color
+        const overlay = this.overlays.find(o => o.ticker === ticker);
+        if (overlay) {
+          if (colorType === 'up') {
+            overlay.upColor = color;
+          } else if (colorType === 'down') {
+            overlay.downColor = color;
+          } else if (colorType === 'line') {
+            overlay.lineColor = color;
+            // Update the border color immediately
+            const row = e.target.closest('.indicator-row');
+            if (row) {
+              row.style.borderLeft = `3px solid ${color}`;
+            }
+          }
+          
+          // Redraw chart with new color
+          if (this.chartData) {
+            this.drawChart(this.chartData);
+          }
+        }
+      });
+    });
+    
+    // Add overlay remove listeners
+    indicatorsList.querySelectorAll('.overlay-remove-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const ticker = e.target.dataset.overlayTicker;
+        this.removeOverlay(ticker);
+      });
+    });
     
     // Add color change listeners
     indicatorsList.querySelectorAll('.indicator-color-input').forEach(input => {
@@ -2634,6 +2839,27 @@ class ChartTab {
           if (row) {
             row.style.borderLeft = `3px solid ${color}`;
           }
+          
+          // Redraw chart with new color
+          if (this.chartData) {
+            this.drawChart(this.chartData);
+          }
+        }
+      });
+    });
+    
+    // Add overlay-specific indicator color change listeners
+    indicatorsList.querySelectorAll('.indicator-overlay-color-input').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const id = parseInt(e.target.dataset.indicatorId);
+        const ticker = e.target.dataset.overlayTicker;
+        const color = e.target.value;
+        
+        // Update indicator's overlay-specific color
+        const indicator = this.indicators.find(ind => ind.id === id);
+        if (indicator) {
+          if (!indicator.overlayColors) indicator.overlayColors = {};
+          indicator.overlayColors[ticker] = color;
           
           // Redraw chart with new color
           if (this.chartData) {

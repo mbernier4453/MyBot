@@ -409,6 +409,26 @@
                 <span class="chart-live-ticker live-ticker-large" style="cursor: pointer; user-select: none;" title="Click to select ticker">Enter Ticker</span>
                 <button class="ticker-dropdown-btn" title="Change ticker">▼</button>
               </div>
+              <div class="main-ticker-colors" style="display: flex; gap: 4px; align-items: center; margin-left: 10px;">
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                  <input type="color" class="main-up-color-input"
+                         style="width: 24px; height: 20px; border: none; border-radius: 2px; cursor: pointer;"
+                         title="Up candle color">
+                  <span style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">▲</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                  <input type="color" class="main-down-color-input"
+                         style="width: 24px; height: 20px; border: none; border-radius: 2px; cursor: pointer;"
+                         title="Down candle color">
+                  <span style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">▼</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                  <input type="color" class="main-line-color-input"
+                         style="width: 24px; height: 20px; border: none; border-radius: 2px; cursor: pointer;"
+                         title="Line chart color">
+                  <span style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">─</span>
+                </div>
+              </div>
               <div class="ticker-dropdown-menu" style="display: none;">
                 <div class="ticker-dropdown-section">
                   <input type="text" class="chart-ticker-input" placeholder="Enter ticker (e.g., AAPL)" />
@@ -462,7 +482,7 @@
               <div class="control-group">
                 <label>Timeframe:</label>
                 <select class="chart-timeframe-select">
-                  <option value="1D">1 Day</option>
+                  <option value="1D">Intraday</option>
                   <option value="5D">5 Days</option>
                   <option value="1M">1 Month</option>
                   <option value="3M">3 Months</option>
@@ -487,6 +507,16 @@
                   <option value="week">Weekly</option>
                   <option value="month">Monthly</option>
                 </select>
+              </div>
+              <div class="control-group">
+                <div class="chart-candle-change" style="
+                  font-size: 13px;
+                  font-weight: 600;
+                  padding: 4px 8px;
+                  border-radius: 4px;
+                  background: transparent;
+                  color: #999;
+                ">-</div>
               </div>
               <div class="live-update-toggle chart-extended-hours-toggle">
                 <label class="toggle-label">
@@ -516,16 +546,10 @@
             </div>
             <div class="chart-indicators-list" style="display: none;">
               <div class="indicators-header" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
-                <span>Indicators</span>
+                <span>Fields</span>
                 <span class="indicators-toggle">▼</span>
               </div>
               <div class="chart-indicators-container" style="display: block;"></div>
-            </div>
-            <div class="chart-overlays-list" style="display: none;">
-              <div class="overlays-header">
-                <span>Overlays:</span>
-              </div>
-              <div class="chart-overlays-container"></div>
             </div>
             <div class="chart-display">
               <div class="chart-canvas"></div>
