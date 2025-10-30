@@ -429,6 +429,10 @@
                   <span style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">─</span>
                 </div>
               </div>
+              <div style="display: flex; gap: 4px; margin-left: 10px;">
+                <button class="chart-load-preset-btn" title="Load preset configuration">Load Preset</button>
+                <button class="chart-save-preset-btn" title="Save current configuration">Save Preset</button>
+              </div>
               <div class="ticker-dropdown-menu" style="display: none;">
                 <div class="ticker-dropdown-section">
                   <input type="text" class="chart-ticker-input" placeholder="Enter ticker (e.g., AAPL)" />
@@ -447,6 +451,7 @@
             <div class="chart-live-stats">
               <span class="chart-live-price live-price-large">$0.00</span>
               <span class="chart-live-change live-change-large">+0.00%</span>
+              <span class="chart-live-afterhours" style="font-size: 12px; margin-left: 12px; display: none;">After Hours: +0.00%</span>
               <span class="chart-live-volume" style="font-size: 13px; opacity: 0.7; margin-left: 15px;">Vol: 0</span>
               <span class="chart-live-marketcap" style="font-size: 13px; opacity: 0.7; margin-left: 10px;">-</span>
             </div>
@@ -1251,6 +1256,7 @@
             </optgroup>
             <optgroup label="Oscillators">
               <option value="RSI" title="Relative Strength Index - momentum oscillator (0-100)">RSI - Relative Strength Index</option>
+              <option value="StochRSI" title="Stochastic RSI - momentum oscillator of RSI (0-100)">StochRSI - Stochastic RSI</option>
               <option value="ATR" title="Average True Range - measures volatility">ATR - Average True Range</option>
             </optgroup>
           </select>
@@ -1368,6 +1374,68 @@
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="document.getElementById('exportModal').style.display='none'">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Regression Export Modal -->
+  <div id="regressionExportModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h2>Export Regression Analysis</h2>
+        <button class="modal-close" onclick="document.getElementById('regressionExportModal').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 20px; color: var(--text-secondary);">Choose export format:</p>
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+          <button id="exportRegressionPngBtn" class="btn btn-primary" style="padding: 15px; font-size: 16px;">
+            Export as PNG
+          </button>
+          <button id="exportRegressionCsvBtn" class="btn btn-primary" style="padding: 15px; font-size: 16px;">
+            Export Data as CSV
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('regressionExportModal').style.display='none'">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Preset Modal -->
+  <div id="loadPresetModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2>Load Chart Preset</h2>
+        <button class="modal-close" onclick="document.getElementById('loadPresetModal').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="presetList" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('loadPresetModal').style.display='none'">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Preset Modal -->
+  <div id="savePresetModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h2>Save Chart Preset</h2>
+        <button class="modal-close" onclick="document.getElementById('savePresetModal').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label style="display: block; margin-bottom: 10px; color: var(--text-secondary);">Preset Name:</label>
+        <input type="text" id="presetNameInput" placeholder="Enter preset name..." 
+               style="width: 100%; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; font-size: 14px;" />
+        <p style="margin-top: 15px; font-size: 12px; color: var(--text-secondary);">
+          This will save: ticker, overlays, indicators, timeframe, chart type, and colors.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('savePresetModal').style.display='none'">Cancel</button>
+        <button id="confirmSavePresetBtn" class="btn btn-primary">Save</button>
       </div>
     </div>
   </div>

@@ -317,6 +317,71 @@ const Indicators = {
     }
 
     return rsi;
+  },
+
+  /**
+   * Calculate Stochastic RSI as array
+   * @param {Array<number>} prices - Price array
+   * @param {number} rsiPeriod - RSI period (default 14)
+   * @param {number} stochPeriod - Stochastic period (default 14)
+   * @param {number} kSmooth - K smoothing period (default 3)
+   * @param {number} dSmooth - D smoothing period (default 3)
+   * @returns {Object} {k: Array, d: Array} - %K and %D lines
+   */
+  calculateStochRSI(prices, rsiPeriod = 14, stochPeriod = 14, kSmooth = 3, dSmooth = 3) {
+    const rsiValues = this.calculateRSIArray(prices, rsiPeriod);
+    const stochRSI = [];
+    
+    // Calculate raw Stochastic RSI
+    for (let i = 0; i < rsiValues.length; i++) {
+      if (i < rsiPeriod + stochPeriod - 1 || rsiValues[i] === null) {
+        stochRSI.push(null);
+        continue;
+      }
+      
+      // Get RSI values for stochastic period
+      const rsiWindow = [];
+      for (let j = 0; j < stochPeriod; j++) {
+        const rsiVal = rsiValues[i - j];
+        if (rsiVal !== null) rsiWindow.push(rsiVal);
+      }
+      
+      if (rsiWindow.length < stochPeriod) {
+        stochRSI.push(null);
+        continue;
+      }
+      
+      const minRSI = Math.min(...rsiWindow);
+      const maxRSI = Math.max(...rsiWindow);
+      const currentRSI = rsiValues[i];
+      
+      if (maxRSI === minRSI) {
+        stochRSI.push(50); // Arbitrary midpoint when no range
+      } else {
+        stochRSI.push(((currentRSI - minRSI) / (maxRSI - minRSI)) * 100);
+      }
+    }
+    
+    // Smooth %K line
+    const kLine = this.calculateSMA(stochRSI.filter(v => v !== null), kSmooth);
+    const kLineFull = stochRSI.map((v, i) => {
+      if (v === null) return null;
+      const validIndex = stochRSI.slice(0, i + 1).filter(x => x !== null).length - 1;
+      return kLine[validIndex] !== undefined ? kLine[validIndex] : null;
+    });
+    
+    // Smooth %D line
+    const dLine = this.calculateSMA(kLineFull.filter(v => v !== null), dSmooth);
+    const dLineFull = kLineFull.map((v, i) => {
+      if (v === null) return null;
+      const validIndex = kLineFull.slice(0, i + 1).filter(x => x !== null).length - 1;
+      return dLine[validIndex] !== undefined ? dLine[validIndex] : null;
+    });
+    
+    return {
+      k: kLineFull,
+      d: dLineFull
+    };
   }
 };
 
@@ -334,5 +399,6 @@ window.calculateKC = (high, low, close, period, mult) => Indicators.calculateKC(
 window.calculateATR = (high, low, close, period) => Indicators.calculateATR(high, low, close, period);
 window.calculateMA = (prices, type, period) => Indicators.calculateMA(prices, type, period);
 window.calculateRSIArray = (prices, period) => Indicators.calculateRSIArray(prices, period);
+window.calculateStochRSI = (prices, rsiPeriod, stochPeriod, kSmooth, dSmooth) => Indicators.calculateStochRSI(prices, rsiPeriod, stochPeriod, kSmooth, dSmooth);
 
 console.log('[INIT] Indicators module loaded');

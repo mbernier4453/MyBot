@@ -12,7 +12,7 @@ from typing import Dict, List, Any
 
 
 def align_data_by_timestamp(main_data: Dict, overlay_data: List[Dict]) -> pd.DataFrame:
-    """Align main ticker and overlay tickers by timestamp."""
+    """Align main ticker and overlay tickers by timestamp and calculate returns."""
     # Create main series
     main_series = pd.Series(
         data=main_data['closes'],
@@ -39,7 +39,14 @@ def align_data_by_timestamp(main_data: Dict, overlay_data: List[Dict]) -> pd.Dat
     # Drop rows with any NaN values
     df = df.dropna()
     
-    return df
+    # Calculate returns: (current - previous) / previous
+    # This converts prices to percentage returns
+    df_returns = df.pct_change()
+    
+    # Drop the first row which will have NaN returns (no previous value)
+    df_returns = df_returns.dropna()
+    
+    return df_returns
 
 
 def calculate_ols_regression(y_data: np.ndarray, x_data: np.ndarray) -> Dict[str, float]:

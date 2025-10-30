@@ -278,6 +278,22 @@ class ChartTab {
       });
     }
     
+    // Load Preset button
+    const loadPresetBtn = content.querySelector('.chart-load-preset-btn');
+    if (loadPresetBtn) {
+      loadPresetBtn.addEventListener('click', () => {
+        this.showLoadPresetDialog();
+      });
+    }
+    
+    // Save Preset button
+    const savePresetBtn = content.querySelector('.chart-save-preset-btn');
+    if (savePresetBtn) {
+      savePresetBtn.addEventListener('click', () => {
+        this.showSavePresetDialog();
+      });
+    }
+    
     // Add Indicator button
     const addIndicatorBtn = content.querySelector('.chart-add-indicator-btn');
     if (addIndicatorBtn) {
@@ -586,8 +602,12 @@ class ChartTab {
     }
   }
   
-  setTicker(ticker, updateGroup = true) {
+  async setTicker(ticker, updateGroup = true) {
     console.log(`%c[ChartTab ${this.id}] setTicker`, 'color: cyan', 'ticker:', ticker, 'current:', this.ticker, 'updateGroup:', updateGroup, 'tabElement exists:', !!this.tabElement);
+    
+    // Set loading flag to prevent updateLiveInfo from using stale data
+    this.isLoadingChart = true;
+    
     this.ticker = ticker;
     this.updateTabLabel();
     
@@ -596,9 +616,29 @@ class ChartTab {
       tickerGroups.setGroupTicker(this.group, ticker);
     }
     
-    this.updateLiveInfo();
-    this.loadChart();
+  // Subscribe to websocket for this ticker
+  try {
+    await window.electronAPI.polygonSubscribeTickers([ticker]);
+    console.log(`[WEBSOCKET] Subscribed to ${ticker}`);
+    
+    // ALWAYS force fetch ticker data immediately for latest price
+    console.log(`[WEBSOCKET] Force fetching latest data for ${ticker}`);
+    await window.electronAPI.polygonFetchTickers([ticker]);
+    
+    // Wait a bit for the fetch to complete and update treemapData
+    await new Promise(resolve => setTimeout(resolve, 500));
+  } catch (error) {
+    console.error(`[WEBSOCKET] Failed to subscribe to ${ticker}:`, error);
   }
+  
+  // Load chart first, THEN update live info
+  await this.loadChart();
+  
+  // Clear loading flag after chart is loaded
+  this.isLoadingChart = false;
+  
+  this.updateLiveInfo();
+}
   
   updateTabLabel() {
     console.log(`%c[ChartTab ${this.id}] updateTabLabel`, 'color: yellow', 'tabElement:', !!this.tabElement, 'ticker:', this.ticker, 'group:', this.group);
@@ -618,40 +658,203 @@ class ChartTab {
     }
   }
   
-  updateLiveInfo() {
-    if (!this.ticker) return;
+  isMarketOpen() {
+    const now = new Date();
+    const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const day = et.getDay();
+    const hours = et.getHours();
+    const minutes = et.getMinutes();
+    const time = hours * 100 + minutes;
     
-    const content = this.contentElement;
+    // Weekend
+    if (day === 0 || day === 6) return false;
     
-    // ALWAYS update ticker display, even if no treemap data
-    const tickerEl = content.querySelector('.chart-live-ticker');
-    if (tickerEl) tickerEl.textContent = this.ticker;
+    // Regular hours: 9:30 AM - 4:00 PM ET
+    const marketOpen = 930;
+    const marketClose = 1600;
     
-    const data = treemapData.get(this.ticker);
-    
-    if (data) {
-      // Update price
-      const priceEl = content.querySelector('.chart-live-price');
-      if (priceEl) priceEl.textContent = `$${data.close.toFixed(2)}`;
+    return time >= marketOpen && time < marketClose;
+  }
+
+  updateChartWithLiveData(ticker, wsData) {
+    // Only update during market hours
+    if (!this.isMarketOpen()) {
+      console.log(`[LIVE CHART] Market closed, skipping chart update for ${ticker}`);
+      return;
+    }
+
+    // Update main ticker
+    if (this.ticker === ticker && this.chartData && this.chartData.length > 0) {
+      const lastBar = this.chartData[this.chartData.length - 1];
+      const now = new Date();
+      const barTime = new Date(lastBar.t);
       
-      // Update change
-      const changeEl = content.querySelector('.chart-live-change');
-      if (changeEl) {
-        const changePercent = data.changePercent;
-        changeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
-        changeEl.style.backgroundColor = changePercent >= 0 ? '#00aa55' : '#ff4444';
-        changeEl.style.color = 'white';
+      // Check if this update is for the current bar (same day for daily, same period for intraday)
+      const isSameBar = barTime.toDateString() === now.toDateString();
+      
+      if (isSameBar) {
+        // Update the last bar with live data
+        lastBar.c = wsData.close;
+        lastBar.h = Math.max(lastBar.h, wsData.close);
+        lastBar.l = Math.min(lastBar.l, wsData.close);
+        lastBar.v = wsData.volume || lastBar.v;
+        
+        console.log(`[LIVE CHART] Updated ${ticker} bar - Close: $${wsData.close.toFixed(2)}, Vol: ${wsData.volume}`);
+        
+        // Redraw chart with updated data
+        const { timespan } = this.getTimespanParams();
+        this.drawChart(this.chartData, timespan);
       }
+    }
+    
+    // Update overlays
+    if (this.overlays && this.overlays.length > 0) {
+      this.overlays.forEach(overlay => {
+        if (overlay.ticker === ticker && overlay.data && overlay.data.length > 0) {
+          const lastBar = overlay.data[overlay.data.length - 1];
+          const now = new Date();
+          const barTime = new Date(lastBar.t);
+          const isSameBar = barTime.toDateString() === now.toDateString();
+          
+          if (isSameBar) {
+            lastBar.c = wsData.close;
+            lastBar.h = Math.max(lastBar.h, wsData.close);
+            lastBar.l = Math.min(lastBar.l, wsData.close);
+            lastBar.v = wsData.volume || lastBar.v;
+            
+            console.log(`[LIVE CHART] Updated overlay ${ticker} bar`);
+            
+            // Redraw chart with updated overlay data
+            const { timespan } = this.getTimespanParams();
+            this.drawChart(this.chartData, timespan);
+          }
+        }
+      });
+    }
+  }
+
+async updateLiveInfo(freshWsData = null) {
+  if (!this.ticker) return;
+  
+  // Don't update if chart is currently loading (prevents showing wrong ticker's data)
+  if (this.isLoadingChart) {
+    console.log(`[LIVE INFO] Skipping ${this.ticker} - chart is loading`);
+    return;
+  }
+  
+  // Don't update if chart data hasn't loaded yet
+  if (!this.chartData || this.chartData.length === 0) {
+    console.log(`[LIVE INFO] Skipping ${this.ticker} - chart data not loaded yet`);
+    return;
+  }
+  
+  const content = this.contentElement;
+  
+  // Update ticker display
+  const tickerEl = content.querySelector('.chart-live-ticker');
+  if (tickerEl) tickerEl.textContent = this.ticker;
+  
+  const isMarketOpen = this.isMarketOpen();
+    
+  // Get current price and volume
+  let currentPrice = null;
+  let currentVolume = null;
+  let prevClose = null;
+    
+  // Use fresh websocket data if provided, otherwise get from treemapData
+  const wsData = freshWsData || treemapData.get(this.ticker);
+    
+
+    
+    // ONLY use websocket during regular market hours
+    if (isMarketOpen && wsData) {
+      currentPrice = wsData.close;
+      currentVolume = wsData.volume;
+      prevClose = wsData.prevClose;
+      console.log(`[LIVE INFO] ${this.ticker} LIVE (market open): $${currentPrice} (prev: $${prevClose})`);
+    } 
+    // Use chart data when market is closed OR no websocket
+    else if (this.chartData && this.chartData.length > 0) {
+      const lastBar = this.chartData[this.chartData.length - 1];
+      currentPrice = lastBar.c;
+      currentVolume = lastBar.v;
       
-      // Update volume
-      const volumeEl = content.querySelector('.chart-live-volume');
-      if (volumeEl) volumeEl.textContent = 'Vol: ' + (data.volume / 1e6).toFixed(2) + 'M';
-      
-      // Update market cap
-      const marketCapEl = content.querySelector('.chart-live-marketcap');
-      if (marketCapEl && data.marketCap) {
-        marketCapEl.textContent = 'MCap: $' + (data.marketCap / 1e9).toFixed(2) + 'B';
+      // Get previous bar for % change
+      if (this.chartData.length >= 2) {
+        prevClose = this.chartData[this.chartData.length - 2].c;
       }
+      console.log(`[LIVE INFO] ${this.ticker} CLOSE (market ${isMarketOpen ? 'open but no ws' : 'closed'}): $${currentPrice} (prev: $${prevClose})`);
+    }
+    
+    // Update price
+    const priceEl = content.querySelector('.chart-live-price');
+    if (priceEl && currentPrice) {
+      priceEl.textContent = `$${currentPrice.toFixed(2)}`;
+    } else if (priceEl) {
+      priceEl.textContent = '--';
+    }
+    
+    // Update % change (from previous day close)
+    const changeEl = content.querySelector('.chart-live-change');
+    if (changeEl && currentPrice && prevClose) {
+      const changePercent = ((currentPrice - prevClose) / prevClose) * 100;
+      changeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+      changeEl.style.backgroundColor = changePercent >= 0 ? '#00aa55' : '#ff4444';
+      changeEl.style.color = 'white';
+      console.log(`[LIVE INFO] ${this.ticker} change: ${changePercent.toFixed(2)}%`);
+    } else if (changeEl) {
+      changeEl.textContent = '--';
+      changeEl.style.backgroundColor = '#666';
+    }
+    
+  // Update after-hours display (only when market is closed)
+  const afterHoursEl = content.querySelector('.chart-live-afterhours');
+  if (afterHoursEl && !isMarketOpen) {
+    // Use websocket price if available, otherwise use stored extended hours price
+    let afterHoursPrice = null;
+    
+    if (wsData && wsData.close) {
+      afterHoursPrice = wsData.close;
+    } else if (this.extendedHoursPrice) {
+      afterHoursPrice = this.extendedHoursPrice;
+    }
+    
+    const regularClose = currentPrice;  // This is today's 4PM close from chart data
+    
+    // Only show if we have both prices and they differ (actual after-hours movement)
+    if (afterHoursPrice && regularClose && Math.abs(afterHoursPrice - regularClose) > 0.01) {
+      const ahChange = afterHoursPrice - regularClose;
+      const ahChangePercent = (ahChange / regularClose) * 100;
+      
+      console.log(`[AFTER HOURS] ${this.ticker} - AH price: $${afterHoursPrice}, 4PM close: $${regularClose}, AH Change: ${ahChangePercent.toFixed(2)}%`);
+      
+      afterHoursEl.textContent = `After Hours: $${afterHoursPrice.toFixed(2)} (${ahChangePercent >= 0 ? '+' : ''}${ahChangePercent.toFixed(2)}%)`;
+      afterHoursEl.style.color = ahChangePercent >= 0 ? '#00aa55' : '#ff4444';
+      afterHoursEl.style.display = 'inline';
+    } else {
+      afterHoursEl.style.display = 'none';
+    }
+  } else if (afterHoursEl) {
+    afterHoursEl.style.display = 'none';
+  }    // Update volume
+    const volumeEl = content.querySelector('.chart-live-volume');
+    if (volumeEl && currentVolume) {
+      const volDisplay = currentVolume >= 1e6 
+        ? (currentVolume / 1e6).toFixed(2) + 'M'
+        : currentVolume >= 1e3
+        ? (currentVolume / 1e3).toFixed(1) + 'K'
+        : currentVolume.toFixed(0);
+      volumeEl.textContent = `Vol: ${volDisplay}`;
+    } else if (volumeEl) {
+      volumeEl.textContent = 'Vol: --';
+    }
+    
+    // Update market cap
+    const marketCapEl = content.querySelector('.chart-live-marketcap');
+    if (marketCapEl && wsData && wsData.marketCap) {
+      marketCapEl.textContent = 'MCap: $' + (wsData.marketCap / 1e9).toFixed(2) + 'B';
+    } else if (marketCapEl) {
+      marketCapEl.textContent = '';
     }
   }
   
@@ -750,8 +953,15 @@ class ChartTab {
         throw new Error('No data available for this ticker and timeframe');
       }
       
-      this.chartData = result.bars;
-      this.drawChart(result.bars, timespan);
+      // Store chart data - make a COPY if market is closed to prevent modifications
+      if (this.isMarketOpen()) {
+        this.chartData = result.bars;
+      } else {
+        // Deep copy to prevent any modifications when market is closed
+        this.chartData = JSON.parse(JSON.stringify(result.bars));
+        console.log(`[CHART] Froze chart data (market closed) - last bar close: $${this.chartData[this.chartData.length - 1].c}`);
+      }
+      this.drawChart(this.chartData, timespan);
       
     } catch (error) {
       loadingEl.style.display = 'none';
@@ -1384,6 +1594,21 @@ class ChartTab {
       
       console.log('Data sources for indicators:', dataSources.length, dataSources.map(s => s.ticker));
       
+      // Detect which indicators exist to set up axes properly
+      const hasRSIorStochRSI = this.indicators.some(ind => ind.type === 'RSI' || ind.type === 'StochRSI');
+      const hasATR = this.indicators.some(ind => ind.type === 'ATR');
+      
+      // Setup axis domains once based on which indicators are present
+      if (hasRSIorStochRSI && hasATR) {
+        // 4 panels: Main + Volume + RSI/StochRSI + ATR
+        layout.yaxis.domain = [0.55, 1];    // Main chart: top 45%
+        layout.yaxis2.domain = [0.38, 0.53]; // Volume: 15%
+      } else if (hasRSIorStochRSI || hasATR) {
+        // 3 panels: Main + Volume + one indicator
+        layout.yaxis.domain = [0.40, 1];    // Main chart: top 60%
+        layout.yaxis2.domain = [0.22, 0.38]; // Volume: 16%
+      }
+      
       // Apply each indicator to each data source
       this.indicators.forEach((indicator, indIdx) => {
         console.log('Processing indicator:', indicator.type, 'for', dataSources.length, 'sources');
@@ -1399,6 +1624,13 @@ class ChartTab {
             console.warn('  No result from calculateIndicator for', indicator.type, source.ticker);
             return;
           }
+          
+          // Store indicator values for CSV export
+          if (!this.calculatedIndicators) {
+            this.calculatedIndicators = {};
+          }
+          const indicatorKey = `${source.ticker}_${indicator.type}_${JSON.stringify(indicator.params)}`;
+          this.calculatedIndicators[indicatorKey] = result;
           
           const dates = source.bars.map(b => formatDate(b.t));
           const baseColor = indicator.color || '#9b59b6'; // Use indicator's saved color
@@ -1513,20 +1745,87 @@ class ChartTab {
                 });
               });
               
-              // Update layout to include y3 axis for RSI (separate panel)
-              // Adjust main chart to make room
-              layout.yaxis.domain = [0.40, 1]; // Main chart top 60%
-              layout.yaxis2.domain = [0.22, 0.38]; // Volume middle 16%
+              // Create y3 axis for RSI (domains already set above)
+              const y3Domain = hasATR ? [0.19, 0.36] : [0, 0.20];
               layout.yaxis3 = {
                 title: 'RSI',
                 titlefont: { color: baseColor },
                 tickfont: { color: baseColor },
-                domain: [0, 0.20], // RSI panel bottom 20%
+                domain: y3Domain,
                 range: [0, 100],
                 showgrid: true,
                 gridcolor: '#1a1a1a',
                 zeroline: false
               };
+            }
+          } else if (indicator.type === 'StochRSI') {
+            // Stochastic RSI overlays with RSI on y3 axis
+            // result is {k: Array, d: Array}
+            if (result && result.k && result.d) {
+              // %K line
+              traces.push({
+                type: 'scatter',
+                mode: 'lines',
+                x: dates,
+                y: result.k,
+                name: `${source.ticker} StochRSI %K`,
+                line: { color: color, width: source.isMain ? 2 : 1.5 },
+                opacity: opacity,
+                xaxis: 'x',
+                yaxis: 'y3',
+                showlegend: true,
+                hovertemplate: `${source.ticker} StochRSI %K: %{y:.2f}<extra></extra>`
+              });
+              
+              // %D line (use slightly darker/lighter color)
+              const dColor = this.darkenColor(color, 0.3);
+              traces.push({
+                type: 'scatter',
+                mode: 'lines',
+                x: dates,
+                y: result.d,
+                name: `${source.ticker} StochRSI %D`,
+                line: { color: dColor, width: source.isMain ? 1.5 : 1, dash: 'dash' },
+                opacity: opacity,
+                xaxis: 'x',
+                yaxis: 'y3',
+                showlegend: true,
+                hovertemplate: `${source.ticker} StochRSI %D: %{y:.2f}<extra></extra>`
+              });
+            }
+            
+            // Setup y3 axis if not already done (shared with RSI)
+            if (!layout.yaxis3 && sourceIdx === 0) {
+              [20, 80].forEach((level, idx) => {
+                traces.push({
+                  type: 'scatter',
+                  mode: 'lines',
+                  x: [dates[0], dates[dates.length - 1]],
+                  y: [level, level],
+                  name: idx === 0 ? 'StochRSI Levels' : '',
+                  line: { color: '#666', width: 1, dash: 'dot' },
+                  xaxis: 'x',
+                  yaxis: 'y3',
+                  showlegend: idx === 0,
+                  hoverinfo: 'skip'
+                });
+              });
+              
+              // Create y3 axis for StochRSI (domains already set above)
+              const y3Domain = hasATR ? [0.19, 0.36] : [0, 0.20];
+              layout.yaxis3 = {
+                title: 'StochRSI',
+                titlefont: { color: baseColor },
+                tickfont: { color: baseColor },
+                domain: y3Domain,
+                range: [0, 100],
+                showgrid: true,
+                gridcolor: '#1a1a1a',
+                zeroline: false
+              };
+            } else if (layout.yaxis3 && sourceIdx === 0) {
+              // RSI already created y3, update title to show both
+              layout.yaxis3.title = 'RSI / StochRSI';
             }
           } else if (indicator.type === 'ATR') {
             // ATR uses its own y-axis (y4) separate from RSI
@@ -1546,34 +1845,17 @@ class ChartTab {
             
             // Setup y4 axis for ATR if not already done
             if (!layout.yaxis4 && sourceIdx === 0) {
-              // If RSI exists (y3), adjust all domains to fit 4 panels
-              if (layout.yaxis3) {
-                layout.yaxis.domain = [0.55, 1];    // Main chart: top 45%
-                layout.yaxis2.domain = [0.38, 0.53]; // Volume: 15%
-                layout.yaxis3.domain = [0.19, 0.36]; // RSI: 17%
-                layout.yaxis4 = {                    // ATR: bottom 17%
-                  title: 'ATR',
-                  titlefont: { color: baseColor },
-                  tickfont: { color: baseColor },
-                  domain: [0, 0.17],
-                  showgrid: true,
-                  gridcolor: '#1a1a1a',
-                  zeroline: false
-                };
-              } else {
-                // No RSI, just ATR - use 3 panels
-                layout.yaxis.domain = [0.40, 1];
-                layout.yaxis2.domain = [0.22, 0.38];
-                layout.yaxis4 = {
-                  title: 'ATR',
-                  titlefont: { color: baseColor },
-                  tickfont: { color: baseColor },
-                  domain: [0, 0.20],
-                  showgrid: true,
-                  gridcolor: '#1a1a1a',
-                  zeroline: false
-                };
-              }
+              // Domains already set above - just create the axis
+              const y4Domain = hasRSIorStochRSI ? [0, 0.17] : [0, 0.20];
+              layout.yaxis4 = {
+                title: 'ATR',
+                titlefont: { color: baseColor },
+                tickfont: { color: baseColor },
+                domain: y4Domain,
+                showgrid: true,
+                gridcolor: '#1a1a1a',
+                zeroline: false
+              };
             }
           } else {
             // Simple line indicators (SMA, EMA, HMA, KAMA)
@@ -1731,8 +2013,10 @@ class ChartTab {
             );
             
             indTraces.forEach(indTrace => {
+              // Use the actual trace color instead of the base indicator color
+              const traceColor = indTrace.line ? indTrace.line.color : ind.color;
               html += `<div style="display: flex; align-items: center; margin-top: 4px;">
-                <div style="width: 12px; height: 12px; background: ${ind.color}; border-radius: 2px; margin-right: 6px;"></div>
+                <div style="width: 12px; height: 12px; background: ${traceColor}; border-radius: 2px; margin-right: 6px;"></div>
                 <span>${indTrace.name}: ${indTrace.y[xIndex].toFixed(2)}</span>
               </div>`;
             });
@@ -2197,28 +2481,28 @@ class ChartTab {
     });
   }
 
-  exportAsPNG() {
+  async exportAsPNG() {
     const content = this.contentElement;
     const chartCanvas = content.querySelector('.chart-canvas');
     
-    if (!chartCanvas) {
-      alert('Chart not found.');
+    if (!chartCanvas || typeof Plotly === 'undefined') {
+      alert('Chart not ready for export.');
       return;
     }
 
-    // Find the Plotly div - it's the chartCanvas itself
-    if (chartCanvas && typeof Plotly !== 'undefined') {
-      Plotly.downloadImage(chartCanvas, {
+    try {
+      // Export main chart (includes all panels: candlestick, volume, RSI, ATR)
+      await Plotly.downloadImage(chartCanvas, {
         format: 'png',
         width: 1920,
         height: 1080,
         filename: `${this.ticker}_chart_${new Date().toISOString().split('T')[0]}`
-      }).catch(err => {
-        console.error('PNG export error:', err);
-        alert('Failed to export chart as PNG.');
       });
-    } else {
-      alert('Chart not ready for export.');
+      
+      console.log('Chart exported as PNG successfully');
+    } catch (err) {
+      console.error('PNG export error:', err);
+      alert('Failed to export chart as PNG.');
     }
   }
 
@@ -2254,13 +2538,32 @@ class ChartTab {
         const paramStr = Object.values(ind.params || {}).join(',');
         const indicatorName = `${ind.type}(${paramStr})`;
         
-        // Main ticker indicator
-        headers.push(`${this.ticker}_${indicatorName}`);
-        
-        // Overlay indicators
-        this.overlays.forEach(overlay => {
-          headers.push(`${overlay.ticker}_${indicatorName}`);
-        });
+        // Band indicators (BB, KC) have 3 values: upper, middle, lower
+        if (ind.type === 'BB' || ind.type === 'KC') {
+          // Main ticker indicator
+          headers.push(
+            `${this.ticker}_${indicatorName}_Upper`,
+            `${this.ticker}_${indicatorName}_Middle`,
+            `${this.ticker}_${indicatorName}_Lower`
+          );
+          
+          // Overlay indicators
+          this.overlays.forEach(overlay => {
+            headers.push(
+              `${overlay.ticker}_${indicatorName}_Upper`,
+              `${overlay.ticker}_${indicatorName}_Middle`,
+              `${overlay.ticker}_${indicatorName}_Lower`
+            );
+          });
+        } else {
+          // Single value indicators (SMA, EMA, RSI, ATR, etc.)
+          headers.push(`${this.ticker}_${indicatorName}`);
+          
+          // Overlay indicators
+          this.overlays.forEach(overlay => {
+            headers.push(`${overlay.ticker}_${indicatorName}`);
+          });
+        }
       });
       
       rows.push(headers);
@@ -2287,16 +2590,54 @@ class ChartTab {
           }
         });
         
-        // Indicator data
+        // Indicator data - use pre-calculated values
         this.indicators.forEach(ind => {
-          // Calculate indicator for main ticker
-          const mainValue = this.calculateIndicatorValue(ind, this.chartData, i);
-          row.push(mainValue !== null ? mainValue : '');
+          // Get indicator value for main ticker from stored calculations
+          const mainKey = `${this.ticker}_${ind.type}_${JSON.stringify(ind.params)}`;
+          const mainIndicatorData = this.calculatedIndicators && this.calculatedIndicators[mainKey];
           
-          // Calculate indicator for overlays
+          if (mainIndicatorData) {
+            // Handle different indicator result formats
+            if (ind.type === 'BB' || ind.type === 'KC') {
+              // Band indicators have upper, middle, lower
+              const upperVal = mainIndicatorData.upper && mainIndicatorData.upper[i];
+              const middleVal = mainIndicatorData.middle && mainIndicatorData.middle[i];
+              const lowerVal = mainIndicatorData.lower && mainIndicatorData.lower[i];
+              row.push(upperVal !== undefined ? upperVal.toFixed(2) : '');
+              row.push(middleVal !== undefined ? middleVal.toFixed(2) : '');
+              row.push(lowerVal !== undefined ? lowerVal.toFixed(2) : '');
+            } else {
+              // Single value indicators (SMA, EMA, RSI, ATR, etc.)
+              const val = Array.isArray(mainIndicatorData) ? mainIndicatorData[i] : mainIndicatorData;
+              row.push(val !== undefined && val !== null ? val.toFixed(2) : '');
+            }
+          } else {
+            // Fallback to old calculation method
+            const mainValue = this.calculateIndicatorValue(ind, this.chartData, i);
+            row.push(mainValue !== null ? mainValue : '');
+          }
+          
+          // Get indicator values for overlays
           this.overlays.forEach(overlay => {
-            const overlayValue = this.calculateIndicatorValue(ind, overlay.data, i);
-            row.push(overlayValue !== null ? overlayValue : '');
+            const overlayKey = `${overlay.ticker}_${ind.type}_${JSON.stringify(ind.params)}`;
+            const overlayIndicatorData = this.calculatedIndicators && this.calculatedIndicators[overlayKey];
+            
+            if (overlayIndicatorData) {
+              if (ind.type === 'BB' || ind.type === 'KC') {
+                const upperVal = overlayIndicatorData.upper && overlayIndicatorData.upper[i];
+                const middleVal = overlayIndicatorData.middle && overlayIndicatorData.middle[i];
+                const lowerVal = overlayIndicatorData.lower && overlayIndicatorData.lower[i];
+                row.push(upperVal !== undefined ? upperVal.toFixed(2) : '');
+                row.push(middleVal !== undefined ? middleVal.toFixed(2) : '');
+                row.push(lowerVal !== undefined ? lowerVal.toFixed(2) : '');
+              } else {
+                const val = Array.isArray(overlayIndicatorData) ? overlayIndicatorData[i] : overlayIndicatorData;
+                row.push(val !== undefined && val !== null ? val.toFixed(2) : '');
+              }
+            } else {
+              const overlayValue = this.calculateIndicatorValue(ind, overlay.data, i);
+              row.push(overlayValue !== null ? overlayValue : '');
+            }
           });
         });
         
@@ -2357,6 +2698,158 @@ class ChartTab {
     }
   }
 
+  showRegressionExportDialog() {
+    if (!this.regressionResults) {
+      alert('No regression analysis results available to export.');
+      return;
+    }
+    
+    const modal = document.getElementById('regressionExportModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    
+    const pngBtn = document.getElementById('exportRegressionPngBtn');
+    const csvBtn = document.getElementById('exportRegressionCsvBtn');
+    
+    // Clone buttons to remove old listeners
+    const newPngBtn = pngBtn.cloneNode(true);
+    const newCsvBtn = csvBtn.cloneNode(true);
+    pngBtn.parentNode.replaceChild(newPngBtn, pngBtn);
+    csvBtn.parentNode.replaceChild(newCsvBtn, csvBtn);
+    
+    newPngBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+      this.exportRegressionAsPNG();
+    });
+    
+    newCsvBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+      this.exportRegressionAsCSV();
+    });
+  }
+
+  async exportRegressionAsPNG() {
+    const content = this.contentElement;
+    const regressionSection = content.querySelector('.regression-results-section');
+    
+    if (!regressionSection || typeof Plotly === 'undefined') {
+      alert('Regression analysis not ready for export.');
+      return;
+    }
+
+    try {
+      const tabId = this.id;
+      const { results } = this.regressionResults;
+      
+      // Export the combined regression chart
+      const combinedDiv = document.getElementById(`regression-combined-tab${tabId}`);
+      
+      if (combinedDiv) {
+        await Plotly.downloadImage(combinedDiv, {
+          format: 'png',
+          width: 1920,
+          height: 400 * results.length,
+          filename: `${this.ticker}_regression_analysis_${new Date().toISOString().split('T')[0]}`
+        });
+        console.log('Combined regression chart exported as PNG successfully');
+      } else {
+        alert('Regression chart not found.');
+      }
+    } catch (err) {
+      console.error('Regression PNG export error:', err);
+      alert('Failed to export regression chart as PNG.');
+    }
+  }
+
+  exportRegressionAsCSV() {
+    try {
+      const { mainTicker, results } = this.regressionResults;
+      const rows = [];
+      
+      // Build header row
+      const headers = ['Ticker', 'Beta', 'Alpha', 'R_Squared', 'Correlation'];
+      
+      // Add data point headers for each overlay
+      results.forEach(r => {
+        headers.push(`${mainTicker}_Returns`, `${r.ticker}_Returns`, `${r.ticker}_Predicted`, `${r.ticker}_Residual`);
+      });
+      
+      rows.push(headers);
+      
+      // Add summary statistics row for each overlay
+      results.forEach(r => {
+        const row = [
+          r.ticker,
+          r.beta.toFixed(6),
+          r.alpha.toFixed(6),
+          r.r_squared.toFixed(6),
+          r.correlation.toFixed(6)
+        ];
+        
+        // Add empty cells for data points
+        results.forEach(() => {
+          row.push('', '', '', '');
+        });
+        
+        rows.push(row);
+      });
+      
+      // Add blank row
+      rows.push([]);
+      
+      // Add data points header
+      const dataHeaders = ['Index'];
+      results.forEach(r => {
+        dataHeaders.push(`${mainTicker}_Returns`, `${r.ticker}_Returns`, `${r.ticker}_Predicted`, `${r.ticker}_Residual`);
+      });
+      rows.push(dataHeaders);
+      
+      // Find max length across all results
+      const maxLength = Math.max(...results.map(r => r.x_data.length));
+      
+      // Add data points
+      for (let i = 0; i < maxLength; i++) {
+        const row = [i];
+        
+        results.forEach(r => {
+          if (i < r.x_data.length) {
+            const predicted = r.alpha + r.beta * r.x_data[i];
+            const residual = r.y_data[i] - predicted;
+            row.push(
+              r.y_data[i].toFixed(6),
+              r.x_data[i].toFixed(6),
+              predicted.toFixed(6),
+              residual.toFixed(6)
+            );
+          } else {
+            row.push('', '', '', '');
+          }
+        });
+        
+        rows.push(row);
+      }
+      
+      // Convert to CSV string
+      const csvContent = rows.map(row => row.join(',')).join('\n');
+      
+      // Download file
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${mainTicker}_regression_analysis_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      console.log(`Exported regression analysis to CSV with ${results.length} overlays`);
+    } catch (error) {
+      console.error('Error exporting regression CSV:', error);
+      alert('Failed to export regression CSV: ' + error.message);
+    }
+  }
+
   displayRegressionResults(result) {
     const { mainTicker, results, dataPoints } = result;
     const content = this.contentElement;
@@ -2377,12 +2870,14 @@ class ChartTab {
       <div class="regression-results-section">
         <div class="regression-header">
           <h3>Regression Analysis: ${mainTicker} vs Overlays (${dataPoints} data points)</h3>
+          <button class="chart-export-regression-btn">Export Regression</button>
         </div>
         
         <div class="regression-summary-table">
           <table>
             <thead>
               <tr>
+                <th>Color</th>
                 <th>Ticker</th>
                 <th>Beta (β)</th>
                 <th>Alpha (α)</th>
@@ -2391,9 +2886,16 @@ class ChartTab {
               </tr>
             </thead>
             <tbody>
-              ${results.map(r => `
+              ${results.map((r, idx) => `
                 <tr>
-                  <td style="color: ${r.color}; font-weight: bold;">${r.ticker}</td>
+                  <td>
+                    <input type="color" class="regression-color-picker" 
+                           data-ticker="${r.ticker}" 
+                           data-index="${idx}" 
+                           value="${r.color}" 
+                           style="width: 30px; height: 25px; border: 1px solid #444; background: none; cursor: pointer;" />
+                  </td>
+                  <td style="color: ${r.color}; font-weight: bold;" class="regression-ticker-name" data-ticker="${r.ticker}">${r.ticker}</td>
                   <td>${r.beta.toFixed(4)}</td>
                   <td>${r.alpha.toFixed(4)}</td>
                   <td>${r.r_squared.toFixed(4)}</td>
@@ -2404,27 +2906,7 @@ class ChartTab {
           </table>
         </div>
         
-        <div class="regression-charts-grid">
-          ${results.map((r, idx) => `
-            <div class="regression-chart-wrapper">
-              <div class="regression-chart" id="regression-scatter-tab${tabId}-${idx}"></div>
-            </div>
-          `).join('')}
-        </div>
-        
-        <div class="spread-section">
-          <h3>Regression Residuals - ${mainTicker} vs Overlays</h3>
-          <p style="color: #999; font-size: 12px; margin: 5px 0 15px 0;">
-            Residual = Actual - Predicted = ${mainTicker} - (α + β × Overlay)
-          </p>
-          <div class="spread-charts-grid">
-            ${results.map((r, idx) => `
-              <div class="spread-chart-wrapper">
-                <div class="spread-chart" id="spread-chart-tab${tabId}-${idx}"></div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
+        <div class="regression-combined-chart" id="regression-combined-tab${tabId}"></div>
       </div>
     `;
     
@@ -2432,11 +2914,223 @@ class ChartTab {
     const chartCanvas = content.querySelector('.chart-canvas');
     chartCanvas.insertAdjacentHTML('afterend', resultsHtml);
     
-    // Plot regression scatter charts with unique IDs
-    results.forEach((r, idx) => {
-      this.plotRegressionChart(`regression-scatter-tab${tabId}-${idx}`, mainTicker, r);
-      this.plotSpreadChart(`spread-chart-tab${tabId}-${idx}`, mainTicker, r);
+    // Add event listener for regression export button
+    const exportRegressionBtn = content.querySelector('.chart-export-regression-btn');
+    if (exportRegressionBtn) {
+      exportRegressionBtn.addEventListener('click', () => {
+        this.showRegressionExportDialog();
+      });
+    }
+    
+    // Add event listeners for color pickers
+    const colorPickers = content.querySelectorAll('.regression-color-picker');
+    colorPickers.forEach(picker => {
+      picker.addEventListener('change', (e) => {
+        const ticker = e.target.dataset.ticker;
+        const newColor = e.target.value;
+        const idx = parseInt(e.target.dataset.index);
+        
+        // Update the result color
+        results[idx].color = newColor;
+        
+        // Update the ticker name color in the table
+        const tickerNameCell = content.querySelector(`.regression-ticker-name[data-ticker="${ticker}"]`);
+        if (tickerNameCell) {
+          tickerNameCell.style.color = newColor;
+        }
+        
+        // Redraw the chart with new color
+        this.plotCombinedRegressionChart(`regression-combined-tab${tabId}`, mainTicker, results);
+      });
     });
+    
+    // Store regression data for export
+    this.regressionResults = { mainTicker, results, dataPoints };
+    
+    // Plot combined regression chart with subplots
+    this.plotCombinedRegressionChart(`regression-combined-tab${tabId}`, mainTicker, results);
+  }
+
+  plotCombinedRegressionChart(containerId, mainTicker, results) {
+    const traces = [];
+    const numOverlays = results.length;
+    
+    // Calculate subplot dimensions - each overlay gets 2 subplots
+    const totalRows = numOverlays * 2;
+    
+    results.forEach((result, idx) => {
+      const { ticker, color, alpha, beta, x_data, y_data, spread, timestamps } = result;
+      
+      // Calculate row positions (2 rows per overlay: scatter + residual)
+      const scatterRow = idx * 2 + 1;
+      const residualRow = idx * 2 + 2;
+      
+      // Darken color for regression line
+      const darkerColor = this.darkenColor(color, 0.4);
+      
+      // === SCATTER PLOT TRACES ===
+      const xMin = Math.min(...x_data);
+      const xMax = Math.max(...x_data);
+      const yMin = alpha + beta * xMin;
+      const yMax = alpha + beta * xMax;
+      
+      traces.push({
+        x: x_data,
+        y: y_data,
+        mode: 'markers',
+        type: 'scatter',
+        name: `${ticker} Data`,
+        marker: { color: color, size: 4, opacity: 0.5 },
+        xaxis: `x${scatterRow}`,
+        yaxis: `y${scatterRow}`,
+        showlegend: true,
+        legendgroup: ticker
+      });
+      
+      traces.push({
+        x: [xMin, xMax],
+        y: [yMin, yMax],
+        mode: 'lines',
+        type: 'scatter',
+        name: `β=${beta.toFixed(4)}`,
+        line: { color: darkerColor, width: 3 },
+        xaxis: `x${scatterRow}`,
+        yaxis: `y${scatterRow}`,
+        showlegend: true,
+        legendgroup: ticker
+      });
+      
+      // === RESIDUAL PLOT TRACES ===
+      if (spread && timestamps && spread.length > 0) {
+        const dates = timestamps.map(ts => new Date(ts));
+        
+        traces.push({
+          x: dates,
+          y: spread,
+          mode: 'lines',
+          type: 'scatter',
+          name: `${ticker} Residual`,
+          line: { color: color, width: 2 },
+          xaxis: `x${residualRow}`,
+          yaxis: `y${residualRow}`,
+          showlegend: true,
+          legendgroup: ticker
+        });
+        
+        traces.push({
+          x: [dates[0], dates[dates.length - 1]],
+          y: [0, 0],
+          mode: 'lines',
+          type: 'scatter',
+          name: '',
+          line: { color: '#ff6b6b', width: 2, dash: 'dash' },
+          xaxis: `x${residualRow}`,
+          yaxis: `y${residualRow}`,
+          showlegend: false,
+          hoverinfo: 'skip'
+        });
+      }
+    });
+    
+    // Build layout
+    const rowHeight = 1.0 / totalRows;
+    const gap = 0.02;
+    
+    const layout = {
+      height: 400 * numOverlays,
+      plot_bgcolor: '#000000',
+      paper_bgcolor: '#000000',
+      font: { color: '#e0e0e0', size: 11 },
+      showlegend: false,
+      margin: { l: 60, r: 20, t: 40, b: 60 },
+      hovermode: 'x unified',
+      hoverlabel: {
+        bgcolor: '#000000',
+        bordercolor: '#4ecdc4',
+        font: { color: '#ffffff', size: 12 }
+      },
+      annotations: []
+    };
+    
+    // Add axis configurations
+    results.forEach((result, idx) => {
+      const scatterRow = idx * 2 + 1;
+      const residualRow = idx * 2 + 2;
+      
+      const scatterDomain = [
+        1 - (scatterRow * rowHeight) + gap,
+        1 - ((scatterRow - 1) * rowHeight) - gap
+      ];
+      const residualDomain = [
+        1 - (residualRow * rowHeight) + gap,
+        1 - ((residualRow - 1) * rowHeight) - gap
+      ];
+      
+      // Add title annotation only for scatter plot
+      const scatterYPos = (scatterDomain[0] + scatterDomain[1]) / 2 + (scatterDomain[1] - scatterDomain[0]) * 0.45;
+      
+      layout.annotations.push({
+        text: `${result.ticker} Regression`,
+        xref: 'paper',
+        yref: 'paper',
+        x: 0.5,
+        y: scatterYPos,
+        xanchor: 'center',
+        yanchor: 'bottom',
+        showarrow: false,
+        font: { size: 14, color: '#e0e0e0', weight: 'bold' }
+      });
+      
+      layout[`xaxis${scatterRow}`] = {
+        title: '',
+        titlefont: { color: '#e0e0e0' },
+        gridcolor: '#1a1a1a',
+        zerolinecolor: '#333',
+        tickfont: { color: '#999' },
+        anchor: `y${scatterRow}`
+      };
+      
+      layout[`yaxis${scatterRow}`] = {
+        title: '',
+        titlefont: { color: '#e0e0e0' },
+        gridcolor: '#1a1a1a',
+        zerolinecolor: '#333',
+        tickfont: { color: '#999' },
+        domain: scatterDomain,
+        anchor: `x${scatterRow}`
+      };
+      
+      layout[`xaxis${residualRow}`] = {
+        title: '',
+        titlefont: { color: '#e0e0e0' },
+        gridcolor: '#1a1a1a',
+        zerolinecolor: '#333',
+        tickfont: { color: '#999' },
+        type: 'date',
+        anchor: `y${residualRow}`
+      };
+      
+      layout[`yaxis${residualRow}`] = {
+        title: 'Residual',
+        titlefont: { color: '#e0e0e0' },
+        gridcolor: '#1a1a1a',
+        zerolinecolor: '#ff6b6b',
+        tickfont: { color: '#999' },
+        zeroline: true,
+        zerolinewidth: 2,
+        domain: residualDomain,
+        anchor: `x${residualRow}`
+      };
+    });
+    
+    const config = {
+      responsive: true,
+      displayModeBar: true,
+      displaylogo: false,
+      modeBarButtonsToRemove: ['lasso2d', 'select2d']
+    };
+    
+    window.Plotly.newPlot(containerId, traces, layout, config);
   }
 
   plotRegressionChart(containerId, mainTicker, result) {
@@ -2608,6 +3302,181 @@ class ChartTab {
 
     // Convert back to hex
     return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+  }
+  
+  showLoadPresetDialog() {
+    const modal = document.getElementById('loadPresetModal');
+    if (!modal) return;
+    
+    const presetList = document.getElementById('presetList');
+    const presets = this.getPresets();
+    
+    if (presets.length === 0) {
+      presetList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No saved presets</p>';
+    } else {
+      presetList.innerHTML = presets.map((preset, idx) => `
+        <div class="preset-item" data-index="${idx}">
+          <button class="preset-item-delete" onclick="event.stopPropagation();" data-index="${idx}">Delete</button>
+          <div class="preset-item-name">${preset.name}</div>
+          <div class="preset-item-details">
+            ${preset.ticker} | ${preset.timeframe} | ${preset.overlays?.length || 0} overlays | ${preset.indicators?.length || 0} indicators
+          </div>
+        </div>
+      `).join('');
+      
+      // Add click handlers
+      presetList.querySelectorAll('.preset-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const idx = parseInt(item.dataset.index);
+          this.loadPreset(presets[idx]);
+          modal.style.display = 'none';
+        });
+      });
+      
+      // Add delete handlers
+      presetList.querySelectorAll('.preset-item-delete').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.index);
+          this.deletePreset(idx);
+          this.showLoadPresetDialog(); // Refresh list
+        });
+      });
+    }
+    
+    modal.style.display = 'flex';
+  }
+  
+  showSavePresetDialog() {
+    const modal = document.getElementById('savePresetModal');
+    if (!modal) return;
+    
+    const input = document.getElementById('presetNameInput');
+    input.value = '';
+    
+    const confirmBtn = document.getElementById('confirmSavePresetBtn');
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    
+    newConfirmBtn.addEventListener('click', () => {
+      const name = input.value.trim();
+      if (!name) {
+        alert('Please enter a preset name');
+        return;
+      }
+      
+      this.savePreset(name);
+      modal.style.display = 'none';
+    });
+    
+    modal.style.display = 'flex';
+  }
+  
+  getPresets() {
+    const stored = localStorage.getItem('chartPresets');
+    return stored ? JSON.parse(stored) : [];
+  }
+  
+  savePreset(name) {
+    const preset = {
+      name,
+      ticker: this.ticker,
+      timeframe: this.timeframe,
+      chartType: this.chartType,
+      overlays: this.overlays.map(o => ({
+        ticker: o.ticker,
+        chartType: o.chartType,
+        upColor: o.upColor,
+        downColor: o.downColor,
+        lineColor: o.lineColor
+      })),
+      indicators: this.indicators.map(ind => ({
+        type: ind.type,
+        params: ind.params,
+        color: ind.color,
+        overlayColors: ind.overlayColors
+      })),
+      customUpColor: this.customUpColor,
+      customDownColor: this.customDownColor,
+      customLineColor: this.customLineColor
+    };
+    
+    const presets = this.getPresets();
+    presets.push(preset);
+    localStorage.setItem('chartPresets', JSON.stringify(presets));
+    
+    console.log('Preset saved:', name);
+  }
+  
+  deletePreset(index) {
+    const presets = this.getPresets();
+    presets.splice(index, 1);
+    localStorage.setItem('chartPresets', JSON.stringify(presets));
+  }
+  
+  async loadPreset(preset) {
+    console.log('Loading preset:', preset);
+    
+    // Clear current state
+    this.overlays = [];
+    this.indicators = [];
+    
+    // Load ticker
+    this.ticker = preset.ticker;
+    this.timeframe = preset.timeframe || '1day';
+    this.chartType = preset.chartType || 'candlestick';
+    
+    // Load custom colors
+    this.customUpColor = preset.customUpColor;
+    this.customDownColor = preset.customDownColor;
+    this.customLineColor = preset.customLineColor;
+    
+    // Update UI elements
+    const content = this.contentElement;
+    const tickerDisplay = content.querySelector('.chart-live-ticker');
+    if (tickerDisplay) tickerDisplay.textContent = preset.ticker;
+    
+    const timeframeSelect = content.querySelector('.chart-timeframe-select');
+    if (timeframeSelect) timeframeSelect.value = preset.timeframe;
+    
+    const chartTypeSelect = content.querySelector('.chart-type-select');
+    if (chartTypeSelect) chartTypeSelect.value = preset.chartType;
+    
+    // Update color pickers
+    const upColorInput = content.querySelector('.main-up-color-input');
+    const downColorInput = content.querySelector('.main-down-color-input');
+    const lineColorInput = content.querySelector('.main-line-color-input');
+    if (upColorInput && preset.customUpColor) upColorInput.value = preset.customUpColor;
+    if (downColorInput && preset.customDownColor) downColorInput.value = preset.customDownColor;
+    if (lineColorInput && preset.customLineColor) lineColorInput.value = preset.customLineColor;
+    
+    // Load main ticker data
+    await this.loadChart();
+    
+    // Load overlays
+    if (preset.overlays && preset.overlays.length > 0) {
+      for (const overlay of preset.overlays) {
+        await this.addOverlay(overlay.ticker, overlay);
+      }
+    }
+    
+    // Load indicators
+    if (preset.indicators && preset.indicators.length > 0) {
+      for (const ind of preset.indicators) {
+        // Ensure each indicator has a unique ID (must be integer for proper comparison)
+        if (!ind.id) {
+          ind.id = Date.now() + Math.floor(Math.random() * 10000);
+        }
+        this.indicators.push(ind);
+      }
+      this.updateIndicatorsList();
+      
+      // Redraw chart with indicators
+      if (this.chartData) {
+        const { timespan } = this.getTimespanParams();
+        this.drawChart(this.chartData, timespan);
+      }
+    }
   }
   
   showIndicatorDialog() {
@@ -3146,6 +4015,8 @@ class ChartTab {
         return window.calculateKC(high, low, close, params.period, params.multiplier);
       case 'RSI':
         return window.calculateRSIArray(close, params.period);
+      case 'StochRSI':
+        return window.calculateStochRSI(close, params.rsiPeriod, params.stochPeriod, params.kSmooth, params.dSmooth);
       case 'ATR':
         return window.calculateATR(high, low, close, params.period);
       default:
@@ -3280,6 +4151,36 @@ function initializeChartTabs() {
   
   // Show sidebar toggle button initially
   sidebarToggleBtn?.classList.add('visible');
+  
+  // Set up websocket listener to update live info when data comes in
+  window.electronAPI.onPolygonUpdate((data) => {
+    const updateTime = new Date().toLocaleTimeString();
+    console.log(`[WEBSOCKET UPDATE ${updateTime}] ${data.ticker}:`, {
+      price: data.close,
+      volume: data.volume,
+      changePercent: data.changePercent,
+      prevClose: data.prevClose,
+      timestamp: data.timestamp
+    });
+    
+    // Update all chart tabs showing this ticker (main or overlay)
+    chartTabs.forEach(tab => {
+      const hasThisTicker = tab.ticker === data.ticker || 
+                           (tab.overlays && tab.overlays.some(o => o.ticker === data.ticker));
+      
+      if (hasThisTicker) {
+        console.log(`[WEBSOCKET UPDATE] Updating chart tab ${tab.id} for ${data.ticker}`);
+        
+        // Update live info display with fresh websocket data
+        if (tab.ticker === data.ticker) {
+          tab.updateLiveInfo(data);
+        }
+        
+        // Update chart with live data (includes main ticker and overlays)
+        tab.updateChartWithLiveData(data.ticker, data);
+      }
+    });
+  });
 }
 
 // =====================================================
