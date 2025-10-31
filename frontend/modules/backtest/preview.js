@@ -34,16 +34,21 @@ const RunPreview = {
     previewContainer.innerHTML = '<div class="preview-loading">Loading price data for ' + ticker + '</div>';
     
     try {
-      // Load price data
+      // Load preview from backend API
       const startDate = '2023-01-01'; // TODO: Make configurable
       const endDate = new Date().toISOString().split('T')[0];
-      const interval = '1d';
       
-      const result = await window.electronAPI.loadPreviewData({
+      // Import API module
+      const API = await import('../core/api.js');
+      
+      // Call backend preview API
+      const result = await API.previewStrategy({
         ticker: ticker,
         startDate: startDate,
         endDate: endDate,
-        interval: interval
+        indicators: run.indicators || {},
+        entryConditions: this._formatConditions(run.entryConditions),
+        exitConditions: this._formatConditions(run.exitConditions)
       });
       
       if (!result.success) {
@@ -51,16 +56,29 @@ const RunPreview = {
         return;
       }
       
-      const priceData = result.data;
-      console.log(`[PREVIEW] Loaded ${priceData.dates.length} days of data for ${ticker}`);
+      const data = result.data;
+      console.log(`[PREVIEW] Loaded ${data.summary.total_bars} bars with ${data.summary.entry_signals} entry signals and ${data.summary.exit_signals} exit signals`);
       
-      // Generate signals for all conditions
-      const entrySignals = await this._generateSignals(run.entryConditions, priceData, run.entryMode);
-      const exitSignals = await this._generateSignals(run.exitConditions, priceData, run.exitMode);
+      // Convert API response to chart format
+      const priceData = {
+        dates: data.dates,
+        open: data.ohlcv.open,
+        high: data.ohlcv.high,
+        low: data.ohlcv.low,
+        close: data.ohlcv.close,
+        volume: data.ohlcv.volume,
+        indicators: data.indicators
+      };
       
-      console.log('[PREVIEW] Generated signals:', {
-        entryConditions: run.entryConditions.length,
-        exitConditions: run.exitConditions.length,
+      // Convert signal arrays to indices
+      const entrySignals = data.signals.entry
+        .map((signal, idx) => signal ? idx : -1)
+        .filter(idx => idx !== -1);
+      const exitSignals = data.signals.exit
+        .map((signal, idx) => signal ? idx : -1)
+        .filter(idx => idx !== -1);
+      
+      console.log('[PREVIEW] Converted signals:', {
         entrySignals: entrySignals.length,
         exitSignals: exitSignals.length
       });
@@ -407,6 +425,51 @@ const RunPreview = {
     };
     
     Plotly.newPlot(`previewChart_${runId}`, traces, layout, config);
+  },
+
+  /**
+   * Format conditions for backend API
+   * Converts frontend condition format to backend expected format
+   */
+  _formatConditions(conditions) {
+    if (!conditions || !Array.isArray(conditions)) {
+      return [];
+    }
+
+    return conditions.map(cond => {
+      // Backend expects: { source, comparison, target }
+      // Frontend has various formats depending on condition type
+      
+      if (cond.type === 'price') {
+        // Price comparison: close > 100
+        return {
+          source: cond.priceType || 'close',
+          comparison: cond.comparison || 'above',
+          target: parseFloat(cond.value) || 0
+        };
+      } else if (cond.type === 'indicator') {
+        // Indicator comparison: rsi < 30
+        return {
+          source: cond.indicator || 'rsi',
+          comparison: cond.comparison || 'below',
+          target: parseFloat(cond.value) || 0
+        };
+      } else if (cond.type === 'cross') {
+        // Crossover: sma_50 crosses above sma_200
+        return {
+          source: cond.source || 'sma_50',
+          comparison: cond.comparison || 'crosses_above',
+          target: cond.target || 'sma_200'
+        };
+      }
+
+      // Default format
+      return {
+        source: cond.source || cond.indicator || 'close',
+        comparison: cond.comparison || 'above',
+        target: cond.target !== undefined ? cond.target : (parseFloat(cond.value) || 0)
+      };
+    });
   }
 };
 

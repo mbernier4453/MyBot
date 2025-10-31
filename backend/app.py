@@ -166,20 +166,47 @@ def backtest_preview():
         
         # Run preview
         result = preview_strategy(
-            data_source=data_source,
             symbol=symbol,
             start_date=start_date,
             end_date=end_date,
             indicators_config=config.get('indicators', {}),
             entry_conditions=config.get('entry_conditions', []),
-            exit_conditions=config.get('exit_conditions', []),
-            entry_logic=config.get('entry_logic', 'all'),
-            exit_logic=config.get('exit_logic', 'all')
+            exit_conditions=config.get('exit_conditions', [])
         )
+        
+        # Convert DataFrames/Series to JSON-serializable format
+        df = result['df']
+        indicators = result['indicators']
+        entry_signal = result['entry_signal']
+        exit_signal = result['exit_signal']
+        
+        # Build response with OHLCV + indicators + signals
+        response_data = {
+            'dates': df.index.strftime('%Y-%m-%d').tolist(),
+            'ohlcv': {
+                'open': df['Open'].tolist(),
+                'high': df['High'].tolist(),
+                'low': df['Low'].tolist(),
+                'close': df['Close'].tolist(),
+                'volume': df['Volume'].tolist()
+            },
+            'indicators': {
+                name: series.tolist() for name, series in indicators.items()
+            },
+            'signals': {
+                'entry': entry_signal.tolist(),
+                'exit': exit_signal.tolist()
+            },
+            'summary': {
+                'total_bars': len(df),
+                'entry_signals': int(result['entry_count']),
+                'exit_signals': int(result['exit_count'])
+            }
+        }
         
         return jsonify({
             'success': True,
-            'data': result
+            'data': response_data
         })
         
     except Exception as e:

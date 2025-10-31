@@ -1,11 +1,175 @@
 /**
- * API Wrapper Module
- * Centralized wrapper for all electronAPI calls
- * Makes it easier to mock/test and provides a single source of truth
+ * API Service
+ * Handles all communication with the Flask backend API
  */
 
+// Load configuration
+const config = window.config || {
+    API_BASE_URL: 'http://localhost:5000',
+    ENDPOINTS: {
+        PREVIEW: '/api/backtest/preview',
+        RUN: '/api/backtest/run',
+        TICKERS: '/api/data/tickers',
+        BARS: '/api/data/bars',
+        HEALTH: '/api/health'
+    }
+};
+
 // ========================================
-// DATABASE OPERATIONS
+// CORE API METHODS
+// ========================================
+
+/**
+ * Get full API URL for an endpoint
+ */
+function getUrl(endpoint) {
+    if (endpoint.startsWith('http')) return endpoint;
+    return config.API_BASE_URL + endpoint;
+}
+
+/**
+ * Make API request with error handling
+ */
+async function request(endpoint, options = {}) {
+    const url = getUrl(endpoint);
+    const defaultOptions = {
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+        }
+    };
+
+    try {
+        const response = await fetch(url, { ...defaultOptions, ...options });
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
+        return data;
+    } catch (error) {
+        console.error('[API] Request failed:', error);
+        throw error;
+    }
+}
+
+// ========================================
+// BACKEND API OPERATIONS
+// ========================================
+
+/**
+ * Test backend connectivity
+ */
+export async function health() {
+    return await request(config.ENDPOINTS.HEALTH);
+}
+
+/**
+ * Get available tickers
+ */
+export async function getTickers() {
+    const data = await request(config.ENDPOINTS.TICKERS);
+    return { success: true, tickers: data.tickers || [] };
+}
+
+/**
+ * Get OHLCV bars for a symbol
+ */
+export async function getBars(symbol, startDate, endDate) {
+    const endpoint = `${config.ENDPOINTS.BARS}/${symbol}?start_date=${startDate}&end_date=${endDate}`;
+    const data = await request(endpoint);
+    return { success: true, data: data.data };
+}
+
+/**
+ * Preview strategy with indicators and signals
+ */
+export async function previewStrategy(params) {
+    const {
+        ticker,
+        startDate,
+        endDate,
+        indicators,
+        entryConditions,
+        exitConditions
+    } = params;
+
+    const body = {
+        symbol: ticker,
+        start_date: startDate,
+        end_date: endDate,
+        indicators: formatIndicators(indicators),
+        entry_conditions: entryConditions || [],
+        exit_conditions: exitConditions || []
+    };
+
+    const data = await request(config.ENDPOINTS.PREVIEW, {
+        method: 'POST',
+        body: JSON.stringify(body)
+    });
+
+    return { success: true, data: data.data };
+}
+
+/**
+ * Run full backtest
+ */
+export async function runBacktest(params) {
+    const {
+        symbol,
+        startDate,
+        endDate,
+        initialCapital,
+        indicators,
+        entryConditions,
+        exitConditions,
+        entryLogic,
+        exitLogic
+    } = params;
+
+    const body = {
+        symbol,
+        start_date: startDate,
+        end_date: endDate,
+        initial_capital: initialCapital || 100000,
+        indicators: formatIndicators(indicators),
+        entry_conditions: entryConditions || [],
+        exit_conditions: exitConditions || [],
+        entry_logic: entryLogic || 'all',
+        exit_logic: exitLogic || 'all'
+    };
+
+    return await request(config.ENDPOINTS.RUN, {
+        method: 'POST',
+        body: JSON.stringify(body)
+    });
+}
+
+/**
+ * Format indicators for API
+ */
+function formatIndicators(indicators) {
+    if (!indicators || typeof indicators !== 'object') {
+        return {};
+    }
+
+    const formatted = {};
+    for (const [key, indicator] of Object.entries(indicators)) {
+        if (indicator.type) {
+            formatted[key] = {
+                type: indicator.type,
+                period: indicator.period || indicator.length || 14,
+                ...indicator
+            };
+        }
+    }
+    return formatted;
+}
+
+// ========================================
+// LEGACY ELECTRON API (For backwards compatibility)
+// Will be removed once frontend is fully migrated
 // ========================================
 
 /**
@@ -13,7 +177,10 @@
  * @returns {Promise<{success: boolean, path?: string, message?: string}>}
  */
 export async function selectDb() {
-  return await window.electronAPI.selectDb();
+  if (window.electronAPI?.selectDb) {
+    return await window.electronAPI.selectDb();
+  }
+  return { success: false, message: 'Database operations not available in web mode' };
 }
 
 /**
