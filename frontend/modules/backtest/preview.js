@@ -437,38 +437,80 @@ const RunPreview = {
     }
 
     return conditions.map(cond => {
-      // Backend expects: { source, comparison, target }
+      // Backend expects: { source, comparison, target, threshold_pct?, delay_bars?, bb_std?, kc_mult? }
       // Frontend has various formats depending on condition type
       
+      const baseCondition = {};
+      
       if (cond.type === 'price') {
-        // Price comparison: close > 100
-        return {
-          source: cond.priceType || 'close',
-          comparison: cond.comparison || 'above',
-          target: parseFloat(cond.value) || 0
-        };
-      } else if (cond.type === 'indicator') {
-        // Indicator comparison: rsi < 30
-        return {
-          source: cond.indicator || 'rsi',
-          comparison: cond.comparison || 'below',
-          target: parseFloat(cond.value) || 0
-        };
-      } else if (cond.type === 'cross') {
-        // Crossover: sma_50 crosses above sma_200
-        return {
-          source: cond.source || 'sma_50',
-          comparison: cond.comparison || 'crosses_above',
-          target: cond.target || 'sma_200'
-        };
+        // Price comparison: close > 100 or close crosses above sma_20 by 2%
+        baseCondition.source = cond.priceType || 'close';
+        baseCondition.comparison = cond.interaction === 'cross' 
+          ? `crosses_${cond.direction || 'above'}` 
+          : cond.interaction || 'above';
+        
+        // Target can be a value or an indicator
+        if (cond.target_type === 'Value') {
+          baseCondition.target = parseFloat(cond.target_value) || 0;
+        } else {
+          // MA target: sma_20, ema_50, bb_top, etc.
+          const maType = cond.target_type.toLowerCase();
+          const period = cond.target_period || 20;
+          baseCondition.target = `${maType}_${period}`;
+        }
+      } else if (cond.type === 'rsi') {
+        // RSI comparison: rsi < 30 or rsi crosses below 50
+        const rsiPeriod = cond.rsi_period || 14;
+        baseCondition.source = `rsi_${rsiPeriod}`;
+        baseCondition.comparison = cond.interaction === 'cross'
+          ? `crosses_${cond.direction || 'below'}`
+          : cond.interaction || 'below';
+        
+        if (cond.target_type === 'Value') {
+          baseCondition.target = parseFloat(cond.target_value) || 30;
+        } else {
+          const maType = cond.target_type.toLowerCase();
+          const period = cond.target_period || 20;
+          baseCondition.target = `${maType}_${period}`;
+        }
+      } else if (cond.type === 'ma') {
+        // MA crossover: sma_50 crosses above sma_200
+        const maType = cond.ma_type || 'sma';
+        const period = cond.ma_period || 50;
+        baseCondition.source = `${maType}_${period}`;
+        baseCondition.comparison = cond.interaction === 'cross'
+          ? `crosses_${cond.direction || 'above'}`
+          : cond.interaction || 'above';
+        
+        if (cond.target_type === 'Value') {
+          baseCondition.target = parseFloat(cond.target_value) || 0;
+        } else {
+          const targetType = cond.target_type.toLowerCase();
+          const targetPeriod = cond.target_period || 200;
+          baseCondition.target = `${targetType}_${targetPeriod}`;
+        }
+      } else {
+        // Default format
+        baseCondition.source = cond.source || cond.indicator || 'close';
+        baseCondition.comparison = cond.comparison || 'above';
+        baseCondition.target = cond.target !== undefined ? cond.target : (parseFloat(cond.value) || 0);
       }
-
-      // Default format
-      return {
-        source: cond.source || cond.indicator || 'close',
-        comparison: cond.comparison || 'above',
-        target: cond.target !== undefined ? cond.target : (parseFloat(cond.value) || 0)
-      };
+      
+      // Add optional advanced parameters if present
+      if (cond.threshold_pct !== undefined && cond.threshold_pct !== 0) {
+        baseCondition.threshold_pct = parseFloat(cond.threshold_pct);
+      }
+      if (cond.delay_bars !== undefined && cond.delay_bars !== 0) {
+        baseCondition.delay_bars = parseInt(cond.delay_bars);
+      }
+      if (cond.bb_std !== undefined && cond.target_type?.includes('BB_')) {
+        baseCondition.bb_std = parseFloat(cond.bb_std);
+      }
+      if (cond.kc_mult !== undefined && cond.target_type?.includes('KC_')) {
+        baseCondition.kc_mult = parseFloat(cond.kc_mult);
+      }
+      
+      return baseCondition;
     });
   }
 };

@@ -66,27 +66,57 @@ class SignalEvaluator:
             'comparison': 'crosses_above' | 'crosses_below' | 'above' | 'below',
             'source': 'close' | 'rsi' | indicator name,
             'target': number or indicator name,
+            'threshold_pct': 0-10 (optional, for crosses),
+            'delay_bars': 0-10 (optional),
+            'bb_std': 1-3 (optional, for BB channels),
+            'kc_mult': 0.5-5 (optional, for KC channels),
             'params': {...}  # Additional params like periods
         }
         """
         cond_type = condition.get('type', 'price')
         comparison = condition.get('comparison', 'above')
         
+        # Build params dict for channel indicators
+        channel_params = {}
+        if 'bb_std' in condition:
+            channel_params['bb_std'] = condition['bb_std']
+        if 'kc_mult' in condition:
+            channel_params['kc_mult'] = condition['kc_mult']
+        
         # Get source series
-        source = self._get_series(condition.get('source', 'close'), condition.get('params', {}))
+        source_params = {**condition.get('params', {}), **channel_params}
+        source = self._get_series(condition.get('source', 'close'), source_params)
         
         # Get target series or value
         target = condition.get('target')
         if isinstance(target, (int, float)):
             target_series = pd.Series([float(target)] * self.length, index=self.df.index)
         else:
-            target_series = self._get_series(target, condition.get('target_params', {}))
+            target_params = {**condition.get('target_params', {}), **channel_params}
+            target_series = self._get_series(target, target_params)
+        
+        # Get advanced parameters
+        threshold_pct = condition.get('threshold_pct', 0)
+        delay_bars = condition.get('delay_bars', 0)
         
         # Evaluate comparison
-        return self._compare(source, target_series, comparison)
+        signal = self._compare(source, target_series, comparison, threshold_pct)
+        
+        # Apply delay if specified
+        if delay_bars > 0:
+            signal = signal.shift(delay_bars).fillna(False)
+        
+        return signal
     
     def _get_series(self, name: str, params: Dict[str, Any]) -> pd.Series:
-        """Get a data series by name"""
+        """
+        Get a data series by name
+        
+        Handles special formats from frontend:
+        - bb_top_20, bb_mid_20, bb_bottom_20
+        - kc_top_20, kc_mid_20, kc_bottom_20
+        - sma_50, ema_200, rsi_14, etc.
+        """
         name_lower = name.lower()
         
         # Price columns
@@ -96,6 +126,60 @@ class SignalEvaluator:
         # Volume
         if name_lower == 'volume':
             return self.df['Volume']
+        
+        # Handle Bollinger Band channels: bb_top_20, bb_mid_20, bb_bottom_20
+        if name_lower.startswith('bb_'):
+            parts = name_lower.split('_')
+            if len(parts) >= 3:
+                band_type = parts[1]  # top, mid, bottom
+                period = int(parts[2]) if parts[2].isdigit() else 20
+                std_dev = params.get('bb_std', 2.0)
+                
+                # Calculate BB if not already present
+                bb_key = f'BB_{band_type.upper()}'
+                if bb_key not in self.indicators:
+                    from backend.backtest.indicators import Indicators
+                    close = self.df['Close']
+                    bb_data = Indicators.calculate_bb(close, period, std_dev)
+                    self.indicators['BB_UPPER'] = bb_data['upper']
+                    self.indicators['BB_MIDDLE'] = bb_data['middle']
+                    self.indicators['BB_LOWER'] = bb_data['lower']
+                
+                # Map band type to indicator key
+                if band_type == 'top':
+                    return self.indicators.get('BB_UPPER', pd.Series([0.0] * self.length, index=self.df.index))
+                elif band_type == 'mid':
+                    return self.indicators.get('BB_MIDDLE', pd.Series([0.0] * self.length, index=self.df.index))
+                elif band_type == 'bottom':
+                    return self.indicators.get('BB_LOWER', pd.Series([0.0] * self.length, index=self.df.index))
+        
+        # Handle Keltner Channel: kc_top_20, kc_mid_20, kc_bottom_20
+        if name_lower.startswith('kc_'):
+            parts = name_lower.split('_')
+            if len(parts) >= 3:
+                band_type = parts[1]  # top, mid, bottom
+                period = int(parts[2]) if parts[2].isdigit() else 20
+                mult = params.get('kc_mult', 2.0)
+                
+                # Calculate KC if not already present
+                kc_key = f'KC_{band_type.upper()}'
+                if kc_key not in self.indicators:
+                    from backend.backtest.indicators import Indicators
+                    high = self.df['High']
+                    low = self.df['Low']
+                    close = self.df['Close']
+                    kc_data = Indicators.calculate_kc(high, low, close, period, mult)
+                    self.indicators['KC_UPPER'] = kc_data['upper']
+                    self.indicators['KC_MIDDLE'] = kc_data['middle']
+                    self.indicators['KC_LOWER'] = kc_data['lower']
+                
+                # Map band type to indicator key
+                if band_type == 'top':
+                    return self.indicators.get('KC_UPPER', pd.Series([0.0] * self.length, index=self.df.index))
+                elif band_type == 'mid':
+                    return self.indicators.get('KC_MIDDLE', pd.Series([0.0] * self.length, index=self.df.index))
+                elif band_type == 'bottom':
+                    return self.indicators.get('KC_LOWER', pd.Series([0.0] * self.length, index=self.df.index))
         
         # Indicators
         if name.upper() in self.indicators:
@@ -111,8 +195,17 @@ class SignalEvaluator:
         return pd.Series([0.0] * self.length, index=self.df.index)
     
     def _compare(self, source: pd.Series, target: pd.Series, 
-                comparison: str) -> pd.Series:
-        """Compare two series with specified comparison operator"""
+                comparison: str, threshold_pct: float = 0) -> pd.Series:
+        """
+        Compare two series with specified comparison operator
+        
+        Args:
+            source: Source data series
+            target: Target data series
+            comparison: Comparison operator ('above', 'crosses_above', etc.)
+            threshold_pct: For crosses, percentage beyond target required (0-10)
+                          Example: 2.0 means price must cross 2% beyond target
+        """
         
         if comparison == 'above' or comparison == '>':
             return source > target
@@ -122,15 +215,27 @@ class SignalEvaluator:
         
         elif comparison == 'crosses_above':
             # True when source crosses above target
+            # With threshold: must cross above target * (1 + threshold_pct/100)
             prev_source = source.shift(1)
             prev_target = target.shift(1)
-            return (prev_source <= prev_target) & (source > target)
+            
+            if threshold_pct > 0:
+                threshold_target = target * (1 + threshold_pct / 100)
+                return (prev_source <= prev_target) & (source >= threshold_target)
+            else:
+                return (prev_source <= prev_target) & (source > target)
         
         elif comparison == 'crosses_below':
             # True when source crosses below target
+            # With threshold: must cross below target * (1 - threshold_pct/100)
             prev_source = source.shift(1)
             prev_target = target.shift(1)
-            return (prev_source >= prev_target) & (source < target)
+            
+            if threshold_pct > 0:
+                threshold_target = target * (1 - threshold_pct / 100)
+                return (prev_source >= prev_target) & (source <= threshold_target)
+            else:
+                return (prev_source >= prev_target) & (source < target)
         
         elif comparison == 'equals' or comparison == '==':
             return np.isclose(source, target, rtol=1e-5)
