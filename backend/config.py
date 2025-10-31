@@ -24,9 +24,27 @@ MASSIVE_S3_BUCKET = os.getenv('MASSIVE_S3_BUCKET', 'flatfiles')
 BACKEND_DIR = Path(__file__).parent
 DATA_CACHE_DIR = BACKEND_DIR / 'data' / 'cache'
 PROJECT_ROOT = BACKEND_DIR.parent
+RESULTS_DIR = PROJECT_ROOT / 'results'
 
-# Ensure cache directory exists
+# Ensure directories exist
 DATA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+(RESULTS_DIR / 'csv').mkdir(exist_ok=True)
+(RESULTS_DIR / 'tearsheets').mkdir(exist_ok=True)
+(RESULTS_DIR / 'db').mkdir(exist_ok=True)
+
+# Flask Server Configuration
+FLASK_ENV = os.getenv('FLASK_ENV', 'development')
+FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
+FLASK_PORT = int(os.getenv('FLASK_PORT', 5000))
+FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'true').lower() in ('true', '1', 'yes')
+FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# CORS Configuration
+CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000').split(',')
+
+# JWT Configuration
+JWT_EXPIRATION_HOURS = int(os.getenv('JWT_EXPIRATION_HOURS', 24))
 
 def validate_config():
     """Validate that all required environment variables are set"""

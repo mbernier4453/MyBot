@@ -1,0 +1,47 @@
+# Systemd Service for Backtesting Flask Backend
+# Place this file in: /etc/systemd/system/backtester-api.service
+# Enable on boot: sudo systemctl enable backtester-api
+# Start service: sudo systemctl start backtester-api
+# Check status: sudo systemctl status backtester-api
+# View logs: sudo journalctl -u backtester-api -f
+
+[Unit]
+Description=Backtesting API Flask Application
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/backtester/backend
+Environment="PATH=/var/www/backtester/venv/bin"
+Environment="FLASK_ENV=production"
+
+# Use gunicorn for production
+ExecStart=/var/www/backtester/venv/bin/gunicorn \
+    --bind 127.0.0.1:5000 \
+    --workers 4 \
+    --worker-class gevent \
+    --timeout 300 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --access-logfile /var/log/backtester/access.log \
+    --error-logfile /var/log/backtester/error.log \
+    --log-level info \
+    app:app
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Resource limits
+LimitNOFILE=65535
+MemoryLimit=2G
+CPUQuota=200%
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
