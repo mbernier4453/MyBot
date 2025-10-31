@@ -683,7 +683,7 @@ window.updateRunTimeframe = (runId, timeframe) => {
   const run = BacktestRuns.getRun(runId);
   if (run) {
     run.timeframe = timeframe;
-    BacktestRuns.saveRuns();
+    BacktestRuns.saveRuns?.() || saveRunsToLocalStorage();
     console.log(`[RUNS UI] Updated timeframe for run ${runId} to ${timeframe}`);
   }
 };
@@ -692,7 +692,7 @@ window.updateRunStartDate = (runId, startDate) => {
   const run = BacktestRuns.getRun(runId);
   if (run) {
     run.startDate = startDate || null;
-    BacktestRuns.saveRuns();
+    BacktestRuns.saveRuns?.() || saveRunsToLocalStorage();
     console.log(`[RUNS UI] Updated start date for run ${runId} to ${startDate || 'auto'}`);
   }
 };
@@ -701,9 +701,16 @@ window.updateRunEndDate = (runId, endDate) => {
   const run = BacktestRuns.getRun(runId);
   if (run) {
     run.endDate = endDate || null;
-    BacktestRuns.saveRuns();
+    BacktestRuns.saveRuns?.() || saveRunsToLocalStorage();
     console.log(`[RUNS UI] Updated end date for run ${runId} to ${endDate || 'today'}`);
   }
 };
+
+// Helper to save runs if not exported from BacktestRuns
+function saveRunsToLocalStorage() {
+  const runs = BacktestRuns.getAllRuns();
+  localStorage.setItem('backtestRuns', JSON.stringify(runs));
+  console.log('[RUNS UI] Saved runs to localStorage');
+}
 
 console.log('[INIT] Backtest Runs UI module loaded');

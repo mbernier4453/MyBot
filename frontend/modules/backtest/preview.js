@@ -45,21 +45,23 @@ const RunPreview = {
       const formattedEntry = this._formatConditions(run.entryConditions);
       const formattedExit = this._formatConditions(run.exitConditions);
       
-      console.log('[PREVIEW] Frontend conditions:', {
-        entry: run.entryConditions,
-        exit: run.exitConditions
-      });
-      console.log('[PREVIEW] Formatted for backend:', {
-        entry: formattedEntry,
-        exit: formattedExit
-      });
+      console.log('[PREVIEW] Frontend conditions:');
+      console.log('  Entry:', JSON.stringify(run.entryConditions, null, 2));
+      console.log('  Exit:', JSON.stringify(run.exitConditions, null, 2));
+      console.log('[PREVIEW] Formatted for backend:');
+      console.log('  Entry:', JSON.stringify(formattedEntry, null, 2));
+      console.log('  Exit:', JSON.stringify(formattedExit, null, 2));
+      
+      // Build indicators config from conditions
+      const indicators = this._extractIndicatorsFromConditions(run.entryConditions, run.exitConditions);
+      console.log('[PREVIEW] Detected indicators:', JSON.stringify(indicators, null, 2));
       
       // Call backend preview API
       const result = await API.previewStrategy({
         ticker: ticker,
         startDate: startDate,
         endDate: endDate,
-        indicators: run.indicators || {},
+        indicators: indicators,
         entryConditions: formattedEntry,
         exitConditions: formattedExit
       });
@@ -316,6 +318,10 @@ const RunPreview = {
   _renderChart(runId, ticker, priceData, entrySignals, exitSignals, run) {
     const previewContainer = document.getElementById(`runPreview_${runId}`);
     
+    // Check what indicators are used in conditions
+    const usesRSI = [...(run.entryConditions || []), ...(run.exitConditions || [])]
+      .some(c => c.type === 'rsi');
+    
     const html = `
       <div class="preview-status">
         ✓ Preview generated for ${ticker} (${priceData.dates.length} bars)
@@ -342,8 +348,13 @@ const RunPreview = {
     
     previewContainer.innerHTML = html;
     
+    console.log('[PREVIEW] Rendering chart for run', runId, 'with RSI subplot:', usesRSI);
+    
     // Prepare chart data
     const traces = [];
+    
+    // Determine if we need subplots
+    const hasSubplots = usesRSI;
     
     // Price line chart (using close prices)
     traces.push({
@@ -356,7 +367,9 @@ const RunPreview = {
         color: '#2196F3',
         width: 2
       },
-      hovertemplate: '%{x}<br>Price: $%{y:.2f}<extra></extra>'
+      hovertemplate: '%{x}<br>Price: $%{y:.2f}<extra></extra>',
+      xaxis: 'x',
+      yaxis: 'y'
     });
     
     // Generate trade labels (A, B, C... Z, AA, BB, CC...)
@@ -431,7 +444,9 @@ const RunPreview = {
           line: { color: '#2e7d32', width: 2 }
         },
         hovertemplate: '%{hovertext}<extra></extra>',
-        hovertext: entryHover
+        hovertext: entryHover,
+        xaxis: 'x',
+        yaxis: 'y'
       });
     }
     
@@ -474,10 +489,68 @@ const RunPreview = {
           line: { color: '#c62828', width: 2 }
         },
         hovertemplate: '%{hovertext}<extra></extra>',
-        hovertext: exitHover
+        hovertext: exitHover,
+        xaxis: 'x',
+        yaxis: 'y'
       });
     }
     
+    // Add RSI subplot if RSI is used in conditions
+    if (usesRSI && priceData.indicators && priceData.indicators.rsi_14) {
+      const rsiValues = priceData.indicators.rsi_14;
+      
+      traces.push({
+        type: 'scatter',
+        mode: 'lines',
+        x: priceData.dates,
+        y: rsiValues,
+        name: 'RSI(14)',
+        line: {
+          color: '#9C27B0',
+          width: 2
+        },
+        hovertemplate: '%{x}<br>RSI: %{y:.2f}<extra></extra>',
+        xaxis: 'x',
+        yaxis: 'y2'
+      });
+      
+      // Add RSI overbought/oversold lines
+      traces.push({
+        type: 'scatter',
+        mode: 'lines',
+        x: [priceData.dates[0], priceData.dates[priceData.dates.length - 1]],
+        y: [70, 70],
+        name: 'Overbought',
+        line: {
+          color: '#F44336',
+          width: 1,
+          dash: 'dash'
+        },
+        showlegend: false,
+        hoverinfo: 'skip',
+        xaxis: 'x',
+        yaxis: 'y2'
+      });
+      
+      traces.push({
+        type: 'scatter',
+        mode: 'lines',
+        x: [priceData.dates[0], priceData.dates[priceData.dates.length - 1]],
+        y: [30, 30],
+        name: 'Oversold',
+        line: {
+          color: '#4CAF50',
+          width: 1,
+          dash: 'dash'
+        },
+        showlegend: false,
+        hoverinfo: 'skip',
+        xaxis: 'x',
+        yaxis: 'y2'
+      });
+    }
+    
+    // Build layout with subplots if needed
     const layout = {
       title: {
         text: `${ticker} - Strategy Preview`,
@@ -488,12 +561,14 @@ const RunPreview = {
         type: 'date', 
         rangeslider: { visible: false },
         gridcolor: '#2a2a2a',
-        showgrid: true
+        showgrid: true,
+        domain: [0, 1]
       },
       yaxis: { 
         title: 'Price ($)',
         gridcolor: '#2a2a2a',
-        showgrid: true
+        showgrid: true,
+        domain: hasSubplots ? [0.35, 1] : [0, 1]
       },
       plot_bgcolor: '#0a0a0a',
       paper_bgcolor: '#111111',
@@ -508,8 +583,19 @@ const RunPreview = {
         font: { size: 11 }
       },
       margin: { t: 80, r: 30, b: 50, l: 70 },
-      dragmode: 'pan' // Enable pan by default
+      dragmode: 'pan'
     };
+    
+    // Add RSI subplot axis if needed
+    if (hasSubplots) {
+      layout.yaxis2 = {
+        title: 'RSI',
+        gridcolor: '#2a2a2a',
+        showgrid: true,
+        domain: [0, 0.3],
+        range: [0, 100]
+      };
+    }
     
     const config = {
       responsive: true,
@@ -517,10 +603,19 @@ const RunPreview = {
       displaylogo: false,
       modeBarButtonsToAdd: ['drawopenpath', 'eraseshape'],
       modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-      scrollZoom: true // Enable scroll to zoom
+      scrollZoom: false // Disable scroll zoom
     };
     
-    Plotly.newPlot(`previewChart_${runId}`, traces, layout, config);
+    console.log('[PREVIEW] Creating Plotly chart with', traces.length, 'traces');
+    console.log('[PREVIEW] Chart container ID:', `previewChart_${runId}`);
+    
+    try {
+      Plotly.newPlot(`previewChart_${runId}`, traces, layout, config);
+      console.log('[PREVIEW] Chart rendered successfully');
+    } catch (error) {
+      console.error('[PREVIEW] Error rendering chart:', error);
+      previewContainer.innerHTML += `<div style="color: red; padding: 10px;">Chart error: ${error.message}</div>`;
+    }
   },
 
   /**
@@ -608,6 +703,58 @@ const RunPreview = {
       
       return baseCondition;
     });
+  },
+
+  /**
+   * Extract indicators config from conditions
+   * Detects which indicators need to be calculated based on conditions
+   */
+  _extractIndicatorsFromConditions(entryConditions, exitConditions) {
+    const indicators = {};
+    const allConditions = [...(entryConditions || []), ...(exitConditions || [])];
+    
+    for (const cond of allConditions) {
+      // RSI indicator
+      if (cond.type === 'rsi') {
+        const period = cond.rsi_period || 14;
+        indicators[`rsi_${period}`] = { type: 'rsi', period: period };
+      }
+      
+      // Moving averages in target
+      if (cond.target_type === 'SMA' || cond.target_type === 'EMA' || 
+          cond.target_type === 'HMA' || cond.target_type === 'KAMA') {
+        const period = cond.target_period || 20;
+        const key = `${cond.target_type.toLowerCase()}_${period}`;
+        indicators[key] = { 
+          type: cond.target_type.toLowerCase(), 
+          period: period 
+        };
+      }
+      
+      // Bollinger Bands
+      if (cond.target_type?.includes('BB_')) {
+        const period = cond.target_period || 20;
+        const std = cond.bb_std || 2.0;
+        indicators[`bb_${period}`] = { 
+          type: 'bollinger', 
+          period: period,
+          std_dev: std
+        };
+      }
+      
+      // Keltner Channels
+      if (cond.target_type?.includes('KC_')) {
+        const period = cond.target_period || 20;
+        const mult = cond.kc_mult || 2.0;
+        indicators[`kc_${period}`] = { 
+          type: 'keltner', 
+          period: period,
+          atr_mult: mult
+        };
+      }
+    }
+    
+    return indicators;
   }
 };
 

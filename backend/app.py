@@ -228,10 +228,38 @@ def run_backtest_endpoint():
         if not config:
             return jsonify({'error': 'Configuration required'}), 400
         
-        # Validate required fields
+        # Validate required fields - accept either 'symbol' or 'tickers'
         symbol = config.get('symbol')
-        if not symbol:
-            return jsonify({'error': 'symbol is required'}), 400
+        tickers = config.get('tickers')
+        
+        if not symbol and not tickers:
+            return jsonify({'error': 'symbol or tickers is required'}), 400
+        
+        # Use first ticker if tickers array provided
+        if not symbol and tickers:
+            if isinstance(tickers, list) and len(tickers) > 0:
+                symbol = tickers[0]
+                # Also set 'symbols' for engine config
+                config['symbols'] = tickers
+            elif isinstance(tickers, str):
+                symbol = tickers
+                config['symbols'] = [tickers]
+            else:
+                return jsonify({'error': 'Invalid tickers format'}), 400
+        else:
+            config['symbols'] = [symbol] if symbol else []
+        
+        # Rename frontend keys to backend keys
+        if 'startDate' in config:
+            config['start_date'] = config.pop('startDate')
+        if 'endDate' in config:
+            config['end_date'] = config.pop('endDate')
+        if 'entryConditions' in config:
+            config['entry_conditions'] = config.pop('entryConditions')
+        if 'exitConditions' in config:
+            config['exit_conditions'] = config.pop('exitConditions')
+        if 'initialCapital' in config:
+            config['initial_capital'] = config.pop('initialCapital')
         
         # Run backtest
         result = run_backtest(config, symbol=symbol)
@@ -239,10 +267,11 @@ def run_backtest_endpoint():
         if result.get('success'):
             return jsonify({
                 'success': True,
-                'run_id': result.get('run_id'),
-                'metrics': result.get('metrics'),
-                'trades_count': len(result.get('trades', [])),
-                'tearsheet_path': result.get('tearsheet_path')
+                'data': {
+                    'run_id': result.get('run_id'),
+                    'total_trades': len(result.get('trades', [])),
+                    'metrics': result.get('metrics', {})
+                }
             })
         else:
             return jsonify({
