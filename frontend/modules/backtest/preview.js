@@ -34,12 +34,25 @@ const RunPreview = {
     previewContainer.innerHTML = '<div class="preview-loading">Loading price data for ' + ticker + '</div>';
     
     try {
-      // Load preview from backend API
-      const startDate = '2023-01-01'; // TODO: Make configurable
+      // Load preview from backend API - use last 6 months for fast preview
       const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 6 months ago
       
       // Import API module
       const API = await import('../core/api.js');
+      
+      // Format conditions
+      const formattedEntry = this._formatConditions(run.entryConditions);
+      const formattedExit = this._formatConditions(run.exitConditions);
+      
+      console.log('[PREVIEW] Frontend conditions:', {
+        entry: run.entryConditions,
+        exit: run.exitConditions
+      });
+      console.log('[PREVIEW] Formatted for backend:', {
+        entry: formattedEntry,
+        exit: formattedExit
+      });
       
       // Call backend preview API
       const result = await API.previewStrategy({
@@ -47,8 +60,8 @@ const RunPreview = {
         startDate: startDate,
         endDate: endDate,
         indicators: run.indicators || {},
-        entryConditions: this._formatConditions(run.entryConditions),
-        exitConditions: this._formatConditions(run.exitConditions)
+        entryConditions: formattedEntry,
+        exitConditions: formattedExit
       });
       
       if (!result.success) {
@@ -346,39 +359,122 @@ const RunPreview = {
       hovertemplate: '%{x}<br>Price: $%{y:.2f}<extra></extra>'
     });
     
-    // Entry signals
+    // Generate trade labels (A, B, C... Z, AA, BB, CC...)
+    const getTradeLabel = (index) => {
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      if (index < 26) {
+        return alphabet[index];
+      } else {
+        const letter = alphabet[index % 26];
+        return letter + letter; // AA, BB, CC...
+      }
+    };
+    
+    // Pair entry and exit signals to create trades
+    const trades = [];
+    let entryIdx = 0;
+    let exitIdx = 0;
+    
+    while (entryIdx < entrySignals.length && exitIdx < exitSignals.length) {
+      const entryBar = entrySignals[entryIdx];
+      const exitBar = exitSignals[exitIdx];
+      
+      if (entryBar < exitBar) {
+        trades.push({
+          entry: entryBar,
+          exit: exitBar,
+          label: getTradeLabel(trades.length)
+        });
+        entryIdx++;
+        exitIdx++;
+      } else {
+        exitIdx++;
+      }
+    }
+    
+    // Entry signals with labels
     if (entrySignals.length > 0) {
+      const entryX = [];
+      const entryY = [];
+      const entryText = [];
+      const entryHover = [];
+      
+      entrySignals.forEach((barIdx, i) => {
+        entryX.push(priceData.dates[barIdx]);
+        entryY.push(priceData.close[barIdx] * 0.995); // Below price
+        
+        // Find if this entry is part of a trade
+        const trade = trades.find(t => t.entry === barIdx);
+        const label = trade ? trade.label : getTradeLabel(i);
+        
+        entryText.push(label);
+        entryHover.push(`ENTRY ${label}<br>${priceData.dates[barIdx]}<br>Price: $${priceData.close[barIdx].toFixed(2)}`);
+      });
+      
       traces.push({
         type: 'scatter',
-        mode: 'markers',
-        x: entrySignals.map(i => priceData.dates[i]),
-        y: entrySignals.map(i => priceData.close[i] * 0.997), // Slightly below the price
+        mode: 'markers+text',
+        x: entryX,
+        y: entryY,
+        text: entryText,
+        textposition: 'bottom center',
+        textfont: {
+          family: 'Arial Black, sans-serif',
+          size: 11,
+          color: '#fff'
+        },
         name: 'Entry',
         marker: {
           symbol: 'triangle-up',
-          size: 14,
+          size: 18,
           color: '#4CAF50',
-          line: { color: '#fff', width: 1 }
+          line: { color: '#2e7d32', width: 2 }
         },
-        hovertemplate: 'ENTRY<br>%{x}<br>Price: $%{y:.2f}<extra></extra>'
+        hovertemplate: '%{hovertext}<extra></extra>',
+        hovertext: entryHover
       });
     }
     
-    // Exit signals
+    // Exit signals with labels
     if (exitSignals.length > 0) {
+      const exitX = [];
+      const exitY = [];
+      const exitText = [];
+      const exitHover = [];
+      
+      exitSignals.forEach((barIdx, i) => {
+        exitX.push(priceData.dates[barIdx]);
+        exitY.push(priceData.close[barIdx] * 1.005); // Above price
+        
+        // Find if this exit is part of a trade
+        const trade = trades.find(t => t.exit === barIdx);
+        const label = trade ? trade.label : getTradeLabel(i);
+        
+        exitText.push(label);
+        exitHover.push(`EXIT ${label}<br>${priceData.dates[barIdx]}<br>Price: $${priceData.close[barIdx].toFixed(2)}`);
+      });
+      
       traces.push({
         type: 'scatter',
-        mode: 'markers',
-        x: exitSignals.map(i => priceData.dates[i]),
-        y: exitSignals.map(i => priceData.close[i] * 1.003), // Slightly above the price
+        mode: 'markers+text',
+        x: exitX,
+        y: exitY,
+        text: exitText,
+        textposition: 'top center',
+        textfont: {
+          family: 'Arial Black, sans-serif',
+          size: 11,
+          color: '#fff'
+        },
         name: 'Exit',
         marker: {
           symbol: 'triangle-down',
-          size: 14,
+          size: 18,
           color: '#F44336',
-          line: { color: '#fff', width: 1 }
+          line: { color: '#c62828', width: 2 }
         },
-        hovertemplate: 'EXIT<br>%{x}<br>Price: $%{y:.2f}<extra></extra>'
+        hovertemplate: '%{hovertext}<extra></extra>',
+        hovertext: exitHover
       });
     }
     

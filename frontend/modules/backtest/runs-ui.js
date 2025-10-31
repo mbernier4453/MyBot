@@ -312,6 +312,38 @@ function renderStrategyRunDetails(run, container) {
     </div>
     
     <div class="run-section">
+      <label class="section-label">Data Configuration</label>
+      <div class="data-config-grid">
+        <div class="config-field">
+          <label class="field-label">Timeframe</label>
+          <select class="form-select" onchange="window.updateRunTimeframe(${run.id}, this.value)">
+            <option value="day" ${(run.timeframe || 'day') === 'day' ? 'selected' : ''}>Daily</option>
+            <option value="hour" ${run.timeframe === 'hour' ? 'selected' : ''}>Hourly</option>
+            <option value="15minute" ${run.timeframe === '15minute' ? 'selected' : ''}>15 Minute</option>
+            <option value="5minute" ${run.timeframe === '5minute' ? 'selected' : ''}>5 Minute</option>
+            <option value="minute" ${run.timeframe === 'minute' ? 'selected' : ''}>1 Minute</option>
+          </select>
+        </div>
+        <div class="config-field">
+          <label class="field-label">Start Date <span style="color: var(--text-secondary); font-weight: normal;">(optional)</span></label>
+          <input type="date" 
+                 class="form-input" 
+                 value="${run.startDate || ''}"
+                 onchange="window.updateRunStartDate(${run.id}, this.value)">
+          <small class="field-hint">Leave empty for automatic (6 months for preview, 2 years for backtest)</small>
+        </div>
+        <div class="config-field">
+          <label class="field-label">End Date <span style="color: var(--text-secondary); font-weight: normal;">(optional)</span></label>
+          <input type="date" 
+                 class="form-input" 
+                 value="${run.endDate || ''}"
+                 onchange="window.updateRunEndDate(${run.id}, this.value)">
+          <small class="field-hint">Leave empty for today</small>
+        </div>
+      </div>
+    </div>
+    
+    <div class="run-section">
       <label class="section-label">Strategy Preview</label>
       <div class="preview-controls">
         <select id="runPreviewTicker_${run.id}" class="form-select" style="flex: 1;">
@@ -645,5 +677,33 @@ export async function loadDatabaseStrategiesForRun(runId, conditionType) {
     console.error('[RUNS UI] Error loading database strategies:', error);
   }
 }
+
+// Window functions for run configuration
+window.updateRunTimeframe = (runId, timeframe) => {
+  const run = BacktestRuns.getRun(runId);
+  if (run) {
+    run.timeframe = timeframe;
+    BacktestRuns.saveRuns();
+    console.log(`[RUNS UI] Updated timeframe for run ${runId} to ${timeframe}`);
+  }
+};
+
+window.updateRunStartDate = (runId, startDate) => {
+  const run = BacktestRuns.getRun(runId);
+  if (run) {
+    run.startDate = startDate || null;
+    BacktestRuns.saveRuns();
+    console.log(`[RUNS UI] Updated start date for run ${runId} to ${startDate || 'auto'}`);
+  }
+};
+
+window.updateRunEndDate = (runId, endDate) => {
+  const run = BacktestRuns.getRun(runId);
+  if (run) {
+    run.endDate = endDate || null;
+    BacktestRuns.saveRuns();
+    console.log(`[RUNS UI] Updated end date for run ${runId} to ${endDate || 'today'}`);
+  }
+};
 
 console.log('[INIT] Backtest Runs UI module loaded');

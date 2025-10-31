@@ -105,6 +105,11 @@ function createDefaultRun(type = 'strategy') {
       stopLossPercent: 5,
       stopLossDollar: 100,
       
+      // Data configuration
+      timeframe: 'day', // 'day', 'hour', 'minute', '5minute', '15minute'
+      startDate: null, // null = auto (6 months for preview, 2 years for backtest)
+      endDate: null,   // null = today
+      
       // Modes
       entryMode: 'all', // 'all' or 'any'
       exitMode: 'any'   // 'all' or 'any'

@@ -14,6 +14,7 @@ import * as BacktestRunsUI from './modules/backtest/runs-ui.js';
 import { RunPreview } from './modules/backtest/preview.js';
 import { FavoritesUI } from './modules/features/favorites.js';
 import { ConditionModals } from './modules/backtest/conditions.js';
+import * as BacktestExecution from './modules/backtest/execution.js';
 import Indicators from './modules/indicators/calculations.js';
 import TearsheetCharts from './modules/charts/tearsheet-charts.js';
 import TearsheetMetrics from './modules/results/tearsheet-metrics.js';

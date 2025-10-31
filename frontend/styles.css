@@ -6121,3 +6121,237 @@ kbd {
   height: 100%;
   display: block;
 }
+
+/* Database Selection Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 28px;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.db-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.db-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.db-option:hover {
+  border-color: var(--accent-blue);
+  background: var(--bg-hover);
+}
+
+.db-option input[type="radio"] {
+  margin-top: 4px;
+  cursor: pointer;
+  accent-color: var(--accent-blue);
+}
+
+.db-option label {
+  flex: 1;
+  cursor: pointer;
+}
+
+.db-option label strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.db-option label p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin: 0;
+}
+
+.db-option input[type="radio"]:checked + label strong {
+  color: var(--accent-blue);
+}
+
+#db-path-section label {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.status-loading,
+.status-success,
+.status-error {
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.status-loading {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.status-success {
+  background: rgba(0, 204, 85, 0.1);
+  border: 1px solid var(--positive);
+  color: var(--positive);
+}
+
+.status-success h3 {
+  margin: 0 0 12px 0;
+  color: var(--positive);
+}
+
+.status-success p {
+  margin: 8px 0;
+  color: var(--text-primary);
+}
+
+.status-success button {
+  margin-top: 16px;
+}
+
+.status-error {
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid var(--negative);
+  color: var(--negative);
+}
+
+.status-error h3 {
+  margin: 0 0 12px 0;
+  color: var(--negative);
+}
+
+.status-error p {
+  margin: 8px 0;
+  color: var(--text-primary);
+}
+
+/* Data Configuration Grid */
+.data-config-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.config-field .field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.config-field .field-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
