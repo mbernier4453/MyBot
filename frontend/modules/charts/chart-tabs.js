@@ -748,13 +748,19 @@ async updateLiveInfo(freshWsData = null) {
     return;
   }
   
+  const isMarketOpen = this.isMarketOpen();
+  
+  // If market is closed and this was triggered by websocket, ignore it completely
+  if (!isMarketOpen && freshWsData) {
+    console.log(`[LIVE INFO] Ignoring websocket update for ${this.ticker} - market is closed`);
+    return;
+  }
+  
   const content = this.contentElement;
   
   // Update ticker display
   const tickerEl = content.querySelector('.chart-live-ticker');
   if (tickerEl) tickerEl.textContent = this.ticker;
-  
-  const isMarketOpen = this.isMarketOpen();
     
   // Get current price and volume
   let currentPrice = null;
@@ -764,8 +770,6 @@ async updateLiveInfo(freshWsData = null) {
   // Use fresh websocket data if provided, otherwise get from treemapData
   const wsData = freshWsData || treemapData.get(this.ticker);
     
-
-    
     // ONLY use websocket during regular market hours
     if (isMarketOpen && wsData) {
       currentPrice = wsData.close;
@@ -773,7 +777,7 @@ async updateLiveInfo(freshWsData = null) {
       prevClose = wsData.prevClose;
       console.log(`[LIVE INFO] ${this.ticker} LIVE (market open): $${currentPrice} (prev: $${prevClose})`);
     } 
-    // Use chart data when market is closed OR no websocket
+    // Use chart data when market is closed - IGNORE websocket completely
     else if (this.chartData && this.chartData.length > 0) {
       const lastBar = this.chartData[this.chartData.length - 1];
       currentPrice = lastBar.c;
@@ -807,36 +811,7 @@ async updateLiveInfo(freshWsData = null) {
       changeEl.style.backgroundColor = '#666';
     }
     
-  // Update after-hours display (only when market is closed)
-  const afterHoursEl = content.querySelector('.chart-live-afterhours');
-  if (afterHoursEl && !isMarketOpen) {
-    // Use websocket price if available, otherwise use stored extended hours price
-    let afterHoursPrice = null;
-    
-    if (wsData && wsData.close) {
-      afterHoursPrice = wsData.close;
-    } else if (this.extendedHoursPrice) {
-      afterHoursPrice = this.extendedHoursPrice;
-    }
-    
-    const regularClose = currentPrice;  // This is today's 4PM close from chart data
-    
-    // Only show if we have both prices and they differ (actual after-hours movement)
-    if (afterHoursPrice && regularClose && Math.abs(afterHoursPrice - regularClose) > 0.01) {
-      const ahChange = afterHoursPrice - regularClose;
-      const ahChangePercent = (ahChange / regularClose) * 100;
-      
-      console.log(`[AFTER HOURS] ${this.ticker} - AH price: $${afterHoursPrice}, 4PM close: $${regularClose}, AH Change: ${ahChangePercent.toFixed(2)}%`);
-      
-      afterHoursEl.textContent = `After Hours: $${afterHoursPrice.toFixed(2)} (${ahChangePercent >= 0 ? '+' : ''}${ahChangePercent.toFixed(2)}%)`;
-      afterHoursEl.style.color = ahChangePercent >= 0 ? '#00aa55' : '#ff4444';
-      afterHoursEl.style.display = 'inline';
-    } else {
-      afterHoursEl.style.display = 'none';
-    }
-  } else if (afterHoursEl) {
-    afterHoursEl.style.display = 'none';
-  }    // Update volume
+    // Update volume
     const volumeEl = content.querySelector('.chart-live-volume');
     if (volumeEl && currentVolume) {
       const volDisplay = currentVolume >= 1e6 
