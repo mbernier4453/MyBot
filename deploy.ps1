@@ -11,7 +11,7 @@ scp deploy.sh ${SERVER}:/tmp/deploy.sh
 
 # Make it executable and run it
 Write-Host "`n▶️ Running deployment script..." -ForegroundColor Yellow
-ssh $SERVER "chmod +x /tmp/deploy.sh && bash /tmp/deploy.sh"
+ssh $SERVER "chmod +x /tmp/deploy.sh; bash /tmp/deploy.sh"
 
 Write-Host "`n✅ Deployment complete!" -ForegroundColor Green
 Write-Host "🌐 Access your app at: http://138.197.6.220" -ForegroundColor Green
