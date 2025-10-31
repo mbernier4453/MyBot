@@ -14,7 +14,7 @@ import sys
 
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, POLYGON_S3_BUCKET, DATA_CACHE_DIR
+from config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, MASSIVE_S3_ENDPOINT, MASSIVE_S3_BUCKET, DATA_CACHE_DIR
 
 class PolygonFlatFiles:
     def __init__(self, cache_dir=None):
@@ -22,14 +22,16 @@ class PolygonFlatFiles:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize AWS S3 client with credentials from config
+        # Updated for Massive.com (formerly Polygon)
         self.s3_client = boto3.client(
             's3',
             aws_access_key_id=AWS_ACCESS_KEY_ID,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            region_name=AWS_REGION
+            region_name=AWS_REGION,
+            endpoint_url=MASSIVE_S3_ENDPOINT
         )
         
-        self.bucket = POLYGON_S3_BUCKET
+        self.bucket = MASSIVE_S3_BUCKET
         
     def get_daily_bars(self, ticker, start_date, end_date):
         """
@@ -58,6 +60,8 @@ class PolygonFlatFiles:
             df = self._get_day_file(current_date)
             if df is not None and ticker in df['ticker'].values:
                 ticker_data = df[df['ticker'] == ticker].copy()
+                # Convert window_start timestamp to date
+                ticker_data['date'] = pd.to_datetime(ticker_data['window_start'], unit='ns').dt.date
                 all_data.append(ticker_data)
             
             current_date += timedelta(days=1)
@@ -73,8 +77,14 @@ class PolygonFlatFiles:
         result['date'] = pd.to_datetime(result['date'])
         result.set_index('date', inplace=True)
         
-        # Return only needed columns
-        return result[['open', 'high', 'low', 'close', 'volume']]
+        # Return only needed columns (capitalize to match expected format)
+        return result[['open', 'high', 'low', 'close', 'volume']].rename(columns={
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low',
+            'close': 'Close',
+            'volume': 'Volume'
+        })
     
     def _get_day_file(self, date):
         """Download or load a single day's flat file from S3 using AWS credentials"""

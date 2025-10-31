@@ -13,11 +13,12 @@ load_dotenv(env_path)
 # Polygon Configuration
 POLYGON_API_KEY = os.getenv('POLYGON_API_KEY')
 
-# AWS S3 Configuration for Flat Files
+# AWS S3 Configuration for Flat Files (Massive.com - formerly Polygon)
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
-POLYGON_S3_BUCKET = os.getenv('POLYGON_S3_BUCKET', 'flatfiles.polygon.io')
+MASSIVE_S3_ENDPOINT = os.getenv('MASSIVE_S3_ENDPOINT', 'https://files.massive.com')
+MASSIVE_S3_BUCKET = os.getenv('MASSIVE_S3_BUCKET', 'flatfiles')
 
 # Paths
 BACKEND_DIR = Path(__file__).parent
@@ -53,5 +54,6 @@ if __name__ == "__main__":
         print(f"✓ Polygon API Key: {POLYGON_API_KEY[:10]}...")
         print(f"✓ AWS Access Key: {AWS_ACCESS_KEY_ID[:10]}...")
         print(f"✓ AWS Region: {AWS_REGION}")
-        print(f"✓ S3 Bucket: {POLYGON_S3_BUCKET}")
+        print(f"✓ S3 Endpoint: {MASSIVE_S3_ENDPOINT}")
+        print(f"✓ S3 Bucket: {MASSIVE_S3_BUCKET}")
         print(f"✓ Cache Dir: {DATA_CACHE_DIR}")
