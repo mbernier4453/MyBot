@@ -15,6 +15,7 @@ import * as BacktestExecution from './modules/backtest/execution.js';
 import Indicators from './modules/indicators/calculations.js';
 import ConfigManagerModule from './modules/backtest/config-manager.js'; // Import early for color functions
 import PolygonTreemap from './modules/features/polygon-treemap.js';
+import WatchlistsModule from './modules/features/watchlists.js';
 import FinancialsPage from './modules/features/financials-page.js';
 import RatiosPage from './modules/features/ratios-page.js';
 import ChartTabSystem from './modules/charts/chart-tabs.js';
@@ -539,6 +540,10 @@ function initializeDOMElements() {
   // Initialize extracted modules
   console.log('[INIT] Initializing PolygonTreemap...');
   PolygonTreemap.initialize();
+  
+  console.log('[INIT] Initializing Watchlists...');
+  WatchlistsModule.initializeWatchlistEventListeners();
+  WatchlistsModule.loadWatchlists();
   
   console.log('[INIT] Initializing Financials Page...');
   FinancialsPage.initialize();
