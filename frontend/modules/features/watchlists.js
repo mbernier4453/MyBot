@@ -178,12 +178,14 @@ async function loadWatchlistStockData() {
               const stockData = {
                 ticker,
                 price: r.c,
+                close: r.c, // For display compatibility
                 open: r.o,
                 high: r.h,
                 low: r.l,
                 volume: r.v,
                 change: r.c - r.o,
-                changePercent: ((r.c - r.o) / r.o) * 100
+                changePercent: ((r.c - r.o) / r.o) * 100,
+                marketCap: null // Will be null for ETFs unless we fetch it separately
               };
               
               watchlistStockData.set(ticker, stockData);
