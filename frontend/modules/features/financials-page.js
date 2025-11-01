@@ -337,20 +337,35 @@ const FinancialsPage = {
           cfResponse.json()
         ]);
         
-        // Convert to expected format
+        // Convert to expected format - preserve fiscal period metadata
         balanceSheet = {
           success: bsData.status === 'OK',
-          results: bsData.results?.map(r => r.financials?.balance_sheet).filter(Boolean) || []
+          results: bsData.results?.map(r => ({
+            ...r.financials?.balance_sheet,
+            fiscal_period: r.fiscal_period,
+            fiscal_year: r.fiscal_year,
+            fiscal_quarter: r.fiscal_period?.replace('Q', '')
+          })).filter(r => r && Object.keys(r).length > 3) || []
         };
         
         incomeStatement = {
           success: isData.status === 'OK',
-          results: isData.results?.map(r => r.financials?.income_statement).filter(Boolean) || []
+          results: isData.results?.map(r => ({
+            ...r.financials?.income_statement,
+            fiscal_period: r.fiscal_period,
+            fiscal_year: r.fiscal_year,
+            fiscal_quarter: r.fiscal_period?.replace('Q', '')
+          })).filter(r => r && Object.keys(r).length > 3) || []
         };
         
         cashFlow = {
           success: cfData.status === 'OK',
-          results: cfData.results?.map(r => r.financials?.cash_flow_statement).filter(Boolean) || []
+          results: cfData.results?.map(r => ({
+            ...r.financials?.cash_flow_statement,
+            fiscal_period: r.fiscal_period,
+            fiscal_year: r.fiscal_year,
+            fiscal_quarter: r.fiscal_period?.replace('Q', '')
+          })).filter(r => r && Object.keys(r).length > 3) || []
         };
       }
       

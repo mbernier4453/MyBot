@@ -2368,10 +2368,12 @@ async updateLiveInfo(freshWsData = null) {
   }
   
   removeOverlay(ticker) {
-    // Unsubscribe from live updates
-    window.electronAPI.polygonUnsubscribeTickers([ticker])
-      .then(() => console.log(`[CHART] Unsubscribed from overlay ${ticker}`))
-      .catch(err => console.warn(`[CHART] Failed to unsubscribe from ${ticker}:`, err));
+    // Unsubscribe from live updates (Electron only)
+    if (window.electronAPI && window.electronAPI.polygonUnsubscribeTickers) {
+      window.electronAPI.polygonUnsubscribeTickers([ticker])
+        .then(() => console.log(`[CHART] Unsubscribed from overlay ${ticker}`))
+        .catch(err => console.warn(`[CHART] Failed to unsubscribe from ${ticker}:`, err));
+    }
     
     // Remove from array
     this.overlays = this.overlays.filter(o => o.ticker !== ticker);
@@ -2412,6 +2414,12 @@ async updateLiveInfo(freshWsData = null) {
   async runRegression() {
     if (!this.chartData || !this.overlays || this.overlays.length === 0) {
       alert('No overlay tickers available for regression analysis.');
+      return;
+    }
+
+    // Check if regression is available (Electron only)
+    if (!window.electronAPI || !window.electronAPI.calculateRegression) {
+      alert('Regression analysis is only available in the desktop version.');
       return;
     }
 

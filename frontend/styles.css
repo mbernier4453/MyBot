@@ -3031,12 +3031,14 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 .chart-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  padding: 8px 20px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 8px 15px;
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+  flex-wrap: wrap;
+  overflow-x: auto;
 }
 
 .control-group {
@@ -3046,19 +3048,19 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 }
 
 .control-group label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
 }
 
 .control-group select {
-  padding: 8px 12px;
+  padding: 6px 10px;
   background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
   font-family: inherit;
   transition: border-color 0.2s;
   cursor: pointer;
@@ -3070,16 +3072,17 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 }
 
 .chart-add-overlay-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   background-color: var(--accent-blue);
   border: none;
   border-radius: 4px;
   color: white;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .chart-add-overlay-btn:hover {
@@ -3095,16 +3098,17 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 
 /* Regression button - same style as overlay button */
 .chart-run-regression-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   background-color: var(--accent-blue);
   border: none;
   border-radius: 4px;
   color: white;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .chart-run-regression-btn:hover:not(:disabled) {
@@ -3126,16 +3130,17 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 
 /* Export button - same style as overlay button */
 .chart-export-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   background-color: var(--accent-blue);
   border: none;
   border-radius: 4px;
   color: white;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .chart-export-btn:hover {
