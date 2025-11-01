@@ -692,9 +692,11 @@ const PolygonTreemap = {
     try {
       const container = document.getElementById('treemapContainer');
       if (!container) {
-        console.warn('Treemap container not found');
+        console.warn('[POLYGON TREEMAP] Container not found');
         return;
       }
+    
+      console.log('[POLYGON TREEMAP] Drawing treemap with', treemapData.size, 'data points');
     
       // Get data source (S&P 500 or watchlists)
       const dataSource = document.getElementById('treemapDataSource')?.value || 'sp500';
@@ -710,6 +712,8 @@ const PolygonTreemap = {
           return d.changePercent !== null && sp500SectorData && sp500SectorData[d.ticker];
         });
       }
+      
+      console.log('[POLYGON TREEMAP] Filtered data array length:', dataArray.length, 'sp500SectorData:', sp500SectorData ? Object.keys(sp500SectorData).length + ' tickers' : 'not loaded');
       
       if (dataArray.length === 0) {
         // Show loading message
