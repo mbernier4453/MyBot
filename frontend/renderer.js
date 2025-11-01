@@ -5,9 +5,6 @@ import * as API from './modules/core/api.js';
 import tickerGroups from './modules/core/ticker-groups.js';
 import * as DatabaseUI from './modules/ui/database.js';
 import * as TabsUI from './modules/ui/tabs.js';
-import * as StrategiesUI from './modules/results/strategies.js';
-import * as TradesUI from './modules/results/trades.js';
-import * as TearsheetUI from './modules/results/tearsheet.js';
 import * as BacktestConfig from './modules/backtest/config.js';
 import * as BacktestRuns from './modules/backtest/runs.js';
 import * as BacktestRunsUI from './modules/backtest/runs-ui.js';
@@ -16,8 +13,6 @@ import { FavoritesUI } from './modules/features/favorites.js';
 import { ConditionModals } from './modules/backtest/conditions.js';
 import * as BacktestExecution from './modules/backtest/execution.js';
 import Indicators from './modules/indicators/calculations.js';
-import TearsheetCharts from './modules/charts/tearsheet-charts.js';
-import TearsheetMetrics from './modules/results/tearsheet-metrics.js';
 import ConfigManagerModule from './modules/backtest/config-manager.js'; // Import early for color functions
 import PolygonTreemap from './modules/features/polygon-treemap.js';
 import FinancialsPage from './modules/features/financials-page.js';
@@ -25,11 +20,6 @@ import RatiosPage from './modules/features/ratios-page.js';
 import ChartTabSystem from './modules/charts/chart-tabs.js';
 import CandlestickChart from './modules/charts/candlestick.js';
 import RSIDashboard from './modules/features/rsi-dashboard.js';
-import WatchlistsModule from './modules/features/watchlists.js';
-import RunDetailsModule from './modules/results/run-details.js';
-import BacktestConfigModule from './modules/backtest/configuration.js';
-import StrategyConditionsModule from './modules/backtest/conditions-builder.js';
-import StrategyResultChartsModule from './modules/results/result-charts.js';
 import * as Formatters from './modules/core/formatters.js';
 
 console.log('[INIT] BacktestConfig module functions:', Object.keys(BacktestConfig));
@@ -42,9 +32,6 @@ console.log('[APP] Utils functions available:', Object.keys(Utils).length);
 console.log('[APP] API functions available:', Object.keys(API).length);
 console.log('[APP] DatabaseUI functions available:', Object.keys(DatabaseUI).length);
 console.log('[APP] TabsUI functions available:', Object.keys(TabsUI).length);
-console.log('[APP] StrategiesUI functions available:', Object.keys(StrategiesUI).length);
-console.log('[APP] TradesUI functions available:', Object.keys(TradesUI).length);
-console.log('[INIT] TearsheetUI functions available:', Object.keys(TearsheetUI).length);
 
 console.log('[RENDERER] Module loaded, preparing to initialize DOM...');
 
