@@ -539,9 +539,11 @@ async function loadRSISingleTicker(ticker, group = 'None') {
           console.log(`[RSI] Set ticker ${ticker} for group ${group}`);
         }
         
+        console.log(`[RSI] Adding ${ticker} to basket. Basket now has ${rsiBasketData.length} items`);
         updateRSIHeaders();
         renderRSIBasketTable();
         document.getElementById('rsiBasketCount').textContent = '1 symbol';
+        console.log(`[RSI] UI updated for ${ticker}`);
       }
     }
   } catch (error) {
@@ -588,10 +590,16 @@ function updateRSIHeaders() {
 // - Red (Overbought): RSI above upper Bollinger Band - Potential selling opportunity  
 // - Gray/White (Neutral): RSI within Bollinger Bands - Normal trading range
 function renderRSIBasketTable() {
+  console.log(`[RSI] renderRSIBasketTable called with ${rsiBasketData.length} items`);
   const tbody = document.getElementById('rsiBasketTable').querySelector('tbody');
+  if (!tbody) {
+    console.error('[RSI] Could not find rsiBasketTable tbody element');
+    return;
+  }
   tbody.innerHTML = '';
 
   if (rsiBasketData.length === 0) {
+    console.log('[RSI] No basket data, showing empty state');
     tbody.innerHTML = '<tr class="empty-state-row"><td colspan="2">No data available</td></tr>';
     return;
   }
