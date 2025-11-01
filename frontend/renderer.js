@@ -161,17 +161,6 @@ document.getElementById('toggleFavorites')?.addEventListener('click', () => {
   list.classList.toggle('collapsed');
 });
 
-// Tearsheet Functions - delegated to TearsheetUI module
-const viewTearsheet = TearsheetUI.viewTearsheet;
-const viewPortfolioTearsheet = TearsheetUI.viewPortfolioTearsheet;
-const closeTearsheet = TearsheetUI.closeTearsheet;
-
-// CRITICAL: Expose tearsheet functions to window
-window.viewTearsheet = viewTearsheet;
-window.viewPortfolioTearsheet = viewPortfolioTearsheet;
-window.closeTearsheet = closeTearsheet;
-console.log('[INIT] Exposed tearsheet functions');
-
 // CRITICAL: Expose backtest runs UI functions to window
 window.addNewStrategyRun = BacktestRunsUI.addNewStrategyRun;
 window.addNewPortfolioRun = BacktestRunsUI.addNewPortfolioRun;
@@ -504,25 +493,8 @@ function initializeDOMElements() {
     // compareBtn removed - no longer needed
   });
   
-  // Initialize StrategiesUI module
-  StrategiesUI.initializeStrategiesDisplay({
-    tickerFilter,
-    strategiesContent: document.getElementById('strategiesContent')
-  });
-  
-  // Initialize TradesUI module
-  TradesUI.initializeTradesDisplay({
-    tradeSearch,
-    sideFilter,
-    tradesContent: document.getElementById('tradesContent')
-  });
-  
   // Attach event listeners
   selectDbBtn?.addEventListener('click', DatabaseUI.selectDatabase);
-  tickerFilter?.addEventListener('change', StrategiesUI.filterStrategies);
-  tradeSearch?.addEventListener('input', TradesUI.filterTrades);
-  sideFilter?.addEventListener('change', TradesUI.filterTrades);
-  // compareBtn removed - Compare feature no longer needed
   
   // Backtest DB selector listeners
   if (selectBacktestDbBtn) {
@@ -577,14 +549,8 @@ function initializeDOMElements() {
   console.log('[INIT] Initializing RSIDashboard...');
   RSIDashboard.initialize();
   
-  console.log('[INIT] Initializing Watchlists...');
-  WatchlistsModule.initializeWatchlistEventListeners();
-  
   console.log('[INIT] Initializing Chart Tabs...');
   initializeChartTabs();
-  
-  console.log('[INIT] Initializing Backtest Configuration...');
-  BacktestConfigModule.initializeBacktestConfig();
   
   // Load favorites on startup (use setTimeout to ensure everything is ready)
   setTimeout(() => {
