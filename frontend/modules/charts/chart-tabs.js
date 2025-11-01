@@ -4127,16 +4127,17 @@ function initializeChartTabs() {
   // Show sidebar toggle button initially
   sidebarToggleBtn?.classList.add('visible');
   
-  // Set up websocket listener to update live info when data comes in
-  window.electronAPI.onPolygonUpdate((data) => {
-    const updateTime = new Date().toLocaleTimeString();
-    console.log(`[WEBSOCKET UPDATE ${updateTime}] ${data.ticker}:`, {
-      price: data.close,
-      volume: data.volume,
-      changePercent: data.changePercent,
-      prevClose: data.prevClose,
-      timestamp: data.timestamp
-    });
+  // Set up websocket listener to update live info when data comes in (Electron only)
+  if (window.electronAPI && window.electronAPI.onPolygonUpdate) {
+    window.electronAPI.onPolygonUpdate((data) => {
+      const updateTime = new Date().toLocaleTimeString();
+      console.log(`[WEBSOCKET UPDATE ${updateTime}] ${data.ticker}:`, {
+        price: data.close,
+        volume: data.volume,
+        changePercent: data.changePercent,
+        prevClose: data.prevClose,
+        timestamp: data.timestamp
+      });
     
     // Update all chart tabs showing this ticker (main or overlay)
     chartTabs.forEach(tab => {
@@ -4155,7 +4156,10 @@ function initializeChartTabs() {
         tab.updateChartWithLiveData(data.ticker, data);
       }
     });
-  });
+    });
+  } else {
+    console.log('[CHART TABS] Running in browser mode - live updates disabled');
+  }
 }
 
 // =====================================================

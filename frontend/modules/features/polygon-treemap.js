@@ -13,6 +13,12 @@ const PolygonTreemap = {
    * Initialize Polygon connection and event listeners
    */
   async initialize() {
+    // Check if running in Electron or browser
+    if (!window.electronAPI || !window.electronAPI.polygonGetSP500Data) {
+      console.log('[POLYGON TREEMAP] Running in browser mode - Polygon features disabled');
+      return;
+    }
+
     // Load S&P 500 sector data from CSV
     try {
       const result = await window.electronAPI.polygonGetSP500Data();
