@@ -302,6 +302,14 @@ const FinancialsPage = {
     document.getElementById('incomeStatementPageTable').innerHTML = '';
     document.getElementById('cashFlowPageTable').innerHTML = '';
     
+    // Check if running in browser mode
+    if (!window.electronAPI || !window.electronAPI.polygonGetBalanceSheet) {
+      loadingEl.style.display = 'none';
+      errorEl.textContent = 'Financials are only available in the desktop version';
+      errorEl.style.display = 'block';
+      return;
+    }
+    
     try {
       // Get up to 5 years of data (20 quarters or 5 annual reports)
       const limit = this.currentTimeframe === 'quarterly' ? 20 : 5;

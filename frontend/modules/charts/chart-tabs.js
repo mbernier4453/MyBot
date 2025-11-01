@@ -616,19 +616,21 @@ class ChartTab {
       tickerGroups.setGroupTicker(this.group, ticker);
     }
     
-  // Subscribe to websocket for this ticker
-  try {
-    await window.electronAPI.polygonSubscribeTickers([ticker]);
-    console.log(`[WEBSOCKET] Subscribed to ${ticker}`);
-    
-    // ALWAYS force fetch ticker data immediately for latest price
-    console.log(`[WEBSOCKET] Force fetching latest data for ${ticker}`);
-    await window.electronAPI.polygonFetchTickers([ticker]);
-    
-    // Wait a bit for the fetch to complete and update treemapData
-    await new Promise(resolve => setTimeout(resolve, 500));
-  } catch (error) {
-    console.error(`[WEBSOCKET] Failed to subscribe to ${ticker}:`, error);
+  // Subscribe to websocket for this ticker (Electron only)
+  if (window.electronAPI && window.electronAPI.polygonSubscribeTickers) {
+    try {
+      await window.electronAPI.polygonSubscribeTickers([ticker]);
+      console.log(`[WEBSOCKET] Subscribed to ${ticker}`);
+      
+      // ALWAYS force fetch ticker data immediately for latest price
+      console.log(`[WEBSOCKET] Force fetching latest data for ${ticker}`);
+      await window.electronAPI.polygonFetchTickers([ticker]);
+      
+      // Wait a bit for the fetch to complete and update treemapData
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error(`[WEBSOCKET] Failed to subscribe to ${ticker}:`, error);
+    }
   }
   
   // Load chart first, THEN update live info
@@ -902,12 +904,14 @@ async updateLiveInfo(freshWsData = null) {
     `;
     
     try {
-      // Subscribe to live updates for this ticker
-      try {
-        await window.electronAPI.polygonSubscribeTickers([this.ticker]);
-        console.log(`[CHART] Subscribed to ${this.ticker}`);
-      } catch (subError) {
-        console.warn(`[CHART] Failed to subscribe to ${this.ticker}:`, subError);
+      // Subscribe to live updates for this ticker (Electron only)
+      if (window.electronAPI && window.electronAPI.polygonSubscribeTickers) {
+        try {
+          await window.electronAPI.polygonSubscribeTickers([this.ticker]);
+          console.log(`[CHART] Subscribed to ${this.ticker}`);
+        } catch (subError) {
+          console.warn(`[CHART] Failed to subscribe to ${this.ticker}:`, subError);
+        }
       }
       
       const dateRange = this.getDateRange();
