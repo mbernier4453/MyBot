@@ -348,10 +348,10 @@ const PolygonTreemap = {
    * Fetch initial market data via REST API
    */
   async fetchInitialData(tickers, apiKey) {
-    console.log('[POLYGON TREEMAP] Fetching initial data...');
+    console.log(`[POLYGON TREEMAP] Fetching initial data for ${tickers.length} tickers...`);
     const batchSize = 50;
 
-    for (let i = 0; i < tickers.length && i < 100; i += batchSize) {
+    for (let i = 0; i < tickers.length; i += batchSize) {
       const batch = tickers.slice(i, i + batchSize);
       const promises = batch.map(async ticker => {
         try {

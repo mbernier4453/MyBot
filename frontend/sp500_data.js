@@ -136,4 +136,7 @@ const MARKET_CAPS_BY_SECTOR = {
   }
 };
 
-module.exports = { SP500_BY_SECTOR, MARKET_CAPS_BY_SECTOR };
+// Browser compatibility - don't use module.exports
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { SP500_BY_SECTOR, MARKET_CAPS_BY_SECTOR };
+}
