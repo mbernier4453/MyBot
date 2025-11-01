@@ -346,8 +346,12 @@ function updateColor(colorName) {
   
   // Update CSS variable (use actual CSS variable names without 'color-' prefix)
   const cssVarName = `--${colorName}`;
-  document.documentElement.style.setProperty(cssVarName, picker.value);
+  document.documentElement.style.setProperty(cssVarName, picker.value, 'important');
   console.log('[COLOR] Updated', cssVarName, 'to', picker.value);
+  
+  // Force repaint by toggling a class
+  document.body.classList.add('color-updating');
+  setTimeout(() => document.body.classList.remove('color-updating'), 0);
   
   // Save to localStorage
   saveUserColors();
@@ -407,8 +411,12 @@ function resetColor(colorName) {
   
   // Update CSS variable (use actual CSS variable names without 'color-' prefix)
   const cssVarName = `--${colorName}`;
-  document.documentElement.style.setProperty(cssVarName, defaultValue);
+  document.documentElement.style.setProperty(cssVarName, defaultValue, 'important');
   console.log('[COLOR] Reset', cssVarName, 'to', defaultValue);
+  
+  // Force repaint
+  document.body.classList.add('color-updating');
+  setTimeout(() => document.body.classList.remove('color-updating'), 0);
   
   // Save to localStorage
   saveUserColors();
@@ -559,7 +567,7 @@ function loadUserColors() {
       
       // Apply to CSS (use actual CSS variable names without 'color-' prefix)
       const cssVarName = `--${colorName}`;
-      document.documentElement.style.setProperty(cssVarName, value);
+      document.documentElement.style.setProperty(cssVarName, value, 'important');
       // Removed excessive logging: console.log('[COLOR] Loaded', cssVarName, '=', value);
     }
   });
