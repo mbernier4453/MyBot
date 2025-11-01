@@ -121,32 +121,81 @@ async function loadWatchlistStockData() {
   if (missingTickers.length > 0) {
     console.log('[WATCHLISTS] Fetching missing tickers:', missingTickers);
     try {
-      // First check the stockData cache
-      const allData = await window.electronAPI.polygonGetAllData();
-      
-      if (allData && Array.isArray(allData)) {
-        allData.forEach(stock => {
-          if (missingTickers.includes(stock.ticker)) {
-            watchlistStockData.set(stock.ticker, stock);
-            treemapData.set(stock.ticker, stock);
-            foundCount++;
-          }
-        });
-      }
-      
-      // For tickers still missing (not in S&P 500), fetch directly
-      const stillMissing = missingTickers.filter(ticker => !watchlistStockData.has(ticker));
-      if (stillMissing.length > 0) {
-        console.log('[WATCHLISTS] Fetching non-S&P500 tickers:', stillMissing);
-        const result = await window.electronAPI.polygonFetchTickers(stillMissing);
+      if (window.electronAPI && window.electronAPI.polygonGetAllData) {
+        // Electron mode - use IPC
+        const allData = await window.electronAPI.polygonGetAllData();
         
-        if (result.success && result.data) {
-          result.data.forEach(stock => {
-            watchlistStockData.set(stock.ticker, stock);
-            treemapData.set(stock.ticker, stock);
-            foundCount++;
+        if (allData && Array.isArray(allData)) {
+          allData.forEach(stock => {
+            if (missingTickers.includes(stock.ticker)) {
+              watchlistStockData.set(stock.ticker, stock);
+              treemapData.set(stock.ticker, stock);
+              foundCount++;
+            }
           });
-          console.log('[WATCHLISTS] Fetched', result.data.length, 'additional tickers');
+        }
+        
+        // For tickers still missing (not in S&P 500), fetch directly
+        const stillMissing = missingTickers.filter(ticker => !watchlistStockData.has(ticker));
+        if (stillMissing.length > 0) {
+          console.log('[WATCHLISTS] Fetching non-S&P500 tickers:', stillMissing);
+          const result = await window.electronAPI.polygonFetchTickers(stillMissing);
+          
+          if (result.success && result.data) {
+            result.data.forEach(stock => {
+              watchlistStockData.set(stock.ticker, stock);
+              treemapData.set(stock.ticker, stock);
+              foundCount++;
+            });
+            console.log('[WATCHLISTS] Fetched', result.data.length, 'additional tickers');
+          }
+        }
+      } else {
+        // Browser mode - use REST API
+        const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+        if (!apiKey) {
+          console.error('[WATCHLISTS] No API key available');
+          return;
+        }
+        
+        for (const ticker of missingTickers) {
+          try {
+            // Check treemapData first (already loaded from home page)
+            if (treemapData.has(ticker)) {
+              watchlistStockData.set(ticker, treemapData.get(ticker));
+              foundCount++;
+              continue;
+            }
+            
+            // Fetch from Polygon API
+            const response = await fetch(
+              `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`
+            );
+            const data = await response.json();
+            
+            if (data.status === 'OK' && data.results?.[0]) {
+              const r = data.results[0];
+              const stockData = {
+                ticker,
+                price: r.c,
+                open: r.o,
+                high: r.h,
+                low: r.l,
+                volume: r.v,
+                change: r.c - r.o,
+                changePercent: ((r.c - r.o) / r.o) * 100
+              };
+              
+              watchlistStockData.set(ticker, stockData);
+              treemapData.set(ticker, stockData);
+              foundCount++;
+            }
+          } catch (err) {
+            console.error(`[WATCHLISTS] Error fetching ${ticker}:`, err);
+          }
+          
+          // Rate limiting
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
       }
       

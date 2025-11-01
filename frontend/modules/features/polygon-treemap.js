@@ -165,15 +165,34 @@ const PolygonTreemap = {
   async initializeBrowserMode() {
     console.log('[POLYGON TREEMAP] Initializing browser mode with WebSocket');
     
-    // Load S&P 500 data from sp500_data.js
-    if (typeof SP500_BY_SECTOR !== 'undefined') {
+    // Load S&P 500 data from CSV file
+    try {
+      const response = await fetch('/spy503.csv');
+      const csvText = await response.text();
+      const lines = csvText.split('\n');
+      
       sp500SectorData = {};
-      for (const [sector, tickers] of Object.entries(SP500_BY_SECTOR)) {
-        for (const ticker of tickers) {
-          sp500SectorData[ticker] = { sector };
-        }
+      let tickerCount = 0;
+      
+      // Skip header line
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        
+        // Parse CSV line (handle quoted fields)
+        const values = this.parseCSVLine(lines[i]);
+        if (values.length < 4) continue;
+        
+        const ticker = values[0];
+        const sector = values[2]; // GICS Sector column
+        
+        sp500SectorData[ticker] = { sector };
+        tickerCount++;
       }
-      console.log('[POLYGON TREEMAP] Loaded', Object.keys(sp500SectorData).length, 'S&P 500 tickers');
+      
+      console.log('[POLYGON TREEMAP] Loaded', tickerCount, 'S&P 500 tickers from CSV');
+    } catch (error) {
+      console.error('[POLYGON TREEMAP] Error loading CSV:', error);
+      return;
     }
 
     // Setup UI event listeners (same as Electron mode)
@@ -231,6 +250,31 @@ const PolygonTreemap = {
   },
 
   /**
+   * Parse CSV line handling quoted fields
+   */
+  parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    result.push(current.trim());
+    return result;
+  },
+
+  /**
    * Connect to Polygon WebSocket in browser mode
    */
   async connectBrowserWebSocket() {
@@ -279,14 +323,9 @@ const PolygonTreemap = {
         const messages = JSON.parse(event.data);
         messages.forEach(msg => {
           if (msg.ev === 'A') {
-            // Get market cap from MARKET_CAPS_BY_SECTOR if available
-            let marketCap = null;
-            if (typeof MARKET_CAPS_BY_SECTOR !== 'undefined' && sp500SectorData[msg.sym]) {
-              const sector = sp500SectorData[msg.sym].sector;
-              if (MARKET_CAPS_BY_SECTOR[sector] && MARKET_CAPS_BY_SECTOR[sector][msg.sym]) {
-                marketCap = MARKET_CAPS_BY_SECTOR[sector][msg.sym] * 1e9; // Convert to actual value
-              }
-            }
+            // Keep existing market cap from initial fetch (will be set there)
+            const existingData = treemapData.get(msg.sym);
+            const marketCap = existingData?.marketCap || null;
             
             // Aggregate (per-second bar)
             const data = {
@@ -365,21 +404,28 @@ const PolygonTreemap = {
       const batch = tickers.slice(i, i + batchSize);
       const promises = batch.map(async ticker => {
         try {
-          const response = await fetch(
+          // Fetch previous day data
+          const priceResponse = await fetch(
             `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`
           );
-          const data = await response.json();
+          const priceData = await priceResponse.json();
 
-          if (data.status === 'OK' && data.results?.[0]) {
-            const r = data.results[0];
+          if (priceData.status === 'OK' && priceData.results?.[0]) {
+            const r = priceData.results[0];
             
-            // Get market cap from MARKET_CAPS_BY_SECTOR if available
+            // Fetch ticker details for market cap
             let marketCap = null;
-            if (typeof MARKET_CAPS_BY_SECTOR !== 'undefined' && sp500SectorData[ticker]) {
-              const sector = sp500SectorData[ticker].sector;
-              if (MARKET_CAPS_BY_SECTOR[sector] && MARKET_CAPS_BY_SECTOR[sector][ticker]) {
-                marketCap = MARKET_CAPS_BY_SECTOR[sector][ticker] * 1e9; // Convert to actual value
+            try {
+              const detailsResponse = await fetch(
+                `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${apiKey}`
+              );
+              const detailsData = await detailsResponse.json();
+              
+              if (detailsData.status === 'OK' && detailsData.results?.market_cap) {
+                marketCap = detailsData.results.market_cap;
               }
+            } catch (err) {
+              console.warn(`[POLYGON TREEMAP] Could not fetch market cap for ${ticker}`);
             }
             
             treemapData.set(ticker, {
@@ -400,7 +446,7 @@ const PolygonTreemap = {
       });
 
       await Promise.all(promises);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200)); // Increased delay due to extra API calls
     }
 
     lastUpdateTime = new Date();
