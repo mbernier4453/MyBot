@@ -6,7 +6,8 @@
 // State
 let treemapData = new Map();
 let lastUpdateTime = null;
-let sp500SectorData = null; // Will be loaded from CSV via main process
+let sp500SectorData = null; // Will be loaded from CSV via main process or sp500_data.js
+let updateInterval = null;
 
 const PolygonTreemap = {
   /**
@@ -15,7 +16,8 @@ const PolygonTreemap = {
   async initialize() {
     // Check if running in Electron or browser
     if (!window.electronAPI || !window.electronAPI.polygonGetSP500Data) {
-      console.log('[POLYGON TREEMAP] Running in browser mode - Polygon features disabled');
+      console.log('[POLYGON TREEMAP] Running in browser mode - using REST API');
+      await this.initializeBrowserMode();
       return;
     }
 
@@ -154,6 +156,313 @@ const PolygonTreemap = {
     const homePage = document.getElementById('homePage');
     if (homePage) {
       homePageObserver.observe(homePage, { attributes: true, attributeFilter: ['class'] });
+    }
+  },
+
+  /**
+   * Initialize browser mode with WebSocket
+   */
+  async initializeBrowserMode() {
+    console.log('[POLYGON TREEMAP] Initializing browser mode with WebSocket');
+    
+    // Load S&P 500 data from sp500_data.js
+    if (typeof SP500_BY_SECTOR !== 'undefined') {
+      sp500SectorData = {};
+      for (const [sector, tickers] of Object.entries(SP500_BY_SECTOR)) {
+        for (const ticker of tickers) {
+          sp500SectorData[ticker] = { sector };
+        }
+      }
+      console.log('[POLYGON TREEMAP] Loaded', Object.keys(sp500SectorData).length, 'S&P 500 tickers');
+    }
+
+    // Setup UI event listeners (same as Electron mode)
+    document.getElementById('treemapSizeBy')?.addEventListener('change', () => {
+      this.drawTreemap();
+    });
+
+    document.getElementById('treemapGroupBy')?.addEventListener('change', () => {
+      this.drawTreemap();
+    });
+
+    document.getElementById('treemapDataSource')?.addEventListener('change', (e) => {
+      this.updateGroupByOptions(e.target.value);
+      this.drawTreemap();
+    });
+
+    document.getElementById('reconnectBtn')?.addEventListener('click', () => {
+      this.connectBrowserWebSocket();
+    });
+
+    // Initialize group options
+    const initialDataSource = document.getElementById('treemapDataSource')?.value || 'sp500';
+    this.updateGroupByOptions(initialDataSource);
+
+    // Update display every second
+    setInterval(() => this.updateLastUpdateDisplay(), 1000);
+
+    // Redraw on window resize
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        if (document.getElementById('homePage').classList.contains('active')) {
+          this.drawTreemap();
+        }
+      }, 250);
+    });
+
+    // Initial draw when home page becomes active
+    const homePageObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.target.classList.contains('active') && mutation.target.id === 'homePage') {
+          setTimeout(() => this.drawTreemap(), 100);
+        }
+      });
+    });
+
+    const homePage = document.getElementById('homePage');
+    if (homePage) {
+      homePageObserver.observe(homePage, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    // Connect WebSocket
+    await this.connectBrowserWebSocket();
+  },
+
+  /**
+   * Connect to Polygon WebSocket in browser mode
+   */
+  async connectBrowserWebSocket() {
+    const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+    if (!apiKey) {
+      console.error('[POLYGON TREEMAP] No API key found');
+      return;
+    }
+
+    const lastUpdateEl = document.getElementById('lastUpdate');
+    const reconnectBtn = document.getElementById('reconnectBtn');
+
+    try {
+      // Get S&P 500 tickers
+      let tickers = [];
+      if (sp500SectorData) {
+        tickers = Object.keys(sp500SectorData);
+      } else {
+        tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'V', 'UNH', 'JNJ'];
+      }
+
+      console.log(`[POLYGON TREEMAP] Connecting WebSocket for ${tickers.length} tickers`);
+      lastUpdateEl.textContent = 'Connecting...';
+      lastUpdateEl.style.color = '#4a9eff';
+
+      const ws = new WebSocket('wss://socket.polygon.io/stocks');
+      this.browserWebSocket = ws;
+
+      ws.onopen = () => {
+        console.log('[POLYGON TREEMAP] WebSocket connected');
+        lastUpdateEl.textContent = 'Connected';
+        lastUpdateEl.style.color = '#00aa55';
+        reconnectBtn.style.display = 'none';
+
+        // Authenticate
+        ws.send(JSON.stringify({ action: 'auth', params: apiKey }));
+
+        // Subscribe to per-second aggregates
+        ws.send(JSON.stringify({
+          action: 'subscribe',
+          params: tickers.map(t => `A.${t}`).join(',')
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        const messages = JSON.parse(event.data);
+        messages.forEach(msg => {
+          if (msg.ev === 'A') {
+            // Aggregate (per-second bar)
+            const data = {
+              ticker: msg.sym,
+              price: msg.c,
+              open: msg.o,
+              high: msg.h,
+              low: msg.l,
+              volume: msg.v,
+              change: msg.c - msg.o,
+              changePercent: ((msg.c - msg.o) / msg.o) * 100,
+              timestamp: msg.s
+            };
+            
+            treemapData.set(msg.sym, data);
+            lastUpdateTime = new Date();
+            
+            // Debounced redraw
+            if (!window.treemapUpdateScheduled) {
+              window.treemapUpdateScheduled = true;
+              setTimeout(() => {
+                this.drawTreemap();
+                window.treemapUpdateScheduled = false;
+              }, 5000);
+            }
+          } else if (msg.ev === 'status') {
+            console.log('[POLYGON TREEMAP]', msg.message);
+            if (msg.status === 'auth_success') {
+              lastUpdateEl.textContent = 'Authenticated';
+            }
+          }
+        });
+      };
+
+      ws.onerror = (error) => {
+        console.error('[POLYGON TREEMAP] WebSocket error:', error);
+        lastUpdateEl.textContent = 'Connection error';
+        lastUpdateEl.style.color = '#ff4444';
+      };
+
+      ws.onclose = () => {
+        console.log('[POLYGON TREEMAP] WebSocket closed');
+        lastUpdateEl.textContent = 'Disconnected';
+        lastUpdateEl.style.color = '#ff4444';
+        reconnectBtn.style.display = 'block';
+
+        // Auto-reconnect after 5 seconds
+        setTimeout(() => {
+          if (document.getElementById('treemapChart')) {
+            console.log('[POLYGON TREEMAP] Auto-reconnecting...');
+            this.connectBrowserWebSocket();
+          }
+        }, 5000);
+      };
+
+      // Fetch initial data while waiting for WebSocket updates
+      await this.fetchInitialData(tickers, apiKey);
+
+    } catch (error) {
+      console.error('[POLYGON TREEMAP] Error connecting WebSocket:', error);
+      lastUpdateEl.textContent = 'Connection failed';
+      lastUpdateEl.style.color = '#ff4444';
+      reconnectBtn.style.display = 'block';
+    }
+  },
+
+  /**
+   * Fetch initial market data via REST API
+   */
+  async fetchInitialData(tickers, apiKey) {
+    console.log('[POLYGON TREEMAP] Fetching initial data...');
+    const batchSize = 50;
+
+    for (let i = 0; i < tickers.length && i < 100; i += batchSize) {
+      const batch = tickers.slice(i, i + batchSize);
+      const promises = batch.map(async ticker => {
+        try {
+          const response = await fetch(
+            `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`
+          );
+          const data = await response.json();
+
+          if (data.status === 'OK' && data.results?.[0]) {
+            const r = data.results[0];
+            treemapData.set(ticker, {
+              ticker,
+              price: r.c,
+              open: r.o,
+              high: r.h,
+              low: r.l,
+              volume: r.v,
+              change: r.c - r.o,
+              changePercent: ((r.c - r.o) / r.o) * 100
+            });
+          }
+        } catch (err) {
+          console.error(`[POLYGON TREEMAP] Error fetching ${ticker}:`, err);
+        }
+      });
+
+      await Promise.all(promises);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    lastUpdateTime = new Date();
+    console.log(`[POLYGON TREEMAP] Initial data loaded: ${treemapData.size} stocks`);
+    this.drawTreemap();
+  },
+
+  /**
+   * Fetch market data via REST API and draw treemap
+   */
+  async fetchAndDrawTreemap() {
+    if (!window.POLYGON_API_KEY && !window.api?.POLYGON_API_KEY) {
+      console.warn('[POLYGON TREEMAP] No API key configured');
+      return;
+    }
+
+    const apiKey = window.POLYGON_API_KEY || window.api.POLYGON_API_KEY;
+    const lastUpdateEl = document.getElementById('lastUpdate');
+    
+    try {
+      lastUpdateEl.textContent = 'Updating...';
+      lastUpdateEl.style.color = '#4a9eff';
+
+      // Get top 50 S&P 500 stocks by market cap
+      const topTickers = [
+        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK.B', 'V', 'UNH',
+        'XOM', 'JNJ', 'JPM', 'WMT', 'LLY', 'MA', 'PG', 'CVX', 'HD', 'ABBV',
+        'MRK', 'COST', 'AVGO', 'KO', 'PEP', 'ORCL', 'MCD', 'ADBE', 'CSCO', 'TMO',
+        'ACN', 'CRM', 'ABT', 'NFLX', 'DHR', 'NKE', 'LIN', 'AMD', 'TXN', 'DIS',
+        'PM', 'NEE', 'VZ', 'UPS', 'T', 'RTX', 'INTU', 'QCOM', 'HON', 'SPGI'
+      ];
+
+      // Fetch previous close for all tickers in parallel
+      const promises = topTickers.map(async (ticker) => {
+        try {
+          const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`;
+          const response = await fetch(url);
+          const data = await response.json();
+          
+          if (data.status === 'OK' && data.results && data.results.length > 0) {
+            const result = data.results[0];
+            const changePercent = ((result.c - result.o) / result.o) * 100;
+            
+            return {
+              ticker,
+              price: result.c,
+              open: result.o,
+              high: result.h,
+              low: result.l,
+              volume: result.v,
+              change: result.c - result.o,
+              changePercent,
+              timestamp: result.t
+            };
+          }
+        } catch (error) {
+          console.error(`[POLYGON TREEMAP] Error fetching ${ticker}:`, error);
+        }
+        return null;
+      });
+
+      const results = await Promise.all(promises);
+      
+      // Update treemapData
+      treemapData.clear();
+      results.forEach(data => {
+        if (data) {
+          treemapData.set(data.ticker, data);
+        }
+      });
+
+      lastUpdateTime = new Date();
+      lastUpdateEl.textContent = 'Updated just now';
+      lastUpdateEl.style.color = '#00aa55';
+
+      console.log('[POLYGON TREEMAP] Fetched data for', treemapData.size, 'stocks');
+      
+      // Draw treemap
+      this.drawTreemap();
+    } catch (error) {
+      console.error('[POLYGON TREEMAP] Error fetching data:', error);
+      lastUpdateEl.textContent = 'Error updating';
+      lastUpdateEl.style.color = '#ff4444';
     }
   },
 
