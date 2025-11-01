@@ -78,17 +78,42 @@ async function fetchRSIMarketData(ticker, timeframe, interval) {
     const dateRange = getDateRange(timeframe, interval);
     const { timespan, multiplier } = getTimespanParams(interval);
     
-    const result = await window.electronAPI.polygonGetHistoricalBars({
-      ticker: ticker,
-      from: dateRange.from,
-      to: dateRange.to,
-      timespan: timespan,
-      multiplier: multiplier,
-      includeExtendedHours: false
-    });
-    
-    if (result.success && result.bars && result.bars.length > 0) {
-      return result.bars;
+    // Check if running in Electron or browser
+    if (window.electronAPI && window.electronAPI.polygonGetHistoricalBars) {
+      // Electron mode - use IPC
+      const result = await window.electronAPI.polygonGetHistoricalBars({
+        ticker: ticker,
+        from: dateRange.from,
+        to: dateRange.to,
+        timespan: timespan,
+        multiplier: multiplier,
+        includeExtendedHours: false
+      });
+      
+      if (result.success && result.bars && result.bars.length > 0) {
+        return result.bars;
+      }
+    } else if (window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY) {
+      // Browser mode - use REST API directly
+      const apiKey = window.POLYGON_API_KEY || window.api.POLYGON_API_KEY;
+      const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.status === 'OK' && data.results && data.results.length > 0) {
+        // Convert Polygon format to internal format
+        return data.results.map(bar => ({
+          timestamp: bar.t,
+          open: bar.o,
+          high: bar.h,
+          low: bar.l,
+          close: bar.c,
+          volume: bar.v
+        }));
+      }
+    } else {
+      console.error('[RSI DASHBOARD] No Polygon API key configured');
     }
     
     return null;
