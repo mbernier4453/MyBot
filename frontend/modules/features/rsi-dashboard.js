@@ -1034,23 +1034,27 @@ setTimeout(() => {
   initializeRSIDashboard();
 }, 1500);
 
-// Check if database is already connected and load favorites
-setTimeout(async () => {
-  console.log('[INIT] Checking for existing database connection...');
-  try {
-    // Try to get favorites - if it works, database is connected
-    const result = await window.electronAPI.getFavorites();
-    if (result.success) {
-      console.log('[INIT] Database already connected, loading favorites and watchlists...');
-      await loadFavorites();
-      await loadWatchlistsForBacktest();
-    } else {
-      console.log('[INIT] No database connected yet');
+// Check if database is already connected and load favorites (Electron only)
+if (window.electronAPI && window.electronAPI.getFavorites) {
+  setTimeout(async () => {
+    console.log('[INIT] Checking for existing database connection...');
+    try {
+      // Try to get favorites - if it works, database is connected
+      const result = await window.electronAPI.getFavorites();
+      if (result.success) {
+        console.log('[INIT] Database already connected, loading favorites and watchlists...');
+        await loadFavorites();
+        await loadWatchlistsForBacktest();
+      } else {
+        console.log('[INIT] No database connected yet');
+      }
+    } catch (error) {
+      console.log('[INIT] No database connected:', error.message);
     }
-  } catch (error) {
-    console.log('[INIT] No database connected:', error.message);
-  }
-}, 500);
+  }, 500);
+} else {
+  console.log('[INIT] Running in browser mode - database features disabled');
+}
 
 
 // Export for external use

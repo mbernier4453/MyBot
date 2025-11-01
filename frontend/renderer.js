@@ -566,8 +566,8 @@ function initializeDOMElements() {
   }, 100);
 }
 
-// Listen for watchlist updates
-if (window.electronAPI.onWatchlistsUpdated) {
+// Listen for watchlist updates (Electron only)
+if (window.electronAPI && window.electronAPI.onWatchlistsUpdated) {
   window.electronAPI.onWatchlistsUpdated(() => {
     console.log('[RENDERER] Watchlists updated, reloading chart ticker lists');
     // Reload watchlists for all chart tabs
