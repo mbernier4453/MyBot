@@ -414,7 +414,7 @@ async function loadRSIWatchlistData(watchlistName) {
       const data = await fetchRSIMarketData(ticker, '1Y', 'day');
       
       if (data && data.length > rsiPeriod) {
-        const closes = data.map(bar => bar.c).filter(c => c !== null && c !== undefined && !isNaN(c));
+        const closes = data.map(bar => bar.close || bar.c).filter(c => c !== null && c !== undefined && !isNaN(c));
         
         if (closes.length <= rsiPeriod) {
           console.warn(`${ticker}: Not enough valid price data after filtering`);
