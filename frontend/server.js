@@ -11,6 +11,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Serve the S&P 500 CSV from parent directory
+app.get('/spy503.csv', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'spy503.csv'));
+});
+
 // Serve static files from the current directory with proper MIME types
 app.use(express.static(__dirname, {
   setHeaders: (res, filePath) => {
@@ -23,6 +28,8 @@ app.use(express.static(__dirname, {
       res.set('Content-Type', 'text/css; charset=utf-8');
     } else if (filePath.endsWith('.json')) {
       res.set('Content-Type', 'application/json; charset=utf-8');
+    } else if (filePath.endsWith('.csv')) {
+      res.set('Content-Type', 'text/csv; charset=utf-8');
     }
   }
 }));
