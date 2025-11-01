@@ -16,6 +16,26 @@ app.get('/spy503.csv', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'spy503.csv'));
 });
 
+// Proxy for backend API (regression endpoint)
+app.post('/api/regression/calculate', express.json(), async (req, res) => {
+  try {
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch('http://localhost:5000/api/regression/calculate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Regression proxy error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Serve static files from the current directory with proper MIME types
 app.use(express.static(__dirname, {
   setHeaders: (res, filePath) => {

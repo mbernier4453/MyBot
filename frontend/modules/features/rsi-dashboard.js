@@ -903,13 +903,17 @@ async function renderRSIBollingerChart(ticker, tickerData) {
     // Create traces
     const smaLine = bollingerData.map(item => item.sma);
     
+    // Get CSS variables for colors
+    const accentBlue = getComputedStyle(document.documentElement).getPropertyValue('--accent-blue').trim() || '#00aa55';
+    const accentGreen = getComputedStyle(document.documentElement).getPropertyValue('--accent-green').trim() || '#006633';
+    
     const upperTrace = {
       x: chartDates,
       y: upperBand,
       type: 'scatter',
       mode: 'lines',
       name: 'Upper Band',
-      line: { color: '#d946ef', width: 1.5, dash: 'dot' },
+      line: { color: accentGreen, width: 1.5, dash: 'dot' },
       hovertemplate: 'Upper: %{y:.2f}<extra></extra>'
     };
 
@@ -929,7 +933,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       type: 'scatter',
       mode: 'lines',
       name: `RSI (${rsiPeriod}D)`,
-      line: { color: '#4a9eff', width: 2 },
+      line: { color: accentBlue, width: 2 },
       hovertemplate: `%{x}<br>RSI(${rsiPeriod}): %{y:.2f}<extra></extra>`
     };
 
@@ -939,7 +943,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       type: 'scatter',
       mode: 'lines',
       name: 'Lower Band',
-      line: { color: '#d946ef', width: 1.5, dash: 'dot' },
+      line: { color: accentGreen, width: 1.5, dash: 'dot' },
       hovertemplate: 'Lower: %{y:.2f}<extra></extra>'
     };
 
@@ -979,7 +983,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       autosize: true,
       paper_bgcolor: 'transparent',
       plot_bgcolor: 'transparent',
-      font: { color: '#e4e4e7' },
+      font: { color: '#e4e4e7', size: 11 },
       margin: { l: 60, r: 40, t: 10, b: 60 },
       xaxis: {
         gridcolor: '#1a1a1a',
@@ -1004,7 +1008,14 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       },
       hovermode: 'x',
       dragmode: 'pan',
-      showlegend: false
+      showlegend: true,
+      legend: {
+        x: 0.02,
+        y: 0.98,
+        bgcolor: 'rgba(26, 26, 26, 0.8)',
+        bordercolor: '#444',
+        borderwidth: 1
+      }
     };
 
     window.addWatermark(layout);

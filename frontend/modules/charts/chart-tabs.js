@@ -2417,12 +2417,6 @@ async updateLiveInfo(freshWsData = null) {
       return;
     }
 
-    // Check if regression is available (Electron only)
-    if (!window.electronAPI || !window.electronAPI.calculateRegression) {
-      alert('Regression analysis is only available in the desktop version.');
-      return;
-    }
-
     try {
       const content = this.contentElement;
       const runRegressionBtn = content.querySelector('.chart-run-regression-btn');
@@ -2448,8 +2442,32 @@ async updateLiveInfo(freshWsData = null) {
         closes: overlay.data.map(bar => bar.c)
       }));
 
+      let result;
+      
       // Call backend for regression calculation
-      const result = await window.electronAPI.calculateRegression(mainTicker, mainData, overlayData);
+      if (window.electronAPI && window.electronAPI.calculateRegression) {
+        // Electron mode
+        result = await window.electronAPI.calculateRegression(mainTicker, mainData, overlayData);
+      } else {
+        // Browser mode - call REST API via proxy
+        const response = await fetch('/api/regression/calculate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            mainTicker,
+            mainData,
+            overlayData
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Regression API failed: ${response.statusText}`);
+        }
+        
+        result = await response.json();
+      }
       
       // Reset button state
       runRegressionBtn.textContent = originalText;
