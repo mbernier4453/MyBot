@@ -302,23 +302,57 @@ const FinancialsPage = {
     document.getElementById('incomeStatementPageTable').innerHTML = '';
     document.getElementById('cashFlowPageTable').innerHTML = '';
     
-    // Check if running in browser mode
-    if (!window.electronAPI || !window.electronAPI.polygonGetBalanceSheet) {
-      loadingEl.style.display = 'none';
-      errorEl.textContent = 'Financials are only available in the desktop version';
-      errorEl.style.display = 'block';
-      return;
-    }
-    
     try {
       // Get up to 5 years of data (20 quarters or 5 annual reports)
       const limit = this.currentTimeframe === 'quarterly' ? 20 : 5;
       
-      const [balanceSheet, incomeStatement, cashFlow] = await Promise.all([
-        window.electronAPI.polygonGetBalanceSheet(ticker, { timeframe: this.currentTimeframe, limit }),
-        window.electronAPI.polygonGetIncomeStatement(ticker, { timeframe: this.currentTimeframe, limit }),
-        window.electronAPI.polygonGetCashFlow(ticker, { timeframe: this.currentTimeframe, limit })
-      ]);
+      let balanceSheet, incomeStatement, cashFlow;
+      
+      if (window.electronAPI && window.electronAPI.polygonGetBalanceSheet) {
+        // Electron mode
+        [balanceSheet, incomeStatement, cashFlow] = await Promise.all([
+          window.electronAPI.polygonGetBalanceSheet(ticker, { timeframe: this.currentTimeframe, limit }),
+          window.electronAPI.polygonGetIncomeStatement(ticker, { timeframe: this.currentTimeframe, limit }),
+          window.electronAPI.polygonGetCashFlow(ticker, { timeframe: this.currentTimeframe, limit })
+        ]);
+      } else {
+        // Browser mode - use REST API
+        const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+        if (!apiKey) {
+          throw new Error('API key not available');
+        }
+        
+        const timeframe = this.currentTimeframe === 'quarterly' ? 'quarterly' : 'annual';
+        
+        // Fetch all three financial statements in parallel
+        const [bsResponse, isResponse, cfResponse] = await Promise.all([
+          fetch(`https://api.polygon.io/vX/reference/financials?ticker=${ticker}&timeframe=${timeframe}&limit=${limit}&apiKey=${apiKey}`),
+          fetch(`https://api.polygon.io/vX/reference/financials?ticker=${ticker}&timeframe=${timeframe}&limit=${limit}&apiKey=${apiKey}`),
+          fetch(`https://api.polygon.io/vX/reference/financials?ticker=${ticker}&timeframe=${timeframe}&limit=${limit}&apiKey=${apiKey}`)
+        ]);
+        
+        const [bsData, isData, cfData] = await Promise.all([
+          bsResponse.json(),
+          isResponse.json(),
+          cfResponse.json()
+        ]);
+        
+        // Convert to expected format
+        balanceSheet = {
+          success: bsData.status === 'OK',
+          results: bsData.results?.map(r => r.financials?.balance_sheet).filter(Boolean) || []
+        };
+        
+        incomeStatement = {
+          success: isData.status === 'OK',
+          results: isData.results?.map(r => r.financials?.income_statement).filter(Boolean) || []
+        };
+        
+        cashFlow = {
+          success: cfData.status === 'OK',
+          results: cfData.results?.map(r => r.financials?.cash_flow_statement).filter(Boolean) || []
+        };
+      }
       
       loadingEl.style.display = 'none';
       

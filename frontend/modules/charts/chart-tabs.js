@@ -917,14 +917,46 @@ async updateLiveInfo(freshWsData = null) {
       const dateRange = this.getDateRange();
       const { timespan, multiplier } = this.getTimespanParams();
       
-      const result = await window.electronAPI.polygonGetHistoricalBars({
-        ticker: this.ticker,
-        from: dateRange.from,
-        to: dateRange.to,
-        timespan,
-        multiplier,
-        includeExtendedHours: this.extendedHoursEnabled
-      });
+      let result;
+      
+      if (window.electronAPI && window.electronAPI.polygonGetHistoricalBars) {
+        // Electron mode
+        result = await window.electronAPI.polygonGetHistoricalBars({
+          ticker: this.ticker,
+          from: dateRange.from,
+          to: dateRange.to,
+          timespan,
+          multiplier,
+          includeExtendedHours: this.extendedHoursEnabled
+        });
+      } else {
+        // Browser mode - use REST API
+        const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+        if (!apiKey) {
+          throw new Error('API key not available');
+        }
+        
+        const url = `https://api.polygon.io/v2/aggs/ticker/${this.ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+          throw new Error('No data available for this ticker and timeframe');
+        }
+        
+        // Convert Polygon format to internal format
+        result = {
+          success: true,
+          bars: data.results.map(bar => ({
+            t: bar.t,
+            o: bar.o,
+            h: bar.h,
+            l: bar.l,
+            c: bar.c,
+            v: bar.v
+          }))
+        };
+      }
       
       loadingEl.style.display = 'none';
       
@@ -2250,14 +2282,46 @@ async updateLiveInfo(freshWsData = null) {
       const dateRange = this.getDateRange();
       const { timespan, multiplier } = this.getTimespanParams();
       
-      const result = await window.electronAPI.polygonGetHistoricalBars({
-        ticker: ticker,
-        from: dateRange.from,
-        to: dateRange.to,
-        timespan,
-        multiplier,
-        includeExtendedHours: this.extendedHoursEnabled
-      });
+      let result;
+      
+      if (window.electronAPI && window.electronAPI.polygonGetHistoricalBars) {
+        // Electron mode
+        result = await window.electronAPI.polygonGetHistoricalBars({
+          ticker: ticker,
+          from: dateRange.from,
+          to: dateRange.to,
+          timespan,
+          multiplier,
+          includeExtendedHours: this.extendedHoursEnabled
+        });
+      } else {
+        // Browser mode - use REST API
+        const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+        if (!apiKey) {
+          throw new Error('API key not available');
+        }
+        
+        const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+          throw new Error('No data available for this ticker');
+        }
+        
+        // Convert Polygon format to internal format
+        result = {
+          success: true,
+          bars: data.results.map(bar => ({
+            t: bar.t,
+            o: bar.o,
+            h: bar.h,
+            l: bar.l,
+            c: bar.c,
+            v: bar.v
+          }))
+        };
+      }
       
       if (!result.success || !result.bars || result.bars.length === 0) {
         throw new Error('No data available for this ticker');
