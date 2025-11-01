@@ -541,13 +541,14 @@ document.getElementById('watchlistSearch')?.addEventListener('input', () => {
   displayWatchlists();
 });
 
-// Update watchlist stock data when main treemap updates
-const originalOnPolygonUpdate = window.electronAPI.onPolygonUpdate;
-window.electronAPI.onPolygonUpdate((data) => {
-  // Call original handler
-  treemapData.set(data.ticker, data);
-  lastUpdateTime = new Date();
-  updateLastUpdateDisplay();
+// Update watchlist stock data when main treemap updates (Electron only)
+if (window.electronAPI && window.electronAPI.onPolygonUpdate) {
+  const originalOnPolygonUpdate = window.electronAPI.onPolygonUpdate;
+  window.electronAPI.onPolygonUpdate((data) => {
+    // Call original handler
+    treemapData.set(data.ticker, data);
+    lastUpdateTime = new Date();
+    updateLastUpdateDisplay();
   
   if (!window.treemapUpdateScheduled) {
     window.treemapUpdateScheduled = true;
@@ -610,7 +611,8 @@ window.electronAPI.onPolygonUpdate((data) => {
       }
     }
   }
-});
+  });
+}
 
 /**
  * Initialize watchlist event listeners
