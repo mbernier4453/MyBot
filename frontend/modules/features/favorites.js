@@ -8,6 +8,13 @@ import * as State from '../core/state.js';
 const FavoritesUI = {
   async loadFavorites() {
     console.log('[DEBUG] loadFavorites() START');
+    
+    // Check if running in browser mode
+    if (!window.electronAPI || !window.electronAPI.getFavorites) {
+      console.log('[FAVORITES] Running in browser mode - favorites disabled');
+      return;
+    }
+    
     try {
       console.log('[DEBUG] loadFavorites() inside try block');
       console.log('[DEBUG] window.electronAPI exists?', !!window.electronAPI);
