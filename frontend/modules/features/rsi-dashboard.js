@@ -666,11 +666,18 @@ async function selectRSISymbol(ticker) {
 
   // Find the ticker data
   const tickerData = rsiBasketData.find(item => item.ticker === ticker);
+  console.log('[RSI] Found ticker data:', tickerData ? 'yes' : 'no', tickerData);
   
   if (tickerData) {
+    console.log('[RSI] Rendering history chart...');
     await renderRSIHistory(ticker, tickerData);
+    console.log('[RSI] Rendering synergy panel...');
     await renderRSISynergy(ticker);
+    console.log('[RSI] Rendering Bollinger chart...');
     await renderRSIBollingerChart(ticker, tickerData);
+    console.log('[RSI] All charts rendered');
+  } else {
+    console.error('[RSI] No data found for ticker:', ticker);
   }
 }
 
