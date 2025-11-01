@@ -11,24 +11,21 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from the current directory
+// Serve static files from the current directory with proper MIME types
 app.use(express.static(__dirname, {
   setHeaders: (res, filePath) => {
-    // Set proper MIME types
+    // Set proper MIME types for modules
     if (filePath.endsWith('.js')) {
-      res.set('Content-Type', 'application/javascript');
+      res.set('Content-Type', 'application/javascript; charset=utf-8');
+    } else if (filePath.endsWith('.mjs')) {
+      res.set('Content-Type', 'application/javascript; charset=utf-8');
     } else if (filePath.endsWith('.css')) {
-      res.set('Content-Type', 'text/css');
+      res.set('Content-Type', 'text/css; charset=utf-8');
     } else if (filePath.endsWith('.json')) {
-      res.set('Content-Type', 'application/json');
+      res.set('Content-Type', 'application/json; charset=utf-8');
     }
   }
 }));
-
-// Serve index.html for all routes (SPA)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
 
 app.listen(PORT, () => {
   console.log(`🚀 alpharhythm server running on http://localhost:${PORT}`);
