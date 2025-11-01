@@ -499,10 +499,13 @@ async function loadRSISingleTicker(ticker, group = 'None') {
   
   try {
     const data = await fetchRSIMarketData(ticker, '1Y', 'day');
+    console.log(`[RSI] Fetched data for ${ticker}:`, data ? `${data.length} bars` : 'null');
     
     if (data && data.length > rsiPeriod) {
-      const closes = data.map(bar => bar.c);
+      const closes = data.map(bar => bar.close || bar.c);
+      console.log(`[RSI] Extracted ${closes.length} close prices`);
       const rsiValues = calculateRSI(closes, rsiPeriod);
+      console.log(`[RSI] Calculated ${rsiValues?.length || 0} RSI values`);
       
       if (rsiValues && rsiValues.length > 0) {
         const currentRSI = rsiValues[rsiValues.length - 1].rsi;
