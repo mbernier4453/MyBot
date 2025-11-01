@@ -279,6 +279,15 @@ const PolygonTreemap = {
         const messages = JSON.parse(event.data);
         messages.forEach(msg => {
           if (msg.ev === 'A') {
+            // Get market cap from MARKET_CAPS_BY_SECTOR if available
+            let marketCap = null;
+            if (typeof MARKET_CAPS_BY_SECTOR !== 'undefined' && sp500SectorData[msg.sym]) {
+              const sector = sp500SectorData[msg.sym].sector;
+              if (MARKET_CAPS_BY_SECTOR[sector] && MARKET_CAPS_BY_SECTOR[sector][msg.sym]) {
+                marketCap = MARKET_CAPS_BY_SECTOR[sector][msg.sym] * 1e9; // Convert to actual value
+              }
+            }
+            
             // Aggregate (per-second bar)
             const data = {
               ticker: msg.sym,
@@ -289,7 +298,8 @@ const PolygonTreemap = {
               volume: msg.v,
               change: msg.c - msg.o,
               changePercent: ((msg.c - msg.o) / msg.o) * 100,
-              timestamp: msg.s
+              timestamp: msg.s,
+              marketCap
             };
             
             treemapData.set(msg.sym, data);
@@ -362,6 +372,16 @@ const PolygonTreemap = {
 
           if (data.status === 'OK' && data.results?.[0]) {
             const r = data.results[0];
+            
+            // Get market cap from MARKET_CAPS_BY_SECTOR if available
+            let marketCap = null;
+            if (typeof MARKET_CAPS_BY_SECTOR !== 'undefined' && sp500SectorData[ticker]) {
+              const sector = sp500SectorData[ticker].sector;
+              if (MARKET_CAPS_BY_SECTOR[sector] && MARKET_CAPS_BY_SECTOR[sector][ticker]) {
+                marketCap = MARKET_CAPS_BY_SECTOR[sector][ticker] * 1e9; // Convert to actual value
+              }
+            }
+            
             treemapData.set(ticker, {
               ticker,
               price: r.c,
@@ -370,7 +390,8 @@ const PolygonTreemap = {
               low: r.l,
               volume: r.v,
               change: r.c - r.o,
-              changePercent: ((r.c - r.o) / r.o) * 100
+              changePercent: ((r.c - r.o) / r.o) * 100,
+              marketCap
             });
           }
         } catch (err) {
