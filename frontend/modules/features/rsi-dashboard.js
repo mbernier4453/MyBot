@@ -683,6 +683,7 @@ async function selectRSISymbol(ticker) {
 
 // Render RSI History table
 async function renderRSIHistory(ticker, tickerData) {
+  console.log('[RSI] renderRSIHistory called for', ticker, 'data length:', tickerData?.data?.length);
   const tbody = document.getElementById('rsiHistoryTable').querySelector('tbody');
   tbody.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
 
@@ -705,7 +706,7 @@ async function renderRSIHistory(ticker, tickerData) {
 
       // Filter data for this window
       const windowData = tickerData.data.filter(bar => {
-        const barDate = new Date(bar.t);
+        const barDate = new Date(bar.timestamp || bar.t);
         return barDate >= fromDate && barDate <= toDate;
       });
 
@@ -714,7 +715,7 @@ async function renderRSIHistory(ticker, tickerData) {
       const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
       
       if (windowData.length > rsiPeriod) {
-        const closes = windowData.map(bar => bar.c);
+        const closes = windowData.map(bar => bar.close || bar.c);
         const rsiValues = calculateRSI(closes, rsiPeriod);
 
         if (rsiValues && rsiValues.length > 0) {
@@ -732,11 +733,11 @@ async function renderRSIHistory(ticker, tickerData) {
               if (rsiValue !== null && rsiValue !== undefined) {
                 if (rsiValue < minRSI) {
                   minRSI = rsiValue;
-                  minDate = new Date(windowData[dataIdx].t);
+                  minDate = new Date(windowData[dataIdx].timestamp || windowData[dataIdx].t);
                 }
                 if (rsiValue > maxRSI) {
                   maxRSI = rsiValue;
-                  maxDate = new Date(windowData[dataIdx].t);
+                  maxDate = new Date(windowData[dataIdx].timestamp || windowData[dataIdx].t);
                 }
               }
             }
@@ -787,7 +788,7 @@ async function renderRSISynergy(ticker) {
       const data = await fetchRSIMarketData(ticker, tf.timeframe, tf.interval);
       
       if (data && data.length > rsiPeriod) {
-        const closes = data.map(bar => bar.c);
+        const closes = data.map(bar => bar.close || bar.c);
         const rsiValues = calculateRSI(closes, rsiPeriod);
         
         if (rsiValues && rsiValues.length > 0) {
@@ -865,8 +866,8 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       return;
     }
 
-    const closes = data.map(bar => bar.c);
-    const dates = data.map(bar => new Date(bar.t));
+    const closes = data.map(bar => bar.close || bar.c);
+    const dates = data.map(bar => new Date(bar.timestamp || bar.t));
     const rsiValues = calculateRSI(closes, rsiPeriod);
     
     if (!rsiValues || rsiValues.length < bollingerPeriod) {
