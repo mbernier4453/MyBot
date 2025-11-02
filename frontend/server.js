@@ -76,6 +76,11 @@ app.get('/app', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
 
+// Route for password reset
+app.get('/reset-password', (req, res) => {
+  res.sendFile(__dirname + '/reset-password.html');
+});
+
 // Serve static files from the current directory with proper MIME types
 // This comes AFTER routes so index.html isn't auto-served on /
 app.use(express.static(__dirname, {
