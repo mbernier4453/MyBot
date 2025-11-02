@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>αlpharhythm</title>
   <link rel="stylesheet" href="styles.css">
-  <!-- Sanskrit/Devanagari Fonts -->
+  <!-- Fonts: Sanskrit for text, Quantico for numbers -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700&family=Tiro+Devanagari+Sanskrit:ital@0;1&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700&family=Tiro+Devanagari+Sanskrit:ital@0;1&family=Quantico:wght@400;700&display=swap" rel="stylesheet">
   <script src="polygon-config.js"></script>
   <script src="config.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
@@ -28,7 +28,10 @@
         <button class="main-tab" data-main-tab="financials">Financials</button>
         <button class="main-tab" data-main-tab="rsi">RSI Dashboard</button>
       </div>
-      <button class="settings-btn" onclick="openSettings()" title="Settings (Shift+,)">⚙️</button>
+      <div class="nav-actions">
+        <button class="settings-btn" onclick="openSettings()" title="Settings (Shift+,)">⚙️</button>
+        <button class="signout-btn" onclick="handleSignOut()" title="Sign Out">Sign Out</button>
+      </div>
     </nav>
 
     <!-- Main Page Content -->

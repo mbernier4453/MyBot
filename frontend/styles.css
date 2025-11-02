@@ -23,15 +23,26 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   --font-sanskrit: 'Noto Sans Devanagari', 'Tiro Devanagari Sanskrit', sans-serif;
   --font-display: 'Tiro Devanagari Sanskrit', 'Noto Sans Devanagari', serif;
+  --font-numeric: 'Quantico', monospace;
 }
 
 body {
-  font-family: 'Noto Sans Devanagari', var(--font-sans);
+  font-family: 'Tiro Devanagari Sanskrit', 'Noto Sans Devanagari', var(--font-sans);
   background-color: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Use Quantico for all numeric content */
+.price, .percentage, .value, .metric-value, .current-value, .stat-value,
+input[type="number"], .number, .numeric, td, th, .table-cell,
+.ticker-price, .change-percent, .volume, .market-cap, .pe-ratio,
+.rsi-value, .indicator-value, .chart-value, .backtest-result {
+  font-family: var(--font-numeric);
+  font-feature-settings: 'tnum' 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .app-container {
@@ -4575,12 +4586,18 @@ select[multiple] option:checked {
 }
 
 /* Responsive modal adjustments */
-/* Settings Button */
-.settings-btn {
+/* Nav Actions */
+.nav-actions {
   position: absolute;
   right: 20px;
   top: 50%;
   transform: translateY(-50%);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.settings-btn {
   background: none;
   border: none;
   font-size: 24px;
@@ -4594,7 +4611,27 @@ select[multiple] option:checked {
 .settings-btn:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.1);
-  transform: translateY(-50%) rotate(90deg);
+  transform: rotate(90deg);
+}
+
+.signout-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.signout-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
 }
 
 /* Settings Modal */

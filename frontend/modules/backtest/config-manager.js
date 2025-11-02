@@ -303,6 +303,17 @@ function openSettings() {
 }
 window.openSettings = openSettings;
 
+// Handle sign out
+function handleSignOut() {
+  // Clear any stored session data
+  localStorage.clear();
+  sessionStorage.clear();
+  
+  // Redirect to auth page
+  window.location.href = '/';
+}
+window.handleSignOut = handleSignOut;
+
 // Close settings modal
 function closeSettings() {
   const modal = document.getElementById('settingsModal');
