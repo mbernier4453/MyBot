@@ -695,6 +695,28 @@ class ChartTab {
     return date.getTimezoneOffset() < stdOffset;
   }
 
+  filterExtendedHours(bars) {
+    // Only filter if extended hours is disabled and we're in intraday mode
+    if (this.extendedHoursEnabled || !(this.interval === '1' || this.interval === '5' || this.interval === '15' || this.interval === '30' || this.interval === '60')) {
+      return bars;
+    }
+
+    return bars.filter(bar => {
+      const date = new Date(bar.t);
+      const hour = date.getUTCHours();
+      const minute = date.getUTCMinutes();
+      const timeInMinutes = hour * 60 + minute;
+      
+      // Regular market hours in UTC: 14:30 (9:30am ET) to 21:00 (4:00pm ET)
+      // Adjust for daylight saving time
+      const isDST = this.isDST(date);
+      const marketOpen = isDST ? 13 * 60 + 30 : 14 * 60 + 30; // 9:30am ET
+      const marketClose = isDST ? 20 * 60 : 21 * 60; // 4:00pm ET
+      
+      return timeInMinutes >= marketOpen && timeInMinutes < marketClose;
+    });
+  }
+
   isMarketOpen() {
     const now = new Date();
     const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
@@ -999,23 +1021,8 @@ async updateLiveInfo(freshWsData = null) {
         throw new Error('No data available for this ticker and timeframe');
       }
       
-      // Filter extended hours if disabled and we're in intraday mode
-      if (!this.extendedHoursEnabled && (this.interval === '1' || this.interval === '5' || this.interval === '15' || this.interval === '30' || this.interval === '60')) {
-        result.bars = result.bars.filter(bar => {
-          const date = new Date(bar.t);
-          const hour = date.getUTCHours();
-          const minute = date.getUTCMinutes();
-          const timeInMinutes = hour * 60 + minute;
-          
-          // Regular market hours in UTC: 14:30 (9:30am ET) to 21:00 (4:00pm ET)
-          // Adjust for daylight saving time
-          const isDST = this.isDST(date);
-          const marketOpen = isDST ? 13 * 60 + 30 : 14 * 60 + 30; // 9:30am ET
-          const marketClose = isDST ? 20 * 60 : 21 * 60; // 4:00pm ET
-          
-          return timeInMinutes >= marketOpen && timeInMinutes < marketClose;
-        });
-      }
+      // Filter extended hours if disabled
+      result.bars = this.filterExtendedHours(result.bars);
       
       // Store chart data - make a COPY if market is closed to prevent modifications
       if (this.isMarketOpen()) {
@@ -2424,23 +2431,8 @@ async updateLiveInfo(freshWsData = null) {
         throw new Error('No data available for this ticker');
       }
       
-      // Filter extended hours if disabled and we're in intraday mode
-      if (!this.extendedHoursEnabled && (this.interval === '1' || this.interval === '5' || this.interval === '15' || this.interval === '30' || this.interval === '60')) {
-        result.bars = result.bars.filter(bar => {
-          const date = new Date(bar.t);
-          const hour = date.getUTCHours();
-          const minute = date.getUTCMinutes();
-          const timeInMinutes = hour * 60 + minute;
-          
-          // Regular market hours in UTC: 14:30 (9:30am ET) to 21:00 (4:00pm ET)
-          // Adjust for daylight saving time
-          const isDST = this.isDST(date);
-          const marketOpen = isDST ? 13 * 60 + 30 : 14 * 60 + 30; // 9:30am ET
-          const marketClose = isDST ? 20 * 60 : 21 * 60; // 4:00pm ET
-          
-          return timeInMinutes >= marketOpen && timeInMinutes < marketClose;
-        });
-      }
+      // Filter extended hours if disabled
+      result.bars = this.filterExtendedHours(result.bars);
       
       // Calculate auto-lightened colors based on overlay index
       const overlayIndex = this.overlays.length;
