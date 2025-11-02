@@ -730,9 +730,42 @@ const PolygonTreemap = {
             // Give it a moment to receive the data
             await new Promise(resolve => setTimeout(resolve, 1000));
           } else {
-            // Server mode - data comes through WebSocket, just wait a bit for it
-            console.log('[TREEMAP] Server mode - waiting for WebSocket data...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Server mode - fetch via Polygon API
+            console.log('[TREEMAP] Server mode - fetching via Polygon API...');
+            const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+            if (apiKey) {
+              for (const ticker of tickersToFetch) {
+                try {
+                  const response = await fetch(
+                    `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`
+                  );
+                  const data = await response.json();
+                  
+                  if (data.status === 'OK' && data.results?.[0]) {
+                    const r = data.results[0];
+                    const stockData = {
+                      ticker,
+                      price: r.c,
+                      close: r.c,
+                      open: r.o,
+                      high: r.h,
+                      low: r.l,
+                      volume: r.v,
+                      change: r.c - r.o,
+                      changePercent: ((r.c - r.o) / r.o) * 100,
+                      marketCap: null
+                    };
+                    treemapData.set(ticker, stockData);
+                  }
+                } catch (err) {
+                  console.error(`[TREEMAP] Error fetching ${ticker}:`, err);
+                }
+                // Rate limiting
+                await new Promise(resolve => setTimeout(resolve, 50));
+              }
+            } else {
+              console.error('[TREEMAP] No Polygon API key available');
+            }
           }
         } catch (error) {
           console.error('[TREEMAP] Error fetching watchlist tickers:', error);
