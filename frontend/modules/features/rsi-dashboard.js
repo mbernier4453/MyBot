@@ -987,7 +987,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       autosize: true,
       paper_bgcolor: 'transparent',
       plot_bgcolor: 'transparent',
-      font: { color: '#e4e4e7', size: 11 },
+      font: { family: 'Quantico, monospace', color: '#e4e4e7', size: 11 },
       margin: { l: 60, r: 40, t: 10, b: 60 },
       xaxis: {
         gridcolor: '#1a1a1a',
@@ -999,10 +999,13 @@ async function renderRSIBollingerChart(ticker, tickerData) {
         spikecolor: '#666',
         spikethickness: 0.5,
         spikedash: 'dot',
-        range: xAxisRange
+        range: xAxisRange,
+        tickfont: { family: 'Quantico, monospace' }
       },
       yaxis: {
         title: 'RSI',
+        titlefont: { family: 'Quantico, monospace' },
+        tickfont: { family: 'Quantico, monospace' },
         gridcolor: '#333',
         griddash: 'dot',
         gridwidth: 0.5,

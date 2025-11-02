@@ -554,10 +554,12 @@ const RunPreview = {
     const layout = {
       title: {
         text: `${ticker} - Strategy Preview`,
-        font: { size: 16, color: '#e0e0e0' }
+        font: { family: 'Quantico, monospace', size: 16, color: '#e0e0e0' }
       },
       xaxis: { 
-        title: 'Date', 
+        title: 'Date',
+        titlefont: { family: 'Quantico, monospace' },
+        tickfont: { family: 'Quantico, monospace' },
         type: 'date', 
         rangeslider: { visible: false },
         gridcolor: '#2a2a2a',
@@ -566,13 +568,15 @@ const RunPreview = {
       },
       yaxis: { 
         title: 'Price ($)',
+        titlefont: { family: 'Quantico, monospace' },
+        tickfont: { family: 'Quantico, monospace' },
         gridcolor: '#2a2a2a',
         showgrid: true,
         domain: hasSubplots ? [0.35, 1] : [0, 1]
       },
       plot_bgcolor: '#0a0a0a',
       paper_bgcolor: '#111111',
-      font: { color: '#e0e0e0', size: 12 },
+      font: { family: 'Quantico, monospace', color: '#e0e0e0', size: 12 },
       hovermode: 'closest',
       showlegend: true,
       legend: { 
@@ -580,7 +584,7 @@ const RunPreview = {
         y: 1.15, 
         orientation: 'h',
         bgcolor: 'rgba(0,0,0,0)',
-        font: { size: 11 }
+        font: { family: 'Quantico, monospace', size: 11 }
       },
       margin: { t: 80, r: 30, b: 50, l: 70 },
       dragmode: 'pan'

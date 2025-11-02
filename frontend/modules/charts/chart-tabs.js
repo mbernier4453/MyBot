@@ -1382,7 +1382,7 @@ async updateLiveInfo(freshWsData = null) {
     const layout = {
       plot_bgcolor: '#000000',
       paper_bgcolor: '#000000',
-      font: { color: '#e0e0e0' },
+      font: { family: 'Quantico, monospace', color: '#e0e0e0' },
       xaxis: {
         type: 'category',
         rangeslider: { visible: false },
@@ -1390,7 +1390,7 @@ async updateLiveInfo(freshWsData = null) {
         griddash: 'dot',
         showgrid: false,
         tickangle: tickAngle,
-        tickfont: { size: tickFontSize },
+        tickfont: { family: 'Quantico, monospace', size: tickFontSize },
         nticks: Math.min(15, Math.ceil(totalBars / 20)),
         automargin: true,
         showspikes: true,
@@ -1426,7 +1426,7 @@ async updateLiveInfo(freshWsData = null) {
       hoverlabel: {
         bgcolor: 'rgba(26, 26, 26, 0.85)',
         bordercolor: '#444',
-        font: { color: '#e0e0e0', size: 12 },
+        font: { family: 'Quantico, monospace', color: '#e0e0e0', size: 12 },
         align: 'left',
         namelength: -1
       },
@@ -3109,14 +3109,14 @@ async updateLiveInfo(freshWsData = null) {
       height: 400 * numOverlays,
       plot_bgcolor: '#000000',
       paper_bgcolor: '#000000',
-      font: { color: '#e0e0e0', size: 11 },
+      font: { family: 'Quantico, monospace', color: '#e0e0e0', size: 11 },
       showlegend: false,
       margin: { l: 60, r: 20, t: 40, b: 60 },
       hovermode: 'x unified',
       hoverlabel: {
         bgcolor: '#000000',
         bordercolor: '#4ecdc4',
-        font: { color: '#ffffff', size: 12 }
+        font: { family: 'Quantico, monospace', color: '#ffffff', size: 12 }
       },
       annotations: []
     };
@@ -3147,44 +3147,44 @@ async updateLiveInfo(freshWsData = null) {
         xanchor: 'center',
         yanchor: 'bottom',
         showarrow: false,
-        font: { size: 14, color: '#e0e0e0', weight: 'bold' }
+        font: { family: 'Quantico, monospace', size: 14, color: '#e0e0e0', weight: 'bold' }
       });
       
       layout[`xaxis${scatterRow}`] = {
         title: '',
-        titlefont: { color: '#e0e0e0' },
+        titlefont: { family: 'Quantico, monospace', color: '#e0e0e0' },
         gridcolor: '#1a1a1a',
         zerolinecolor: '#333',
-        tickfont: { color: '#999' },
+        tickfont: { family: 'Quantico, monospace', color: '#999' },
         anchor: `y${scatterRow}`
       };
       
       layout[`yaxis${scatterRow}`] = {
         title: '',
-        titlefont: { color: '#e0e0e0' },
+        titlefont: { family: 'Quantico, monospace', color: '#e0e0e0' },
         gridcolor: '#1a1a1a',
         zerolinecolor: '#333',
-        tickfont: { color: '#999' },
+        tickfont: { family: 'Quantico, monospace', color: '#999' },
         domain: scatterDomain,
         anchor: `x${scatterRow}`
       };
       
       layout[`xaxis${residualRow}`] = {
         title: '',
-        titlefont: { color: '#e0e0e0' },
+        titlefont: { family: 'Quantico, monospace', color: '#e0e0e0' },
         gridcolor: '#1a1a1a',
         zerolinecolor: '#333',
-        tickfont: { color: '#999' },
+        tickfont: { family: 'Quantico, monospace', color: '#999' },
         type: 'date',
         anchor: `y${residualRow}`
       };
       
       layout[`yaxis${residualRow}`] = {
         title: 'Residual',
-        titlefont: { color: '#e0e0e0' },
+        titlefont: { family: 'Quantico, monospace', color: '#e0e0e0' },
         gridcolor: '#1a1a1a',
         zerolinecolor: '#ff6b6b',
-        tickfont: { color: '#999' },
+        tickfont: { family: 'Quantico, monospace', color: '#999' },
         zeroline: true,
         zerolinewidth: 2,
         domain: residualDomain,
@@ -3244,23 +3244,28 @@ async updateLiveInfo(freshWsData = null) {
       xaxis: {
         title: `${ticker} Price`,
         gridcolor: '#2a2a2a',
-        zerolinecolor: '#444'
+        zerolinecolor: '#444',
+        titlefont: { family: 'Quantico, monospace' },
+        tickfont: { family: 'Quantico, monospace' }
       },
       yaxis: {
         title: `${mainTicker} Price`,
         gridcolor: '#2a2a2a',
-        zerolinecolor: '#444'
+        zerolinecolor: '#444',
+        titlefont: { family: 'Quantico, monospace' },
+        tickfont: { family: 'Quantico, monospace' }
       },
       plot_bgcolor: '#1a1a1a',
       paper_bgcolor: '#1a1a1a',
-      font: { color: '#e0e0e0', size: 11 },
+      font: { family: 'Quantico, monospace', color: '#e0e0e0', size: 11 },
       showlegend: true,
       legend: {
         x: 0.02,
         y: 0.98,
         bgcolor: 'rgba(26, 26, 26, 0.8)',
         bordercolor: '#444',
-        borderwidth: 1
+        borderwidth: 1,
+        font: { family: 'Quantico, monospace' }
       },
       margin: { l: 60, r: 20, t: 40, b: 60 }
     };

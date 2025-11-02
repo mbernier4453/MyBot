@@ -177,10 +177,12 @@ const TearsheetCharts = {
     const layout = {
       title: {
         text: 'Equity Curve Comparison',
-        font: { color: '#e0e0e0', size: 18 }
+        font: { family: 'Quantico, monospace', color: '#e0e0e0', size: 18 }
       },
       xaxis: {
         title: 'Date',
+        titlefont: { family: 'Quantico, monospace' },
+        tickfont: { family: 'Quantico, monospace' },
         gridcolor: '#2a2a2a',
         griddash: 'dash',
         color: '#a0a0a0',
@@ -188,6 +190,8 @@ const TearsheetCharts = {
       },
       yaxis: {
         title: 'Portfolio Value ($)',
+        titlefont: { family: 'Quantico, monospace' },
+        tickfont: { family: 'Quantico, monospace' },
         gridcolor: '#2a2a2a',
         griddash: 'dash',
         color: '#a0a0a0',
@@ -195,7 +199,7 @@ const TearsheetCharts = {
       },
       plot_bgcolor: '#0a0a0a',
       paper_bgcolor: '#0a0a0a',
-      font: { color: '#e0e0e0' },
+      font: { family: 'Quantico, monospace', color: '#e0e0e0' },
       hovermode: 'closest',
       legend: {
         x: 0.01,
@@ -203,7 +207,7 @@ const TearsheetCharts = {
         bgcolor: 'rgba(10, 10, 10, 0.9)',
         bordercolor: '#3e3e42',
         borderwidth: 1,
-        font: { size: 12 }
+        font: { family: 'Quantico, monospace', size: 12 }
       },
       margin: { l: 70, r: 40, t: 60, b: 60 },
       height: 550
@@ -284,14 +288,14 @@ const TearsheetCharts = {
     ];
     
     const layout = {
-      xaxis: { showticklabels: false, gridcolor: '#2a2a2a', griddash: 'dash', color: '#a0a0a0' },
-      yaxis: { gridcolor: '#2a2a2a', griddash: 'dash', color: '#a0a0a0', showticklabels: true },
+      xaxis: { showticklabels: false, gridcolor: '#2a2a2a', griddash: 'dash', color: '#a0a0a0', tickfont: { family: 'Quantico, monospace' } },
+      yaxis: { gridcolor: '#2a2a2a', griddash: 'dash', color: '#a0a0a0', showticklabels: true, tickfont: { family: 'Quantico, monospace' } },
       plot_bgcolor: '#0a0a0a',
       paper_bgcolor: '#0a0a0a',
-      font: { color: '#e0e0e0', size: 10 },
+      font: { family: 'Quantico, monospace', color: '#e0e0e0', size: 10 },
       margin: { l: 45, r: 10, t: 10, b: 25 },
       showlegend: true,
-      legend: { x: 0.02, y: 0.98, font: { size: 9 }, bgcolor: 'rgba(10, 10, 10, 0.8)' },
+      legend: { x: 0.02, y: 0.98, font: { family: 'Quantico, monospace', size: 9 }, bgcolor: 'rgba(10, 10, 10, 0.8)' },
       hovermode: 'x unified'
     };
     
@@ -360,20 +364,21 @@ const TearsheetCharts = {
     }
     
     const layout = {
-      xaxis: { showticklabels: false, gridcolor: '#2a2a2a', griddash: 'dash', color: '#999999' },
+      xaxis: { showticklabels: false, gridcolor: '#2a2a2a', griddash: 'dash', color: '#999999', tickfont: { family: 'Quantico, monospace' } },
       yaxis: { 
         gridcolor: '#2a2a2a',
         griddash: 'dash',
         color: '#999999',
         tickformat: '.0%',
-        showticklabels: true
+        showticklabels: true,
+        tickfont: { family: 'Quantico, monospace' }
       },
       plot_bgcolor: '#0a0a0a',
       paper_bgcolor: '#0a0a0a',
-      font: { color: '#e0e0e0', size: 10 },
+      font: { family: 'Quantico, monospace', color: '#e0e0e0', size: 10 },
       margin: { l: 45, r: 10, t: 10, b: 25 },
       showlegend: true,
-      legend: { x: 0.02, y: 0.02, font: { size: 9 }, bgcolor: 'rgba(10, 10, 10, 0.8)' },
+      legend: { x: 0.02, y: 0.02, font: { family: 'Quantico, monospace', size: 9 }, bgcolor: 'rgba(10, 10, 10, 0.8)' },
       hovermode: 'x unified'
     };
     

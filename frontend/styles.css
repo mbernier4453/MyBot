@@ -39,10 +39,28 @@ body {
 .price, .percentage, .value, .metric-value, .current-value, .stat-value,
 input[type="number"], .number, .numeric, td, th, .table-cell,
 .ticker-price, .change-percent, .volume, .market-cap, .pe-ratio,
-.rsi-value, .indicator-value, .chart-value, .backtest-result {
-  font-family: var(--font-numeric);
+.rsi-value, .indicator-value, .chart-value, .backtest-result,
+.ticker-info span, .ticker-header span, .info-item span,
+.positive, .negative, .percent-change, .price-change,
+.financial-value, .metric, .stat, .data-value,
+[class*="price"], [class*="percent"], [class*="value"],
+[class*="volume"], [class*="cap"], [class*="ratio"] {
+  font-family: var(--font-numeric) !important;
   font-feature-settings: 'tnum' 1;
   font-variant-numeric: tabular-nums;
+}
+
+/* Plotly chart numbers */
+.plotly text, .plotly .xtick text, .plotly .ytick text,
+.plotly .annotation-text {
+  font-family: var(--font-numeric) !important;
+}
+
+/* Sanskrit font for all text elements (buttons, labels, etc.) */
+button, label, h1, h2, h3, h4, h5, h6, p, span:not([class*="price"]):not([class*="percent"]):not([class*="value"]),
+.nav-brand, .main-tab, .tab-button, .control-select, .settings-content label,
+.treemap-controls label, .status-text, .page-title, .section-title {
+  font-family: var(--font-display) !important;
 }
 
 .app-container {

@@ -611,7 +611,7 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
   const layout = {
     plot_bgcolor: '#000000',
     paper_bgcolor: '#000000',
-    font: { color: '#e0e0e0' },
+    font: { family: 'Quantico, monospace', color: '#e0e0e0' },
     xaxis: {
       type: 'category', // KEY: Categorical x-axis = no gaps!
       rangeslider: { visible: false },
@@ -619,7 +619,7 @@ function drawCandlestickChart(ticker, bars, timespan, timeframe) {
       griddash: 'dot',
       showgrid: false,  // Hide vertical gridlines from dates
       tickangle: tickAngle,
-      tickfont: { size: tickFontSize },
+      tickfont: { family: 'Quantico, monospace', size: tickFontSize },
       nticks: Math.min(15, Math.ceil(totalBars / 20)), // Much fewer ticks for cleaner look
       automargin: true,
       showspikes: true,  // Enable spike line
