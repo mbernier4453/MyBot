@@ -50,9 +50,10 @@ input[type="number"], .number, .numeric, td, th, .table-cell,
   font-variant-numeric: tabular-nums;
 }
 
-/* Plotly chart numbers */
+/* Plotly chart numbers - including hover labels */
 .plotly text, .plotly .xtick text, .plotly .ytick text,
-.plotly .annotation-text {
+.plotly .annotation-text, .plotly .hoverlayer text,
+g.hovertext text, .hoverlabel text {
   font-family: var(--font-numeric) !important;
 }
 
@@ -4123,6 +4124,16 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 
 /* Custom RSI legend - numeric values only */
 .custom-rsi-legend .numeric {
+  font-family: var(--font-numeric) !important;
+}
+
+/* RSI basket table cells with numeric spans */
+.rsi-oversold .numeric, .rsi-overbought .numeric, .rsi-neutral .numeric {
+  font-family: var(--font-numeric) !important;
+}
+
+/* All numeric spans should use Quantico */
+span.numeric {
   font-family: var(--font-numeric) !important;
 }
 
