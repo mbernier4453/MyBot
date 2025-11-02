@@ -19,17 +19,47 @@ app.get('/spy503.csv', (req, res) => {
 // Proxy for backend API (regression endpoint)
 app.post('/api/regression/calculate', express.json(), async (req, res) => {
   try {
-    const fetch = (await import('node-fetch')).default;
-    const response = await fetch('http://localhost:5000/api/regression/calculate', {
+    // Use built-in fetch (Node 18+) or require http module
+    const http = require('http');
+    
+    const postData = JSON.stringify(req.body);
+    
+    const options = {
+      hostname: 'localhost',
+      port: 5000,
+      path: '/api/regression/calculate',
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(req.body)
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+    
+    const proxyReq = http.request(options, (proxyRes) => {
+      let data = '';
+      
+      proxyRes.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      proxyRes.on('end', () => {
+        try {
+          const jsonData = JSON.parse(data);
+          res.status(proxyRes.statusCode).json(jsonData);
+        } catch (e) {
+          res.status(500).json({ success: false, error: 'Invalid JSON response from backend' });
+        }
+      });
     });
     
-    const data = await response.json();
-    res.json(data);
+    proxyReq.on('error', (error) => {
+      console.error('Regression proxy error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    });
+    
+    proxyReq.write(postData);
+    proxyReq.end();
+    
   } catch (error) {
     console.error('Regression proxy error:', error);
     res.status(500).json({ success: false, error: error.message });
