@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>αlpharhythm - Welcome</title>
+  <link rel="stylesheet" href="auth.css">
+  <!-- Sanskrit/Devanagari Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700&family=Tiro+Devanagari+Sanskrit:ital@0;1&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="auth-container">
+    <!-- Left side - Branding -->
+    <div class="brand-side">
+      <div class="brand-content">
+        <h1 class="brand-logo">αlpharhythm</h1>
+        <p class="brand-tagline sanskrit">ज्ञानं शक्तिः</p>
+        <p class="brand-subtitle">Knowledge is Power</p>
+        <div class="brand-features">
+          <div class="feature">
+            <span class="feature-icon">📊</span>
+            <div class="feature-text">
+              <h3>Advanced Analytics</h3>
+              <p>Real-time market data and comprehensive technical analysis</p>
+            </div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">📈</span>
+            <div class="feature-text">
+              <h3>Smart Charting</h3>
+              <p>Multi-ticker overlays, indicators, and drawing tools</p>
+            </div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">🎯</span>
+            <div class="feature-text">
+              <h3>Strategy Testing</h3>
+              <p>Backtest your strategies with historical data</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right side - Auth forms -->
+    <div class="auth-side">
+      <div class="auth-content">
+        <!-- Sign In Form -->
+        <div id="signInForm" class="auth-form active">
+          <h2>Welcome Back</h2>
+          <p class="form-subtitle">Sign in to continue your analysis</p>
+          
+          <form onsubmit="handleSignIn(event)">
+            <div class="form-group">
+              <label for="signin-email">Email</label>
+              <input type="email" id="signin-email" placeholder="your@email.com" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="signin-password">Password</label>
+              <input type="password" id="signin-password" placeholder="••••••••" required>
+            </div>
+            
+            <div class="form-options">
+              <label class="checkbox-label">
+                <input type="checkbox" id="remember-me">
+                <span>Remember me</span>
+              </label>
+              <a href="#" class="forgot-password">Forgot password?</a>
+            </div>
+            
+            <button type="submit" class="btn-primary">Sign In</button>
+          </form>
+          
+          <div class="form-divider">
+            <span>or</span>
+          </div>
+          
+          <button class="btn-secondary" onclick="showSignUp()">Create New Account</button>
+        </div>
+
+        <!-- Sign Up Form -->
+        <div id="signUpForm" class="auth-form">
+          <h2>Create Account</h2>
+          <p class="form-subtitle">Start your journey with αlpharhythm</p>
+          
+          <form onsubmit="handleSignUp(event)">
+            <div class="form-group">
+              <label for="signup-name">Full Name</label>
+              <input type="text" id="signup-name" placeholder="John Doe" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="signup-email">Email</label>
+              <input type="email" id="signup-email" placeholder="your@email.com" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="signup-password">Password</label>
+              <input type="password" id="signup-password" placeholder="••••••••" required minlength="8">
+              <span class="input-hint">At least 8 characters</span>
+            </div>
+            
+            <div class="form-group">
+              <label for="signup-confirm">Confirm Password</label>
+              <input type="password" id="signup-confirm" placeholder="••••••••" required>
+            </div>
+            
+            <label class="checkbox-label">
+              <input type="checkbox" id="terms" required>
+              <span>I agree to the Terms of Service and Privacy Policy</span>
+            </label>
+            
+            <button type="submit" class="btn-primary">Create Account</button>
+          </form>
+          
+          <div class="form-divider">
+            <span>or</span>
+          </div>
+          
+          <button class="btn-secondary" onclick="showSignIn()">Already have an account? Sign In</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+</body>
+</html>

@@ -18,10 +18,15 @@
   --accent-yellow: #228B22;
   --positive: #00cc55;
   --negative: #ff4444;
+  
+  /* Font families */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-sanskrit: 'Noto Sans Devanagari', 'Tiro Devanagari Sanskrit', sans-serif;
+  --font-display: 'Tiro Devanagari Sanskrit', 'Noto Sans Devanagari', serif;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family: 'Noto Sans Devanagari', var(--font-sans);
   background-color: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;

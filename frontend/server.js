@@ -84,10 +84,18 @@ app.use(express.static(__dirname, {
   }
 }));
 
+// Route for root - serve auth page
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/auth.html');
+});
+
+// Route for main app (after login)
+app.get('/app', (req, res) => {
+  res.sendFile(__dirname + '/index.html');
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 αlpharhythm server running on http://localhost:${PORT}`);
-  console.log(`📊 Home: http://localhost:${PORT}`);
-  console.log(`📈 Charting: http://localhost:${PORT}#charting`);
-  console.log(`💰 Financials: http://localhost:${PORT}#financials`);
-  console.log(`📉 RSI Dashboard: http://localhost:${PORT}#rsi`);
+  console.log(`� αlpharhythm server running on http://localhost:${PORT}`);
+  console.log(`� Welcome: http://localhost:${PORT}`);
+  console.log(`� App: http://localhost:${PORT}/app`);
 });
