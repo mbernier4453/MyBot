@@ -77,7 +77,9 @@ async function handleSignUp(event) {
     submitBtn.textContent = 'Creating account...';
     errorDiv.style.display = 'none';
     
-    const { session, user } = await signUp(email, password);
+    const { session, user } = await signUp(email, password, {
+      full_name: name
+    });
     
     console.log('Sign up successful:', user.email);
     
