@@ -2033,13 +2033,11 @@ async updateLiveInfo(freshWsData = null) {
             
             // Group BB/KC bands together
             if (ind.type === 'BB' || ind.type === 'KC') {
-              // BB/KC create 3 traces with same name, need to get all 3 by y data
-              // They should be consecutive in the indTraces array
-              if (indTraces.length >= 3) {
-                // Take first 3 traces for this indicator
-                const trace1 = indTraces[0];
-                const trace2 = indTraces[1];
-                const trace3 = indTraces[2];
+              // BB/KC create 3 traces per ticker (main + overlays), process in groups of 3
+              for (let i = 0; i < indTraces.length; i += 3) {
+                const trace1 = indTraces[i];
+                const trace2 = indTraces[i + 1];
+                const trace3 = indTraces[i + 2];
                 
                 if (trace1 && trace2 && trace3) {
                   const traceColor = trace1.line ? trace1.line.color : ind.color;
