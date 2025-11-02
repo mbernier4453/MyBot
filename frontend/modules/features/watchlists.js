@@ -240,11 +240,12 @@ function displayWatchlistStocks() {
     
     const changeClass = data.changePercent >= 0 ? 'stock-change-positive' : 'stock-change-negative';
     const changeSign = data.changePercent >= 0 ? '+' : '';
+    const currentPrice = data.close || data.price; // Support both field names
     
     return `
       <tr>
         <td class="stock-ticker">${ticker}</td>
-        <td class="${changeClass}">$${data.close ? data.close.toFixed(2) : 'N/A'}</td>
+        <td class="${changeClass}">$${currentPrice ? currentPrice.toFixed(2) : 'N/A'}</td>
         <td class="${changeClass}">${changeSign}${data.change ? data.change.toFixed(2) : '0.00'}</td>
         <td class="${changeClass}">${changeSign}${data.changePercent ? data.changePercent.toFixed(2) : '0.00'}%</td>
         <td>${data.volume ? (data.volume / 1000000).toFixed(1) + 'M' : 'N/A'}</td>
@@ -507,7 +508,7 @@ function drawWatchlistTreemap() {
           value: value,
           percent: d.changePercent,
           change: d.change,
-          close: d.close,
+          close: d.close || d.price, // Support both field names
           volume: d.volume,
           marketCap: d.marketCap,
           data: d
