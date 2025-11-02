@@ -218,12 +218,14 @@ class ChartTab {
     
     // Extended hours
     const extendedHoursToggle = content.querySelector('.chart-extended-hours-checkbox');
-    extendedHoursToggle.addEventListener('change', () => {
-      this.extendedHoursEnabled = extendedHoursToggle.checked;
-      if (this.ticker) {
-        this.loadChartWithOverlays();
-      }
-    });
+    if (extendedHoursToggle) {
+      extendedHoursToggle.addEventListener('change', () => {
+        this.extendedHoursEnabled = extendedHoursToggle.checked;
+        if (this.ticker) {
+          this.loadChartWithOverlays();
+        }
+      });
+    }
     
     // Chart type
     const chartTypeSelect = content.querySelector('.chart-type-select');
@@ -960,7 +962,7 @@ async updateLiveInfo(freshWsData = null) {
           throw new Error('API key not available');
         }
         
-        const url = `https://api.polygon.io/v2/aggs/ticker/${this.ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+        const url = `https://api.polygon.io/v2/aggs/ticker/${this.ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&limit=50000${this.extendedHoursEnabled ? '&includeExtendedHours=true' : ''}&apiKey=${apiKey}`;
         const response = await fetch(url);
         const data = await response.json();
         
@@ -2369,7 +2371,7 @@ async updateLiveInfo(freshWsData = null) {
           throw new Error('API key not available');
         }
         
-        const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+        const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&limit=50000${this.extendedHoursEnabled ? '&includeExtendedHours=true' : ''}&apiKey=${apiKey}`;
         const response = await fetch(url);
         const data = await response.json();
         
