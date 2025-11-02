@@ -55,6 +55,7 @@ import { ConditionModals } from './modules/backtest/conditions.js';
 import * as BacktestExecution from './modules/backtest/execution.js';
 import Indicators from './modules/indicators/calculations.js';
 import ConfigManagerModule from './modules/backtest/config-manager.js'; // Import early for color functions
+import './modules/socketio-client.js'; // Initialize Socket.io client
 import PolygonTreemap from './modules/features/polygon-treemap.js';
 import WatchlistsModule from './modules/features/watchlists.js';
 import FinancialsPage from './modules/features/financials-page.js';

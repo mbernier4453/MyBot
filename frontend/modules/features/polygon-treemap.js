@@ -296,91 +296,66 @@ const PolygonTreemap = {
         tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'V', 'UNH', 'JNJ'];
       }
 
-      console.log(`[POLYGON TREEMAP] Connecting WebSocket for ${tickers.length} tickers`);
+      console.log(`[POLYGON TREEMAP] Subscribing to ${tickers.length} tickers via server WebSocket`);
       lastUpdateEl.textContent = 'Connecting...';
       lastUpdateEl.style.color = '#4a9eff';
 
-      const ws = new WebSocket('wss://socket.polygon.io/stocks');
-      this.browserWebSocket = ws;
-
-      ws.onopen = () => {
-        console.log('[POLYGON TREEMAP] WebSocket connected');
-        lastUpdateEl.textContent = 'Connected';
-        lastUpdateEl.style.color = '#00aa55';
-        reconnectBtn.style.display = 'none';
-
-        // Authenticate
-        ws.send(JSON.stringify({ action: 'auth', params: apiKey }));
-
-        // Subscribe to per-second aggregates
-        ws.send(JSON.stringify({
-          action: 'subscribe',
-          params: tickers.map(t => `A.${t}`).join(',')
-        }));
-      };
-
-      ws.onmessage = (event) => {
-        const messages = JSON.parse(event.data);
-        messages.forEach(msg => {
-          if (msg.ev === 'A') {
-            // Keep existing market cap from initial fetch (will be set there)
-            const existingData = treemapData.get(msg.sym);
-            const marketCap = existingData?.marketCap || null;
-            
-            // Aggregate (per-second bar)
-            const data = {
-              ticker: msg.sym,
-              price: msg.c,
-              open: msg.o,
-              high: msg.h,
-              low: msg.l,
-              volume: msg.v,
-              change: msg.c - msg.o,
-              changePercent: ((msg.c - msg.o) / msg.o) * 100,
-              timestamp: msg.s,
-              marketCap
-            };
-            
-            treemapData.set(msg.sym, data);
-            lastUpdateTime = new Date();
-            
-            // Debounced redraw
-            if (!window.treemapUpdateScheduled) {
-              window.treemapUpdateScheduled = true;
-              setTimeout(() => {
-                this.drawTreemap();
-                window.treemapUpdateScheduled = false;
-              }, 5000);
-            }
-          } else if (msg.ev === 'status') {
-            console.log('[POLYGON TREEMAP]', msg.message);
-            if (msg.status === 'auth_success') {
-              lastUpdateEl.textContent = 'Authenticated';
-            }
-          }
-        });
-      };
-
-      ws.onerror = (error) => {
-        console.error('[POLYGON TREEMAP] WebSocket error:', error);
-        lastUpdateEl.textContent = 'Connection error';
+      // Use Socket.io client instead of direct WebSocket
+      const socketClient = window.socketIOClient;
+      if (!socketClient) {
+        console.error('[POLYGON TREEMAP] Socket.io client not available');
+        lastUpdateEl.textContent = 'Socket.io not loaded';
         lastUpdateEl.style.color = '#ff4444';
-      };
+        return;
+      }
 
-      ws.onclose = () => {
-        console.log('[POLYGON TREEMAP] WebSocket closed');
-        lastUpdateEl.textContent = 'Disconnected';
-        lastUpdateEl.style.color = '#ff4444';
-        reconnectBtn.style.display = 'block';
+      // Subscribe to ticker updates via Socket.io
+      this.socketUnsubscribe = socketClient.subscribe(tickers, (data) => {
+        // Keep existing market cap from initial fetch
+        const existingData = treemapData.get(data.ticker);
+        const marketCap = existingData?.marketCap || null;
+        
+        // Update treemap data with new price info
+        const updatedData = {
+          ...data,
+          marketCap: marketCap || data.marketCap
+        };
+        
+        treemapData.set(data.ticker, updatedData);
+        lastUpdateTime = new Date();
+        
+        // Debounced redraw (every 5 seconds max)
+        if (!window.treemapUpdateScheduled) {
+          window.treemapUpdateScheduled = true;
+          setTimeout(() => {
+            this.drawTreemap();
+            window.treemapUpdateScheduled = false;
+          }, 5000);
+        }
+      });
 
-        // Auto-reconnect after 5 seconds
-        setTimeout(() => {
-          if (document.getElementById('treemapChart')) {
-            console.log('[POLYGON TREEMAP] Auto-reconnecting...');
-            this.connectBrowserWebSocket();
-          }
-        }, 5000);
-      };
+      // Listen to connection status
+      this.statusUnsubscribe = socketClient.onStatus((status) => {
+        if (status.connected) {
+          console.log('[POLYGON TREEMAP] Connected to server WebSocket');
+          lastUpdateEl.textContent = 'Connected';
+          lastUpdateEl.style.color = '#00aa55';
+          reconnectBtn.style.display = 'none';
+        } else {
+          console.log('[POLYGON TREEMAP] Disconnected from server WebSocket');
+          lastUpdateEl.textContent = 'Disconnected';
+          lastUpdateEl.style.color = '#ff4444';
+          reconnectBtn.style.display = 'block';
+          
+          // Auto-reconnect after 5 seconds
+          setTimeout(() => {
+            if (document.getElementById('treemapChart')) {
+              console.log('[POLYGON TREEMAP] Auto-reconnecting...');
+              socketClient.connect();
+            }
+          }, 5000);
+        }
+      });
 
       // Fetch initial data while waiting for WebSocket updates
       await this.fetchInitialData(tickers, apiKey);

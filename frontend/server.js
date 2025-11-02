@@ -1,7 +1,28 @@
 const express = require('express');
 const path = require('path');
+const http = require('http');
+const { Server } = require('socket.io');
+require('dotenv').config();
+
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
+
+// Initialize Socket.io with compression enabled
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  },
+  perMessageDeflate: {
+    threshold: 1024 // Compress messages larger than 1KB
+  }
+});
+
+// Initialize WebSocket Manager
+const WebSocketManager = require('./backend/websocket_manager');
+const wsManager = new WebSocketManager(io);
+wsManager.init();
 
 // Enable CORS for API requests
 app.use((req, res, next) => {
@@ -108,8 +129,14 @@ app.use(express.static(__dirname, {
   }
 }));
 
-app.listen(PORT, () => {
-  console.log(`� αlpharhythm server running on http://localhost:${PORT}`);
-  console.log(`� Welcome: http://localhost:${PORT}`);
-  console.log(`� App: http://localhost:${PORT}/app`);
+// API endpoint for WebSocket stats
+app.get('/api/ws-stats', (req, res) => {
+  res.json(wsManager.getStats());
+});
+
+server.listen(PORT, () => {
+  console.log(`🚀 αlpharhythm server running on http://localhost:${PORT}`);
+  console.log(`📊 WebSocket Manager: ACTIVE`);
+  console.log(`🔗 Welcome: http://localhost:${PORT}`);
+  console.log(`📈 App: http://localhost:${PORT}/app`);
 });
