@@ -2033,24 +2033,33 @@ async updateLiveInfo(freshWsData = null) {
             
             // Group BB/KC bands together
             if (ind.type === 'BB' || ind.type === 'KC') {
-              // Get upper, middle, lower traces
-              const upperTrace = indTraces.find(t => t.name.includes('Upper'));
-              const middleTrace = indTraces.find(t => t.name.includes('Middle'));
-              const lowerTrace = indTraces.find(t => t.name.includes('Lower'));
-              
-              if (upperTrace && middleTrace && lowerTrace) {
-                const traceColor = upperTrace.line ? upperTrace.line.color : ind.color;
-                const lower = lowerTrace.y[xIndex].toFixed(2);
-                const middle = middleTrace.y[xIndex].toFixed(2);
-                const upper = upperTrace.y[xIndex].toFixed(2);
+              // BB/KC create 3 traces with same name, need to get all 3 by y data
+              // They should be consecutive in the indTraces array
+              if (indTraces.length >= 3) {
+                // Take first 3 traces for this indicator
+                const trace1 = indTraces[0];
+                const trace2 = indTraces[1];
+                const trace3 = indTraces[2];
                 
-                // Extract base name (e.g., "BB(20,2)" or "KC(20,1.5)")
-                const baseName = upperTrace.name.replace(/\s+(Upper|Middle|Lower).*$/, '');
-                
-                html += `<div style="display: flex; align-items: center; margin-top: 4px;">
-                  <div style="width: 12px; height: 12px; background: ${traceColor}; border-radius: 2px; margin-right: 6px;"></div>
-                  <span>${baseName}: <span class="numeric">${lower}</span> <span class="numeric">${middle}</span> <span class="numeric">${upper}</span></span>
-                </div>`;
+                if (trace1 && trace2 && trace3) {
+                  const traceColor = trace1.line ? trace1.line.color : ind.color;
+                  
+                  // Get the 3 values and sort them
+                  const values = [
+                    trace1.y[xIndex],
+                    trace2.y[xIndex],
+                    trace3.y[xIndex]
+                  ].sort((a, b) => a - b); // Sort ascending (lower, middle, upper)
+                  
+                  const lower = values[0].toFixed(2);
+                  const middle = values[1].toFixed(2);
+                  const upper = values[2].toFixed(2);
+                  
+                  html += `<div style="display: flex; align-items: center; margin-top: 4px;">
+                    <div style="width: 12px; height: 12px; background: ${traceColor}; border-radius: 2px; margin-right: 6px;"></div>
+                    <span>${trace1.name}: <span class="numeric">${lower}</span> <span class="numeric">${middle}</span> <span class="numeric">${upper}</span></span>
+                  </div>`;
+                }
               }
             } else {
               // Normal indicator - show each trace separately
