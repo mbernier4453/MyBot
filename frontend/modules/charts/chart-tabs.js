@@ -1980,10 +1980,10 @@ async updateLiveInfo(freshWsData = null) {
               <span style="font-weight: bold;">${trace.name}</span>
             </div>`;
             if (trace.open && trace.open[xIndex] !== undefined) {
-              html += `<div style="margin-left: 18px;">O: $${trace.open[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">H: $${trace.high[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">L: $${trace.low[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">C: $${trace.close[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">O: <span class="numeric">$${trace.open[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">H: <span class="numeric">$${trace.high[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">L: <span class="numeric">$${trace.low[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">C: <span class="numeric">$${trace.close[xIndex].toFixed(2)}</span></div>`;
             }
           }
         });
@@ -2001,17 +2001,17 @@ async updateLiveInfo(freshWsData = null) {
                 <div style="width: 12px; height: 12px; background: ${candleColor}; border-radius: 2px; margin-right: 6px;"></div>
                 <span style="font-weight: bold;">${overlay.ticker}</span>
               </div>`;
-              html += `<div style="margin-left: 18px;">O: $${overlayTrace.open[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">H: $${overlayTrace.high[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">L: $${overlayTrace.low[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">C: $${overlayTrace.close[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">O: <span class="numeric">$${overlayTrace.open[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">H: <span class="numeric">$${overlayTrace.high[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">L: <span class="numeric">$${overlayTrace.low[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">C: <span class="numeric">$${overlayTrace.close[xIndex].toFixed(2)}</span></div>`;
             } else {
               // For line charts, use the line color
               const lineTrace = traces.find(t => t.type === 'scatter' && t.name === overlay.ticker);
               if (lineTrace && lineTrace.y && lineTrace.y[xIndex] !== undefined) {
                 html += `<div style="display: flex; align-items: center; margin-top: 8px; margin-bottom: 4px;">
                   <div style="width: 12px; height: 12px; background: ${overlay.lineColor}; border-radius: 2px; margin-right: 6px;"></div>
-                  <span style="font-weight: bold;">${overlay.ticker}: ${lineTrace.y[xIndex].toFixed(2)}</span>
+                  <span style="font-weight: bold;">${overlay.ticker}: <span class="numeric">${lineTrace.y[xIndex].toFixed(2)}</span></span>
                 </div>`;
               }
             }
@@ -2031,14 +2031,37 @@ async updateLiveInfo(freshWsData = null) {
               t.y[xIndex] !== null
             );
             
-            indTraces.forEach(indTrace => {
-              // Use the actual trace color instead of the base indicator color
-              const traceColor = indTrace.line ? indTrace.line.color : ind.color;
-              html += `<div style="display: flex; align-items: center; margin-top: 4px;">
-                <div style="width: 12px; height: 12px; background: ${traceColor}; border-radius: 2px; margin-right: 6px;"></div>
-                <span>${indTrace.name}: ${indTrace.y[xIndex].toFixed(2)}</span>
-              </div>`;
-            });
+            // Group BB/KC bands together
+            if (ind.type === 'BB' || ind.type === 'KC') {
+              // Get upper, middle, lower traces
+              const upperTrace = indTraces.find(t => t.name.includes('Upper'));
+              const middleTrace = indTraces.find(t => t.name.includes('Middle'));
+              const lowerTrace = indTraces.find(t => t.name.includes('Lower'));
+              
+              if (upperTrace && middleTrace && lowerTrace) {
+                const traceColor = upperTrace.line ? upperTrace.line.color : ind.color;
+                const lower = lowerTrace.y[xIndex].toFixed(2);
+                const middle = middleTrace.y[xIndex].toFixed(2);
+                const upper = upperTrace.y[xIndex].toFixed(2);
+                
+                // Extract base name (e.g., "BB(20,2)" or "KC(20,1.5)")
+                const baseName = upperTrace.name.replace(/\s+(Upper|Middle|Lower).*$/, '');
+                
+                html += `<div style="display: flex; align-items: center; margin-top: 4px;">
+                  <div style="width: 12px; height: 12px; background: ${traceColor}; border-radius: 2px; margin-right: 6px;"></div>
+                  <span>${baseName}: <span class="numeric">${lower}</span> <span class="numeric">${middle}</span> <span class="numeric">${upper}</span></span>
+                </div>`;
+              }
+            } else {
+              // Normal indicator - show each trace separately
+              indTraces.forEach(indTrace => {
+                const traceColor = indTrace.line ? indTrace.line.color : ind.color;
+                html += `<div style="display: flex; align-items: center; margin-top: 4px;">
+                  <div style="width: 12px; height: 12px; background: ${traceColor}; border-radius: 2px; margin-right: 6px;"></div>
+                  <span>${indTrace.name}: <span class="numeric">${indTrace.y[xIndex].toFixed(2)}</span></span>
+                </div>`;
+              });
+            }
           });
         }
         
