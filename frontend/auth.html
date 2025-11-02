@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>αlpharhythm - Welcome</title>
+  <link rel="stylesheet" href="auth.css?v=20250102">
+  <!-- Fonts: Sanskrit for text, Quantico for numbers -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700&family=Tiro+Devanagari+Sanskrit:ital@0;1&family=Quantico:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="auth-container">
+    <!-- Left side - Branding -->
+    <div class="brand-side">
+      <div class="brand-content">
+        <h1 class="brand-logo">αlpharhythm</h1>
+        <p class="brand-tagline">Market Intelligence Platform</p>
+        <div class="brand-features">
+          <div class="feature">
+            <h3>Advanced Analytics</h3>
+            <p>Real-time market data and multi-factor financial modeling.</p>
+          </div>
+          <div class="feature">
+            <h3>Smart Charting</h3>
+            <p>Multi-ticker overlays, indicators, regression analysis,and drawing tools</p>
+          </div>
+          <div class="feature">
+            <h3>Fundamental Analysis</h3>
+            <p>Analyze company financials, performance trends, and valuation metrics.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right side - Auth forms -->
+    <div class="auth-side">
+      <div class="auth-content">
+        <!-- Sign In Form -->
+        <div id="signInForm" class="auth-form active">
+          <h2>Welcome Back</h2>
+          <p class="form-subtitle">Sign in to continue your analysis</p>
+          
+          <form onsubmit="handleSignIn(event)">
+            <div class="form-group">
+              <label for="signin-email">Email</label>
+              <input type="email" id="signin-email" placeholder="your@email.com" required>
+            </div>
+            
+            <div class="form-group password-group">
+              <label for="signin-password">Password</label>
+              <div class="password-input-wrapper">
+                <input type="password" id="signin-password" placeholder="••••••••" required>
+                <button type="button" class="toggle-password" onclick="togglePassword('signin-password')" tabindex="-1">
+                  <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                  <svg class="eye-off-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div class="form-options">
+              <label class="checkbox-label">
+                <input type="checkbox" id="remember-me">
+                <span>Remember me</span>
+              </label>
+              <a href="#" class="forgot-password" onclick="showForgotPassword(event)">Forgot password?</a>
+            </div>
+            
+            <button type="submit" class="btn-primary">Sign In</button>
+          </form>
+          
+          <div class="form-divider">
+            <span>or</span>
+          </div>
+          
+          <button class="btn-secondary" onclick="showSignUp()">Create New Account</button>
+        </div>
+
+        <!-- Sign Up Form -->
+        <div id="signUpForm" class="auth-form">
+          <h2>Create Account</h2>
+          <p class="form-subtitle">Start your journey with αlpharhythm</p>
+          
+          <form onsubmit="handleSignUp(event)">
+            <div class="form-group">
+              <label for="signup-name">Full Name</label>
+              <input type="text" id="signup-name" placeholder="John Doe" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="signup-email">Email</label>
+              <input type="email" id="signup-email" placeholder="your@email.com" required>
+            </div>
+            
+            <div class="form-group password-group">
+              <label for="signup-password">Password</label>
+              <div class="password-input-wrapper">
+                <input type="password" id="signup-password" placeholder="••••••••" required minlength="8">
+                <button type="button" class="toggle-password" onclick="togglePassword('signup-password')" tabindex="-1">
+                  <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                  <svg class="eye-off-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                </button>
+              </div>
+              <span class="input-hint">At least 8 characters</span>
+            </div>
+            
+            <div class="form-group password-group">
+              <label for="signup-confirm">Confirm Password</label>
+              <div class="password-input-wrapper">
+                <input type="password" id="signup-confirm" placeholder="••••••••" required>
+                <button type="button" class="toggle-password" onclick="togglePassword('signup-confirm')" tabindex="-1">
+                  <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                  <svg class="eye-off-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <label class="checkbox-label">
+              <input type="checkbox" id="terms" required>
+              <span>I agree to the <a href="#" onclick="showTerms(event)" class="terms-link">Terms of Service and Privacy Policy</a></span>
+            </label>
+            
+            <button type="submit" class="btn-primary">Create Account</button>
+          </form>
+          
+          <div class="form-divider">
+            <span>or</span>
+          </div>
+          
+          <button class="btn-secondary" onclick="showSignIn()">Already have an account? Sign In</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terms and Conditions Modal -->
+  <div id="termsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Terms of Service & Privacy Policy</h2>
+        <button class="modal-close" onclick="closeTerms()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <h3>Terms of Service</h3>
+        <p>Welcome to αlpharhythm. By using our platform, you agree to the following terms:</p>
+        <ul>
+          <li>You are responsible for maintaining the confidentiality of your account credentials</li>
+          <li>You agree to use the platform for lawful purposes only</li>
+          <li>Market data and analysis tools are provided for informational purposes only</li>
+          <li>We are not liable for investment decisions made based on platform data</li>
+          <li>We reserve the right to modify or discontinue services at any time</li>
+        </ul>
+        
+        <h3>Privacy Policy</h3>
+        <p>Your privacy is important to us. Here's how we handle your data:</p>
+        <ul>
+          <li>We collect minimal personal information necessary for account operation</li>
+          <li>Your email and account data are stored securely via Supabase</li>
+          <li>We do not sell or share your personal information with third parties</li>
+          <li>Market analysis and backtest data are associated with your account</li>
+          <li>You may request account deletion and data removal at any time</li>
+        </ul>
+        
+        <h3>Data Usage</h3>
+        <p>Market data provided by third-party sources. Users are responsible for verifying data accuracy and making informed decisions. Past performance does not guarantee future results.</p>
+        
+        <p class="terms-footer">Last updated: January 2025</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Forgot Password Modal -->
+  <div id="forgotPasswordModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Reset Password</h2>
+        <button class="modal-close" onclick="closeForgotPassword()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Enter your email address and we'll send you a link to reset your password.</p>
+        <form onsubmit="handleForgotPassword(event)">
+          <div class="form-group">
+            <label for="reset-email">Email</label>
+            <input type="email" id="reset-email" placeholder="your@email.com" required>
+          </div>
+          <button type="submit" class="btn-primary">Send Reset Link</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="auth.js"></script>
+</body>
+</html>
