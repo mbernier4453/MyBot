@@ -58,7 +58,9 @@ g.hovertext text, g.hovertext tspan,
 path.hoverlayer, g.hoverlayer text,
 .js-plotly-plot .hoverlayer text,
 .js-plotly-plot .hoverlayer tspan,
-svg.main-svg text.nums {
+svg.main-svg text.nums,
+div.plotly svg text,
+div.plotly g.hoverlayer path + g text {
   font-family: var(--font-numeric) !important;
 }
 
