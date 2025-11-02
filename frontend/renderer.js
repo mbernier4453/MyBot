@@ -1,3 +1,44 @@
+// Check authentication before loading app
+import { getSession, signOut } from './supabase-client.js';
+
+// Verify user is authenticated
+async function checkAuthentication() {
+  try {
+    const session = await getSession();
+    if (!session) {
+      console.log('No active session, redirecting to login...');
+      window.location.href = '/';
+      return false;
+    }
+    console.log('User authenticated:', session.user.email);
+    return true;
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    window.location.href = '/';
+    return false;
+  }
+}
+
+// Handle sign out
+async function handleSignOut() {
+  try {
+    await signOut();
+    window.location.href = '/';
+  } catch (error) {
+    console.error('Sign out error:', error);
+    alert('Failed to sign out. Please try again.');
+  }
+}
+
+// Make sign out available globally
+window.handleSignOut = handleSignOut;
+
+// Check auth before loading modules
+const isAuthenticated = await checkAuthentication();
+if (!isAuthenticated) {
+  throw new Error('Authentication required');
+}
+
 // Import modules
 import * as State from './modules/core/state.js';
 import * as Utils from './modules/core/utils.js';
