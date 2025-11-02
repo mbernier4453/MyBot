@@ -3488,9 +3488,9 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
   cursor: crosshair !important;
 }
 
-/* Show Plotly's hover labels with Quantico font */
+/* Hide Plotly's default hover labels - we use custom legend */
 .chart-canvas .hoverlayer .hovertext {
-  font-family: 'Quantico', monospace !important;
+  display: none !important;
 }
 
 /* Custom fixed legend box */
@@ -3800,7 +3800,13 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 /* Fix hover label positioning - prevent interaction issues */
 #candlestickChart .hoverlayer .hovertext {
   pointer-events: none;
-  font-family: 'Quantico', monospace !important;
+  opacity: 0;
+  transition: opacity 0.05s;
+}
+
+/* Show hover labels once positioned */
+#candlestickChart .hoverlayer .hovertext.positioned {
+  opacity: 1;
 }
 
 /* Utility Classes */
