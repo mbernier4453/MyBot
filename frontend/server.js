@@ -25,7 +25,7 @@ app.post('/api/regression/calculate', express.json(), async (req, res) => {
     const postData = JSON.stringify(req.body);
     
     const options = {
-      hostname: 'localhost',
+      hostname: '127.0.0.1',  // Use IPv4 explicitly to avoid IPv6 connection issues
       port: 5000,
       path: '/api/regression/calculate',
       method: 'POST',
