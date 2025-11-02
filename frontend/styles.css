@@ -50,10 +50,12 @@ input[type="number"], .number, .numeric, td, th, .table-cell,
   font-variant-numeric: tabular-nums;
 }
 
-/* Plotly chart numbers - including hover labels */
+/* Plotly chart numbers - including hover labels and OHLC tooltip */
 .plotly text, .plotly .xtick text, .plotly .ytick text,
-.plotly .hoverlayer text,
-g.hovertext text, .hoverlabel text {
+.plotly .hoverlayer text, .plotly .hoverlayer tspan,
+g.hovertext text, g.hovertext tspan,
+.hoverlabel text, .hoverlabel tspan,
+path.hoverlayer, g.hoverlayer text {
   font-family: var(--font-numeric) !important;
 }
 

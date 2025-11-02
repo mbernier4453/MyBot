@@ -47,8 +47,7 @@ function displayWatchlists() {
   if (filtered.length === 0) {
     listEl.innerHTML = `
       <div class="empty-state">
-        <p>No watchlists ${searchQuery ? 'found' : 'yet'}</p>
-        <p style="font-size: 12px; color: #666;">${searchQuery ? 'Try a different search' : 'Create your first watchlist'}</p>
+        <p style="font-size: 14px; color: #999;">${searchQuery ? 'No watchlists found. Try a different search.' : 'Create your first watchlist'}</p>
       </div>
     `;
     return;
