@@ -1308,8 +1308,14 @@ async updateLiveInfo(freshWsData = null) {
     // Get anchor index for normalization
     const anchorIdx = this.getAnchorIndex(bars);
     
-    // Don't normalize main ticker candles - keep them at real prices
-    // Indicators and overlays will be normalized separately
+    // Normalize data using the new system
+    const normalizedClose = this.normalizeData(close, anchorIdx);
+    const normalizedOpen = this.normalizeData(open, anchorIdx);
+    const normalizedHigh = this.normalizeData(high, anchorIdx);
+    const normalizedLow = this.normalizeData(low, anchorIdx);
+    
+    // Check if normalization produced null values (e.g., z-score with insufficient data)
+    const hasNulls = normalizedClose.some(v => v === null);
     
     // Get colors - use custom colors if set, otherwise use theme colors
     const positiveColor = this.customUpColor || window.getPositiveColor();
@@ -1318,10 +1324,10 @@ async updateLiveInfo(freshWsData = null) {
     const candlestickTrace = {
       type: 'candlestick',
       x: dates,
-      open: open,
-      high: high,
-      low: low,
-      close: close,
+      open: normalizedOpen,
+      high: normalizedHigh,
+      low: normalizedLow,
+      close: normalizedClose,
       name: this.ticker,
       increasing: { 
         line: { color: positiveColor, width: 1 },
@@ -1335,9 +1341,9 @@ async updateLiveInfo(freshWsData = null) {
       yaxis: 'y',
       hoverinfo: 'text',
       text: dates.map((date, i) => {
-        if (close[i] === null || close[i] === undefined) return `${date}<br>Insufficient data`;
+        if (normalizedClose[i] === null) return `${date}<br>Insufficient data`;
         
-        // Always show real prices for main ticker candles
+        // Always show real prices in hover text, even when normalized
         return `${date}<br>O: <span class="numeric">$${open[i].toFixed(2)}</span><br>H: <span class="numeric">$${high[i].toFixed(2)}</span><br>L: <span class="numeric">$${low[i].toFixed(2)}</span><br>C: <span class="numeric">$${close[i].toFixed(2)}</span>`;
       })
     };
@@ -1390,7 +1396,8 @@ async updateLiveInfo(freshWsData = null) {
         gridcolor: '#1a1a1a',
         griddash: 'dot',
         showgrid: true,
-        tickprefix: '$',  // Always show $ since candles are always real prices
+        tickprefix: this.normalizeMode === 'off' ? '$' : '',
+        ticksuffix: this.normalizeMode === 'cumret' ? '%' : '',
         showspikes: true,
         spikemode: 'across',
         spikesnap: 'cursor',
@@ -1654,10 +1661,11 @@ async updateLiveInfo(freshWsData = null) {
               ? `(${indicator.params.period},${indicator.params.stdDev})`
               : `(${indicator.params.period},${indicator.params.multiplier})`;
             
-            // Don't normalize BB/KC - they should stay in price units with the candles
-            const normalizedUpper = result.upper;
-            const normalizedMiddle = result.middle;
-            const normalizedLower = result.lower;
+            // Normalize indicator values if needed (except RSI/ATR)
+            const anchorIdx = this.getAnchorIndex(source.bars);
+            const normalizedUpper = this.normalizeData(result.upper, anchorIdx);
+            const normalizedMiddle = this.normalizeData(result.middle, anchorIdx);
+            const normalizedLower = this.normalizeData(result.lower, anchorIdx);
             
             // Upper band
             traces.push({
@@ -1860,8 +1868,9 @@ async updateLiveInfo(freshWsData = null) {
               label += `(${indicator.params.period})`;
             }
             
-            // Don't normalize MA/EMA/SMA/WMA - they should stay in price units with the candles
-            const normalizedResult = result;
+            // Normalize indicator values if needed (matches price normalization)
+            const anchorIdx = this.getAnchorIndex(source.bars);
+            const normalizedResult = this.normalizeData(result, anchorIdx);
             
             const trace = {
               type: 'scatter',
