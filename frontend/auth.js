@@ -124,5 +124,25 @@ async function checkAuth() {
   }
 }
 
+// Expose functions globally for onclick handlers
+window.showSignIn = showSignIn;
+window.showSignUp = showSignUp;
+window.handleSignIn = handleSignIn;
+window.handleSignUp = handleSignUp;
+
 // Run on page load
 checkAuth();
+
+// Attach form handlers
+document.addEventListener('DOMContentLoaded', () => {
+  const signInForm = document.getElementById('signInForm');
+  const signUpForm = document.getElementById('signUpForm');
+  
+  if (signInForm) {
+    signInForm.addEventListener('submit', handleSignIn);
+  }
+  
+  if (signUpForm) {
+    signUpForm.addEventListener('submit', handleSignUp);
+  }
+});
