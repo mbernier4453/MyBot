@@ -47,8 +47,7 @@ function displayWatchlists() {
   if (filtered.length === 0) {
     listEl.innerHTML = `
       <div class="empty-state">
-        <p>No watchlists ${searchQuery ? 'found' : 'yet'}</p>
-        <p style="font-size: 12px; color: #666;">${searchQuery ? 'Try a different search' : 'Create your first watchlist'}</p>
+        <p style="font-size: 14px; color: #999;">${searchQuery ? 'No watchlists found. Try a different search.' : 'Create your first watchlist'}</p>
       </div>
     `;
     return;
@@ -121,32 +120,83 @@ async function loadWatchlistStockData() {
   if (missingTickers.length > 0) {
     console.log('[WATCHLISTS] Fetching missing tickers:', missingTickers);
     try {
-      // First check the stockData cache
-      const allData = await window.electronAPI.polygonGetAllData();
-      
-      if (allData && Array.isArray(allData)) {
-        allData.forEach(stock => {
-          if (missingTickers.includes(stock.ticker)) {
-            watchlistStockData.set(stock.ticker, stock);
-            treemapData.set(stock.ticker, stock);
-            foundCount++;
-          }
-        });
-      }
-      
-      // For tickers still missing (not in S&P 500), fetch directly
-      const stillMissing = missingTickers.filter(ticker => !watchlistStockData.has(ticker));
-      if (stillMissing.length > 0) {
-        console.log('[WATCHLISTS] Fetching non-S&P500 tickers:', stillMissing);
-        const result = await window.electronAPI.polygonFetchTickers(stillMissing);
+      if (window.electronAPI && window.electronAPI.polygonGetAllData) {
+        // Electron mode - use IPC
+        const allData = await window.electronAPI.polygonGetAllData();
         
-        if (result.success && result.data) {
-          result.data.forEach(stock => {
-            watchlistStockData.set(stock.ticker, stock);
-            treemapData.set(stock.ticker, stock);
-            foundCount++;
+        if (allData && Array.isArray(allData)) {
+          allData.forEach(stock => {
+            if (missingTickers.includes(stock.ticker)) {
+              watchlistStockData.set(stock.ticker, stock);
+              treemapData.set(stock.ticker, stock);
+              foundCount++;
+            }
           });
-          console.log('[WATCHLISTS] Fetched', result.data.length, 'additional tickers');
+        }
+        
+        // For tickers still missing (not in S&P 500), fetch directly
+        const stillMissing = missingTickers.filter(ticker => !watchlistStockData.has(ticker));
+        if (stillMissing.length > 0) {
+          console.log('[WATCHLISTS] Fetching non-S&P500 tickers:', stillMissing);
+          const result = await window.electronAPI.polygonFetchTickers(stillMissing);
+          
+          if (result.success && result.data) {
+            result.data.forEach(stock => {
+              watchlistStockData.set(stock.ticker, stock);
+              treemapData.set(stock.ticker, stock);
+              foundCount++;
+            });
+            console.log('[WATCHLISTS] Fetched', result.data.length, 'additional tickers');
+          }
+        }
+      } else {
+        // Browser mode - use REST API
+        const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+        if (!apiKey) {
+          console.error('[WATCHLISTS] No API key available');
+          return;
+        }
+        
+        for (const ticker of missingTickers) {
+          try {
+            // Check treemapData first (already loaded from home page)
+            if (treemapData.has(ticker)) {
+              watchlistStockData.set(ticker, treemapData.get(ticker));
+              foundCount++;
+              continue;
+            }
+            
+            // Fetch from Polygon API
+            const response = await fetch(
+              `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`
+            );
+            const data = await response.json();
+            
+            if (data.status === 'OK' && data.results?.[0]) {
+              const r = data.results[0];
+              const stockData = {
+                ticker,
+                price: r.c,
+                close: r.c, // For display compatibility
+                open: r.o,
+                high: r.h,
+                low: r.l,
+                volume: r.v,
+                change: r.c - r.o,
+                changePercent: ((r.c - r.o) / r.o) * 100,
+                marketCap: null // Will be null for ETFs unless we fetch it separately
+              };
+              
+              watchlistStockData.set(ticker, stockData);
+              treemapData.set(ticker, stockData);
+              foundCount++;
+            }
+          } catch (err) {
+            console.error(`[WATCHLISTS] Error fetching ${ticker}:`, err);
+          }
+          
+          // Rate limiting
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
       }
       
@@ -190,11 +240,12 @@ function displayWatchlistStocks() {
     
     const changeClass = data.changePercent >= 0 ? 'stock-change-positive' : 'stock-change-negative';
     const changeSign = data.changePercent >= 0 ? '+' : '';
+    const currentPrice = data.close || data.price; // Support both field names
     
     return `
       <tr>
         <td class="stock-ticker">${ticker}</td>
-        <td class="${changeClass}">$${data.close ? data.close.toFixed(2) : 'N/A'}</td>
+        <td class="${changeClass}">$${currentPrice ? currentPrice.toFixed(2) : 'N/A'}</td>
         <td class="${changeClass}">${changeSign}${data.change ? data.change.toFixed(2) : '0.00'}</td>
         <td class="${changeClass}">${changeSign}${data.changePercent ? data.changePercent.toFixed(2) : '0.00'}%</td>
         <td>${data.volume ? (data.volume / 1000000).toFixed(1) + 'M' : 'N/A'}</td>
@@ -457,7 +508,7 @@ function drawWatchlistTreemap() {
           value: value,
           percent: d.changePercent,
           change: d.change,
-          close: d.close,
+          close: d.close || d.price, // Support both field names
           volume: d.volume,
           marketCap: d.marketCap,
           data: d
@@ -541,13 +592,14 @@ document.getElementById('watchlistSearch')?.addEventListener('input', () => {
   displayWatchlists();
 });
 
-// Update watchlist stock data when main treemap updates
-const originalOnPolygonUpdate = window.electronAPI.onPolygonUpdate;
-window.electronAPI.onPolygonUpdate((data) => {
-  // Call original handler
-  treemapData.set(data.ticker, data);
-  lastUpdateTime = new Date();
-  updateLastUpdateDisplay();
+// Update watchlist stock data when main treemap updates (Electron only)
+if (window.electronAPI && window.electronAPI.onPolygonUpdate) {
+  const originalOnPolygonUpdate = window.electronAPI.onPolygonUpdate;
+  window.electronAPI.onPolygonUpdate((data) => {
+    // Call original handler
+    treemapData.set(data.ticker, data);
+    lastUpdateTime = new Date();
+    updateLastUpdateDisplay();
   
   if (!window.treemapUpdateScheduled) {
     window.treemapUpdateScheduled = true;
@@ -610,7 +662,8 @@ window.electronAPI.onPolygonUpdate((data) => {
       }
     }
   }
-});
+  });
+}
 
 /**
  * Initialize watchlist event listeners

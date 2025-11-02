@@ -18,15 +18,62 @@
   --accent-yellow: #228B22;
   --positive: #00cc55;
   --negative: #ff4444;
+  
+  /* Font families */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-sanskrit: 'Noto Sans Devanagari', 'Tiro Devanagari Sanskrit', sans-serif;
+  --font-display: 'Tiro Devanagari Sanskrit', 'Noto Sans Devanagari', serif;
+  --font-numeric: 'Quantico', monospace;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family: 'Tiro Devanagari Sanskrit', 'Noto Sans Devanagari', var(--font-sans);
   background-color: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Use Quantico for all numeric content */
+.price, .percentage, .value, .metric-value, .current-value, .stat-value,
+input[type="number"], .number, .numeric, td, th, .table-cell,
+.ticker-price, .change-percent, .volume, .market-cap, .pe-ratio,
+.rsi-value, .indicator-value, .chart-value, .backtest-result,
+.ticker-info span, .ticker-header span, .info-item span,
+.positive, .negative, .percent-change, .price-change,
+.financial-value, .metric, .stat, .data-value,
+[class*="price"], [class*="percent"], [class*="value"],
+[class*="volume"], [class*="cap"], [class*="ratio"] {
+  font-family: var(--font-numeric) !important;
+  font-feature-settings: 'tnum' 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Plotly chart numbers - including hover labels and OHLC tooltip */
+.plotly text, .plotly .xtick text, .plotly .ytick text,
+.plotly .hoverlayer text, .plotly .hoverlayer tspan,
+g.hovertext text, g.hovertext tspan,
+.hoverlabel text, .hoverlabel tspan,
+path.hoverlayer, g.hoverlayer text,
+.js-plotly-plot .hoverlayer text,
+.js-plotly-plot .hoverlayer tspan,
+svg.main-svg text.nums,
+div.plotly svg text,
+div.plotly g.hoverlayer path + g text {
+  font-family: var(--font-numeric) !important;
+}
+
+/* Plotly annotation text (watermark) should use Sanskrit */
+.plotly .annotation-text, .plotly g.annotation text {
+  font-family: var(--font-display) !important;
+}
+
+/* Sanskrit font for all text elements (buttons, labels, etc.) */
+button, label, h1, h2, h3, h4, h5, h6, p, span:not(.numeric):not([class*="price"]):not([class*="percent"]):not([class*="value"]),
+.nav-brand, .main-tab, .tab-button, .control-select, .settings-content label,
+.treemap-controls label, .status-text, .page-title, .section-title {
+  font-family: var(--font-display) !important;
 }
 
 .app-container {
@@ -2965,6 +3012,7 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
   font-size: 28px;
   font-weight: 700;
   color: var(--text-primary);
+  font-family: var(--font-numeric) !important;
 }
 
 .live-change-large {
@@ -2972,6 +3020,12 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
   font-weight: 600;
   padding: 4px 12px;
   border-radius: 4px;
+  font-family: var(--font-numeric) !important;
+}
+
+/* Force numeric font on all live stats */
+.chart-live-change, .chart-live-volume, .chart-live-marketcap, .chart-live-price, .chart-live-afterhours {
+  font-family: var(--font-numeric) !important;
 }
 
 /* Legacy live info bar (kept for backward compatibility) */
@@ -3031,12 +3085,14 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 .chart-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  padding: 8px 20px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 8px 15px;
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+  flex-wrap: wrap;
+  overflow-x: auto;
 }
 
 .control-group {
@@ -3046,19 +3102,19 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 }
 
 .control-group label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
 }
 
 .control-group select {
-  padding: 8px 12px;
+  padding: 6px 10px;
   background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
   font-family: inherit;
   transition: border-color 0.2s;
   cursor: pointer;
@@ -3070,16 +3126,17 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 }
 
 .chart-add-overlay-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   background-color: var(--accent-blue);
   border: none;
   border-radius: 4px;
   color: white;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .chart-add-overlay-btn:hover {
@@ -3095,16 +3152,17 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 
 /* Regression button - same style as overlay button */
 .chart-run-regression-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   background-color: var(--accent-blue);
   border: none;
   border-radius: 4px;
   color: white;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .chart-run-regression-btn:hover:not(:disabled) {
@@ -3126,16 +3184,17 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
 
 /* Export button - same style as overlay button */
 .chart-export-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   background-color: var(--accent-blue);
   border: none;
   border-radius: 4px;
   color: white;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .chart-export-btn:hover {
@@ -3429,7 +3488,7 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
   cursor: crosshair !important;
 }
 
-/* Hide Plotly's default hover labels but keep crosshair */
+/* Hide Plotly's default hover labels - we use custom legend */
 .chart-canvas .hoverlayer .hovertext {
   display: none !important;
 }
@@ -4055,16 +4114,39 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
   background: rgba(34, 197, 94, 0.3);
   color: #22c55e;
   font-weight: 600;
+  font-family: var(--font-numeric) !important;
 }
 
 .rsi-overbought {
   background: rgba(239, 68, 68, 0.3);
   color: #ef4444;
   font-weight: 600;
+  font-family: var(--font-numeric) !important;
 }
 
 .rsi-neutral {
   color: var(--text-primary);
+  font-family: var(--font-numeric) !important;
+}
+
+/* Candle change display */
+.chart-candle-change {
+  font-family: var(--font-numeric) !important;
+}
+
+/* Custom RSI legend - numeric values only */
+.custom-rsi-legend .numeric {
+  font-family: var(--font-numeric) !important;
+}
+
+/* RSI basket table cells with numeric spans */
+.rsi-oversold .numeric, .rsi-overbought .numeric, .rsi-neutral .numeric {
+  font-family: var(--font-numeric) !important;
+}
+
+/* All numeric spans should use Quantico */
+span.numeric {
+  font-family: var(--font-numeric) !important;
 }
 
 /* RSI Chart */
@@ -4565,12 +4647,18 @@ select[multiple] option:checked {
 }
 
 /* Responsive modal adjustments */
-/* Settings Button */
-.settings-btn {
+/* Nav Actions */
+.nav-actions {
   position: absolute;
   right: 20px;
   top: 50%;
   transform: translateY(-50%);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.settings-btn {
   background: none;
   border: none;
   font-size: 24px;
@@ -4584,7 +4672,27 @@ select[multiple] option:checked {
 .settings-btn:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.1);
-  transform: translateY(-50%) rotate(90deg);
+  transform: rotate(90deg);
+}
+
+.signout-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.signout-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
 }
 
 /* Settings Modal */

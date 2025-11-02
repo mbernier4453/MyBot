@@ -414,6 +414,96 @@ def serve_csv(filename):
 # Health Check
 # ============================================
 
+@app.route('/api/regression/calculate', methods=['POST'])
+def calculate_regression():
+    """
+    Calculate regression analysis between main ticker and overlays
+    
+    Request body:
+    {
+        "mainTicker": "AAPL",
+        "mainData": {"timestamps": [...], "closes": [...]},
+        "overlayData": [
+            {"ticker": "MSFT", "color": "#ff0000", "timestamps": [...], "closes": [...]}
+        ]
+    }
+    """
+    try:
+        from backend.regression import (
+            align_data_by_timestamp,
+            calculate_ols_regression,
+            calculate_residuals
+        )
+        import pandas as pd
+        import numpy as np
+        
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        main_ticker = data.get('mainTicker')
+        main_data = data.get('mainData')
+        overlay_data = data.get('overlayData', [])
+        
+        if not main_ticker or not main_data or not overlay_data:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        # Align data by timestamp
+        df = align_data_by_timestamp(main_data, overlay_data)
+        
+        if len(df) < 2:
+            return jsonify({
+                'success': False,
+                'error': 'Not enough overlapping data points for regression'
+            }), 400
+        
+        # Calculate regression for each overlay
+        results = []
+        for i, overlay in enumerate(overlay_data):
+            ticker = overlay.get('ticker')
+            color = overlay.get('color')
+            
+            if ticker not in df.columns:
+                continue
+            
+            # Get aligned data
+            y_data = df['main'].values
+            x_data = df[ticker].values
+            
+            # Calculate OLS
+            ols_result = calculate_ols_regression(y_data, x_data)
+            
+            # Calculate residuals
+            residuals = calculate_residuals(y_data, x_data, ols_result['alpha'], ols_result['beta'])
+            
+            results.append({
+                'ticker': ticker,
+                'color': color,
+                'beta': ols_result['beta'],
+                'alpha': ols_result['alpha'],
+                'r_squared': ols_result['r_squared'],
+                'correlation': ols_result['correlation'],
+                'x_data': x_data.tolist(),
+                'y_data': y_data.tolist(),
+                'spread': residuals.tolist(),
+                'timestamps': (df.index.astype(np.int64) // 1_000_000).tolist()
+            })
+        
+        return jsonify({
+            'success': True,
+            'mainTicker': main_ticker,
+            'results': results,
+            'dataPoints': len(df)
+        })
+        
+    except Exception as e:
+        print(f"[REGRESSION API] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""

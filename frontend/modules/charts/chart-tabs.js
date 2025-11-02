@@ -218,12 +218,14 @@ class ChartTab {
     
     // Extended hours
     const extendedHoursToggle = content.querySelector('.chart-extended-hours-checkbox');
-    extendedHoursToggle.addEventListener('change', () => {
-      this.extendedHoursEnabled = extendedHoursToggle.checked;
-      if (this.ticker) {
-        this.loadChartWithOverlays();
-      }
-    });
+    if (extendedHoursToggle) {
+      extendedHoursToggle.addEventListener('change', () => {
+        this.extendedHoursEnabled = extendedHoursToggle.checked;
+        if (this.ticker) {
+          this.loadChartWithOverlays();
+        }
+      });
+    }
     
     // Chart type
     const chartTypeSelect = content.querySelector('.chart-type-select');
@@ -617,18 +619,44 @@ class ChartTab {
     }
     
   // Subscribe to websocket for this ticker
-  try {
-    await window.electronAPI.polygonSubscribeTickers([ticker]);
-    console.log(`[WEBSOCKET] Subscribed to ${ticker}`);
-    
-    // ALWAYS force fetch ticker data immediately for latest price
-    console.log(`[WEBSOCKET] Force fetching latest data for ${ticker}`);
-    await window.electronAPI.polygonFetchTickers([ticker]);
-    
-    // Wait a bit for the fetch to complete and update treemapData
-    await new Promise(resolve => setTimeout(resolve, 500));
-  } catch (error) {
-    console.error(`[WEBSOCKET] Failed to subscribe to ${ticker}:`, error);
+  if (window.socketIOClient) {
+    try {
+      // Subscribe via Socket.io client
+      window.socketIOClient.subscribe([ticker], (data) => {
+        // Update treemapData with incoming data
+        if (window.treemapData) {
+          window.treemapData.set(data.ticker, data);
+        }
+        
+        // Update active chart tabs for this ticker
+        const tabs = Array.from(document.querySelectorAll('.chart-tab-item'));
+        tabs.forEach(tabEl => {
+          const tab = chartTabs.find(t => t.id === tabEl.dataset.tabId);
+          if (tab && tab.ticker === data.ticker) {
+            tab.updateLiveInfo(data);
+          }
+        });
+      });
+      
+      console.log(`[WEBSOCKET] Subscribed to ${ticker} via Socket.io`);
+    } catch (error) {
+      console.error(`[WEBSOCKET] Failed to subscribe to ${ticker}:`, error);
+    }
+  } else if (window.electronAPI && window.electronAPI.polygonSubscribeTickers) {
+    // Fallback to Electron API if available
+    try {
+      await window.electronAPI.polygonSubscribeTickers([ticker]);
+      console.log(`[WEBSOCKET] Subscribed to ${ticker} via Electron`);
+      
+      // ALWAYS force fetch ticker data immediately for latest price
+      console.log(`[WEBSOCKET] Force fetching latest data for ${ticker}`);
+      await window.electronAPI.polygonFetchTickers([ticker]);
+      
+      // Wait a bit for the fetch to complete and update treemapData
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error(`[WEBSOCKET] Failed to subscribe to ${ticker}:`, error);
+    }
   }
   
   // Load chart first, THEN update live info
@@ -658,6 +686,37 @@ class ChartTab {
     }
   }
   
+  isDST(date) {
+    // Check if a date is in daylight saving time (2nd Sunday of March to 1st Sunday of November)
+    const year = date.getFullYear();
+    const jan = new Date(year, 0, 1);
+    const jul = new Date(year, 6, 1);
+    const stdOffset = Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+    return date.getTimezoneOffset() < stdOffset;
+  }
+
+  filterExtendedHours(bars) {
+    // Only filter if extended hours is disabled and we're in intraday mode
+    if (this.extendedHoursEnabled || !(this.interval === '1' || this.interval === '5' || this.interval === '15' || this.interval === '30' || this.interval === '60')) {
+      return bars;
+    }
+
+    return bars.filter(bar => {
+      const date = new Date(bar.t);
+      const hour = date.getUTCHours();
+      const minute = date.getUTCMinutes();
+      const timeInMinutes = hour * 60 + minute;
+      
+      // Regular market hours in UTC: 14:30 (9:30am ET) to 21:00 (4:00pm ET)
+      // Adjust for daylight saving time
+      const isDST = this.isDST(date);
+      const marketOpen = isDST ? 13 * 60 + 30 : 14 * 60 + 30; // 9:30am ET
+      const marketClose = isDST ? 20 * 60 : 21 * 60; // 4:00pm ET
+      
+      return timeInMinutes >= marketOpen && timeInMinutes < marketClose;
+    });
+  }
+
   isMarketOpen() {
     const now = new Date();
     const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
@@ -802,7 +861,7 @@ async updateLiveInfo(freshWsData = null) {
     const changeEl = content.querySelector('.chart-live-change');
     if (changeEl && currentPrice && prevClose) {
       const changePercent = ((currentPrice - prevClose) / prevClose) * 100;
-      changeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+      changeEl.innerHTML = `<span class="numeric">${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%</span>`;
       changeEl.style.backgroundColor = changePercent >= 0 ? '#00aa55' : '#ff4444';
       changeEl.style.color = 'white';
       console.log(`[LIVE INFO] ${this.ticker} change: ${changePercent.toFixed(2)}%`);
@@ -819,7 +878,7 @@ async updateLiveInfo(freshWsData = null) {
         : currentVolume >= 1e3
         ? (currentVolume / 1e3).toFixed(1) + 'K'
         : currentVolume.toFixed(0);
-      volumeEl.textContent = `Vol: ${volDisplay}`;
+      volumeEl.innerHTML = `Vol: <span class="numeric">${volDisplay}</span>`;
     } else if (volumeEl) {
       volumeEl.textContent = 'Vol: --';
     }
@@ -827,7 +886,7 @@ async updateLiveInfo(freshWsData = null) {
     // Update market cap
     const marketCapEl = content.querySelector('.chart-live-marketcap');
     if (marketCapEl && wsData && wsData.marketCap) {
-      marketCapEl.textContent = 'MCap: $' + (wsData.marketCap / 1e9).toFixed(2) + 'B';
+      marketCapEl.innerHTML = 'MCap: <span class="numeric">$' + (wsData.marketCap / 1e9).toFixed(2) + 'B</span>';
     } else if (marketCapEl) {
       marketCapEl.textContent = '';
     }
@@ -846,7 +905,7 @@ async updateLiveInfo(freshWsData = null) {
     const changePercent = ((lastClose - firstClose) / firstClose) * 100;
     
     // Update display
-    candleChangeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+    candleChangeEl.innerHTML = `<span class="numeric">${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%</span>`;
     if (changePercent >= 0) {
       candleChangeEl.style.backgroundColor = '#00aa55';
       candleChangeEl.style.color = 'white';
@@ -902,31 +961,68 @@ async updateLiveInfo(freshWsData = null) {
     `;
     
     try {
-      // Subscribe to live updates for this ticker
-      try {
-        await window.electronAPI.polygonSubscribeTickers([this.ticker]);
-        console.log(`[CHART] Subscribed to ${this.ticker}`);
-      } catch (subError) {
-        console.warn(`[CHART] Failed to subscribe to ${this.ticker}:`, subError);
+      // Subscribe to live updates for this ticker (Electron only)
+      if (window.electronAPI && window.electronAPI.polygonSubscribeTickers) {
+        try {
+          await window.electronAPI.polygonSubscribeTickers([this.ticker]);
+          console.log(`[CHART] Subscribed to ${this.ticker}`);
+        } catch (subError) {
+          console.warn(`[CHART] Failed to subscribe to ${this.ticker}:`, subError);
+        }
       }
       
       const dateRange = this.getDateRange();
       const { timespan, multiplier } = this.getTimespanParams();
       
-      const result = await window.electronAPI.polygonGetHistoricalBars({
-        ticker: this.ticker,
-        from: dateRange.from,
-        to: dateRange.to,
-        timespan,
-        multiplier,
-        includeExtendedHours: this.extendedHoursEnabled
-      });
+      let result;
+      
+      if (window.electronAPI && window.electronAPI.polygonGetHistoricalBars) {
+        // Electron mode
+        result = await window.electronAPI.polygonGetHistoricalBars({
+          ticker: this.ticker,
+          from: dateRange.from,
+          to: dateRange.to,
+          timespan,
+          multiplier,
+          includeExtendedHours: this.extendedHoursEnabled
+        });
+      } else {
+        // Browser mode - use REST API
+        const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+        if (!apiKey) {
+          throw new Error('API key not available');
+        }
+        
+        const url = `https://api.polygon.io/v2/aggs/ticker/${this.ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&limit=50000${this.extendedHoursEnabled ? '&includeExtendedHours=true' : ''}&apiKey=${apiKey}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+          throw new Error('No data available for this ticker and timeframe');
+        }
+        
+        // Convert Polygon format to internal format
+        result = {
+          success: true,
+          bars: data.results.map(bar => ({
+            t: bar.t,
+            o: bar.o,
+            h: bar.h,
+            l: bar.l,
+            c: bar.c,
+            v: bar.v
+          }))
+        };
+      }
       
       loadingEl.style.display = 'none';
       
       if (!result.success || !result.bars || result.bars.length === 0) {
         throw new Error('No data available for this ticker and timeframe');
       }
+      
+      // Filter extended hours if disabled
+      result.bars = this.filterExtendedHours(result.bars);
       
       // Store chart data - make a COPY if market is closed to prevent modifications
       if (this.isMarketOpen()) {
@@ -1307,17 +1403,8 @@ async updateLiveInfo(freshWsData = null) {
       text: dates.map((date, i) => {
         if (normalizedClose[i] === null) return `${date}<br>Insufficient data`;
         
-        const formatValue = (val) => {
-          if (this.normalizeMode === 'off') return `$${val.toFixed(2)}`;
-          if (this.normalizeMode === 'cumret') return `${(val * 100).toFixed(2)}%`;
-          return val.toFixed(2);
-        };
-        
-        if (this.normalizeMode === 'off') {
-          return `${date}<br>O: $${open[i].toFixed(2)}<br>H: $${high[i].toFixed(2)}<br>L: $${low[i].toFixed(2)}<br>C: $${close[i].toFixed(2)}`;
-        } else {
-          return `${date}<br>O: ${formatValue(normalizedOpen[i])}<br>H: ${formatValue(normalizedHigh[i])}<br>L: ${formatValue(normalizedLow[i])}<br>C: ${formatValue(normalizedClose[i])}`;
-        }
+        // Always show real prices in hover text, even when normalized
+        return `${date}<br>O: <span class="numeric">$${open[i].toFixed(2)}</span><br>H: <span class="numeric">$${high[i].toFixed(2)}</span><br>L: <span class="numeric">$${low[i].toFixed(2)}</span><br>C: <span class="numeric">$${close[i].toFixed(2)}</span>`;
       })
     };
     
@@ -1340,13 +1427,13 @@ async updateLiveInfo(freshWsData = null) {
       },
       xaxis: 'x',
       yaxis: 'y2',
-      hovertemplate: 'Volume: %{y:,.0f}<extra></extra>'
+      hovertemplate: 'Volume: <span class="numeric">%{y:,.0f}</span><extra></extra>'
     };
     
     const layout = {
       plot_bgcolor: '#000000',
       paper_bgcolor: '#000000',
-      font: { color: '#e0e0e0' },
+      font: { family: 'Quantico, monospace', color: '#e0e0e0' },
       xaxis: {
         type: 'category',
         rangeslider: { visible: false },
@@ -1354,7 +1441,7 @@ async updateLiveInfo(freshWsData = null) {
         griddash: 'dot',
         showgrid: false,
         tickangle: tickAngle,
-        tickfont: { size: tickFontSize },
+        tickfont: { family: 'Quantico, monospace', size: tickFontSize },
         nticks: Math.min(15, Math.ceil(totalBars / 20)),
         automargin: true,
         showspikes: true,
@@ -1390,7 +1477,7 @@ async updateLiveInfo(freshWsData = null) {
       hoverlabel: {
         bgcolor: 'rgba(26, 26, 26, 0.85)',
         bordercolor: '#444',
-        font: { color: '#e0e0e0', size: 12 },
+        font: { family: 'Quantico, monospace', color: '#e0e0e0', size: 12 },
         align: 'left',
         namelength: -1
       },
@@ -1646,12 +1733,12 @@ async updateLiveInfo(freshWsData = null) {
               mode: 'lines',
               x: dates,
               y: normalizedUpper,
-              name: `${label} Upper ${params}${tickerLabel}`,
+              name: `${label} ${params}${tickerLabel}`,
               line: { color: color, width: source.isMain ? 1 : 0.8, dash: 'dash' },
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: sourceIdx === 0, // Only show in legend once
+              showlegend: sourceIdx === 0, // Only show one legend entry
               legendgroup: `${indicator.type}-${indIdx}`,
               hovertemplate: `${source.ticker} ${label} Upper: %{y:.2f}<extra></extra>`
             });
@@ -1662,12 +1749,12 @@ async updateLiveInfo(freshWsData = null) {
               mode: 'lines',
               x: dates,
               y: normalizedMiddle,
-              name: `${label} Middle ${params}${tickerLabel}`,
+              name: `${label} ${params}${tickerLabel}`,
               line: { color: color, width: source.isMain ? 1.5 : 1 },
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: sourceIdx === 0,
+              showlegend: false,
               legendgroup: `${indicator.type}-${indIdx}`,
               hovertemplate: `${source.ticker} ${label} Middle: %{y:.2f}<extra></extra>`
             });
@@ -1678,12 +1765,12 @@ async updateLiveInfo(freshWsData = null) {
               mode: 'lines',
               x: dates,
               y: normalizedLower,
-              name: `${label} Lower ${params}${tickerLabel}`,
+              name: `${label} ${params}${tickerLabel}`,
               line: { color: color, width: source.isMain ? 1 : 0.8, dash: 'dash' },
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: false, // Don't show lower in legend
+              showlegend: false,
               legendgroup: `${indicator.type}-${indIdx}`,
               hovertemplate: `${source.ticker} ${label} Lower: %{y:.2f}<extra></extra>`
             });
@@ -1700,7 +1787,7 @@ async updateLiveInfo(freshWsData = null) {
               xaxis: 'x',
               yaxis: 'y3',
               showlegend: true,
-              hovertemplate: `${source.ticker} RSI: %{y:.2f}<extra></extra>`
+              hovertemplate: `${source.ticker} RSI: <span class="numeric">%{y:.2f}</span><extra></extra>`
             });
             
             // Only add RSI reference lines and axis setup once
@@ -1749,7 +1836,7 @@ async updateLiveInfo(freshWsData = null) {
                 xaxis: 'x',
                 yaxis: 'y3',
                 showlegend: true,
-                hovertemplate: `${source.ticker} StochRSI %K: %{y:.2f}<extra></extra>`
+                hovertemplate: `${source.ticker} StochRSI %K: <span class="numeric">%{y:.2f}</span><extra></extra>`
               });
               
               // %D line (use slightly darker/lighter color)
@@ -1765,7 +1852,7 @@ async updateLiveInfo(freshWsData = null) {
                 xaxis: 'x',
                 yaxis: 'y3',
                 showlegend: true,
-                hovertemplate: `${source.ticker} StochRSI %D: %{y:.2f}<extra></extra>`
+                hovertemplate: `${source.ticker} StochRSI %D: <span class="numeric">%{y:.2f}</span><extra></extra>`
               });
             }
             
@@ -1815,7 +1902,7 @@ async updateLiveInfo(freshWsData = null) {
               xaxis: 'x',
               yaxis: 'y4',
               showlegend: true,
-              hovertemplate: `${source.ticker} ATR: %{y:.2f}<extra></extra>`
+              hovertemplate: `${source.ticker} ATR: <span class="numeric">%{y:.2f}</span><extra></extra>`
             });
             
             // Setup y4 axis for ATR if not already done
@@ -1856,7 +1943,7 @@ async updateLiveInfo(freshWsData = null) {
               xaxis: 'x',
               yaxis: 'y',
               showlegend: true,
-              hovertemplate: `${source.ticker} ${label}: %{y:.2f}<extra></extra>`
+              hovertemplate: `${source.ticker} ${label}: <span class="numeric">%{y:.2f}</span><extra></extra>`
             };
             
             console.log('  Created trace:', {
@@ -1901,6 +1988,14 @@ async updateLiveInfo(freshWsData = null) {
     
     // Return the promise so we can chain handlers
     return Plotly.newPlot(chartCanvas, traces, layout, config).then(() => {
+      // Force numeric font on all hover labels
+      setTimeout(() => {
+        const hoverTexts = chartCanvas.querySelectorAll('.hoverlayer text, g.hovertext text, .hoverlabel text');
+        hoverTexts.forEach(el => {
+          el.style.fontFamily = 'Quantico, monospace';
+        });
+      }, 50);
+      
       // Update candle percentage display
       this.updateCandlePercentage(bars);
       
@@ -1936,10 +2031,10 @@ async updateLiveInfo(freshWsData = null) {
               <span style="font-weight: bold;">${trace.name}</span>
             </div>`;
             if (trace.open && trace.open[xIndex] !== undefined) {
-              html += `<div style="margin-left: 18px;">O: $${trace.open[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">H: $${trace.high[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">L: $${trace.low[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">C: $${trace.close[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">O: <span class="numeric">$${trace.open[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">H: <span class="numeric">$${trace.high[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">L: <span class="numeric">$${trace.low[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">C: <span class="numeric">$${trace.close[xIndex].toFixed(2)}</span></div>`;
             }
           }
         });
@@ -1957,17 +2052,17 @@ async updateLiveInfo(freshWsData = null) {
                 <div style="width: 12px; height: 12px; background: ${candleColor}; border-radius: 2px; margin-right: 6px;"></div>
                 <span style="font-weight: bold;">${overlay.ticker}</span>
               </div>`;
-              html += `<div style="margin-left: 18px;">O: $${overlayTrace.open[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">H: $${overlayTrace.high[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">L: $${overlayTrace.low[xIndex].toFixed(2)}</div>`;
-              html += `<div style="margin-left: 18px;">C: $${overlayTrace.close[xIndex].toFixed(2)}</div>`;
+              html += `<div style="margin-left: 18px;">O: <span class="numeric">$${overlayTrace.open[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">H: <span class="numeric">$${overlayTrace.high[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">L: <span class="numeric">$${overlayTrace.low[xIndex].toFixed(2)}</span></div>`;
+              html += `<div style="margin-left: 18px;">C: <span class="numeric">$${overlayTrace.close[xIndex].toFixed(2)}</span></div>`;
             } else {
               // For line charts, use the line color
               const lineTrace = traces.find(t => t.type === 'scatter' && t.name === overlay.ticker);
               if (lineTrace && lineTrace.y && lineTrace.y[xIndex] !== undefined) {
                 html += `<div style="display: flex; align-items: center; margin-top: 8px; margin-bottom: 4px;">
                   <div style="width: 12px; height: 12px; background: ${overlay.lineColor}; border-radius: 2px; margin-right: 6px;"></div>
-                  <span style="font-weight: bold;">${overlay.ticker}: ${lineTrace.y[xIndex].toFixed(2)}</span>
+                  <span style="font-weight: bold;">${overlay.ticker}: <span class="numeric">${lineTrace.y[xIndex].toFixed(2)}</span></span>
                 </div>`;
               }
             }
@@ -1987,14 +2082,44 @@ async updateLiveInfo(freshWsData = null) {
               t.y[xIndex] !== null
             );
             
-            indTraces.forEach(indTrace => {
-              // Use the actual trace color instead of the base indicator color
-              const traceColor = indTrace.line ? indTrace.line.color : ind.color;
-              html += `<div style="display: flex; align-items: center; margin-top: 4px;">
-                <div style="width: 12px; height: 12px; background: ${traceColor}; border-radius: 2px; margin-right: 6px;"></div>
-                <span>${indTrace.name}: ${indTrace.y[xIndex].toFixed(2)}</span>
-              </div>`;
-            });
+            // Group BB/KC bands together
+            if (ind.type === 'BB' || ind.type === 'KC') {
+              // BB/KC create 3 traces per ticker (main + overlays), process in groups of 3
+              for (let i = 0; i < indTraces.length; i += 3) {
+                const trace1 = indTraces[i];
+                const trace2 = indTraces[i + 1];
+                const trace3 = indTraces[i + 2];
+                
+                if (trace1 && trace2 && trace3) {
+                  const traceColor = trace1.line ? trace1.line.color : ind.color;
+                  
+                  // Get the 3 values and sort them
+                  const values = [
+                    trace1.y[xIndex],
+                    trace2.y[xIndex],
+                    trace3.y[xIndex]
+                  ].sort((a, b) => a - b); // Sort ascending (lower, middle, upper)
+                  
+                  const lower = values[0].toFixed(2);
+                  const middle = values[1].toFixed(2);
+                  const upper = values[2].toFixed(2);
+                  
+                  html += `<div style="display: flex; align-items: center; margin-top: 4px;">
+                    <div style="width: 12px; height: 12px; background: ${traceColor}; border-radius: 2px; margin-right: 6px;"></div>
+                    <span>${trace1.name}: <span class="numeric">${lower}</span> <span class="numeric">${middle}</span> <span class="numeric">${upper}</span></span>
+                  </div>`;
+                }
+              }
+            } else {
+              // Normal indicator - show each trace separately
+              indTraces.forEach(indTrace => {
+                const traceColor = indTrace.line ? indTrace.line.color : ind.color;
+                html += `<div style="display: flex; align-items: center; margin-top: 4px;">
+                  <div style="width: 12px; height: 12px; background: ${traceColor}; border-radius: 2px; margin-right: 6px;"></div>
+                  <span>${indTrace.name}: <span class="numeric">${indTrace.y[xIndex].toFixed(2)}</span></span>
+                </div>`;
+              });
+            }
           });
         }
         
@@ -2236,8 +2361,23 @@ async updateLiveInfo(freshWsData = null) {
     try {
       // Subscribe to live updates for this overlay ticker
       try {
-        await window.electronAPI.polygonSubscribeTickers([ticker]);
-        console.log(`[CHART] Subscribed to overlay ${ticker}`);
+        if (window.socketIOClient) {
+          window.socketIOClient.subscribe([ticker], (data) => {
+            // Update treemapData
+            if (window.treemapData) {
+              window.treemapData.set(data.ticker, data);
+            }
+            // Update this chart tab if it has this overlay
+            const overlay = this.overlays.find(o => o.ticker === ticker);
+            if (overlay) {
+              this.updateLiveInfo(data);
+            }
+          });
+          console.log(`[CHART] Subscribed to overlay ${ticker} via Socket.io`);
+        } else if (window.electronAPI && window.electronAPI.polygonSubscribeTickers) {
+          await window.electronAPI.polygonSubscribeTickers([ticker]);
+          console.log(`[CHART] Subscribed to overlay ${ticker} via Electron`);
+        }
       } catch (subError) {
         console.warn(`[CHART] Failed to subscribe to overlay ${ticker}:`, subError);
       }
@@ -2246,18 +2386,53 @@ async updateLiveInfo(freshWsData = null) {
       const dateRange = this.getDateRange();
       const { timespan, multiplier } = this.getTimespanParams();
       
-      const result = await window.electronAPI.polygonGetHistoricalBars({
-        ticker: ticker,
-        from: dateRange.from,
-        to: dateRange.to,
-        timespan,
-        multiplier,
-        includeExtendedHours: this.extendedHoursEnabled
-      });
+      let result;
+      
+      if (window.electronAPI && window.electronAPI.polygonGetHistoricalBars) {
+        // Electron mode
+        result = await window.electronAPI.polygonGetHistoricalBars({
+          ticker: ticker,
+          from: dateRange.from,
+          to: dateRange.to,
+          timespan,
+          multiplier,
+          includeExtendedHours: this.extendedHoursEnabled
+        });
+      } else {
+        // Browser mode - use REST API
+        const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+        if (!apiKey) {
+          throw new Error('API key not available');
+        }
+        
+        const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&limit=50000${this.extendedHoursEnabled ? '&includeExtendedHours=true' : ''}&apiKey=${apiKey}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+          throw new Error('No data available for this ticker');
+        }
+        
+        // Convert Polygon format to internal format
+        result = {
+          success: true,
+          bars: data.results.map(bar => ({
+            t: bar.t,
+            o: bar.o,
+            h: bar.h,
+            l: bar.l,
+            c: bar.c,
+            v: bar.v
+          }))
+        };
+      }
       
       if (!result.success || !result.bars || result.bars.length === 0) {
         throw new Error('No data available for this ticker');
       }
+      
+      // Filter extended hours if disabled
+      result.bars = this.filterExtendedHours(result.bars);
       
       // Calculate auto-lightened colors based on overlay index
       const overlayIndex = this.overlays.length;
@@ -2300,10 +2475,12 @@ async updateLiveInfo(freshWsData = null) {
   }
   
   removeOverlay(ticker) {
-    // Unsubscribe from live updates
-    window.electronAPI.polygonUnsubscribeTickers([ticker])
-      .then(() => console.log(`[CHART] Unsubscribed from overlay ${ticker}`))
-      .catch(err => console.warn(`[CHART] Failed to unsubscribe from ${ticker}:`, err));
+    // Unsubscribe from live updates (Electron only)
+    if (window.electronAPI && window.electronAPI.polygonUnsubscribeTickers) {
+      window.electronAPI.polygonUnsubscribeTickers([ticker])
+        .then(() => console.log(`[CHART] Unsubscribed from overlay ${ticker}`))
+        .catch(err => console.warn(`[CHART] Failed to unsubscribe from ${ticker}:`, err));
+    }
     
     // Remove from array
     this.overlays = this.overlays.filter(o => o.ticker !== ticker);
@@ -2372,8 +2549,32 @@ async updateLiveInfo(freshWsData = null) {
         closes: overlay.data.map(bar => bar.c)
       }));
 
+      let result;
+      
       // Call backend for regression calculation
-      const result = await window.electronAPI.calculateRegression(mainTicker, mainData, overlayData);
+      if (window.electronAPI && window.electronAPI.calculateRegression) {
+        // Electron mode
+        result = await window.electronAPI.calculateRegression(mainTicker, mainData, overlayData);
+      } else {
+        // Browser mode - call REST API via proxy
+        const response = await fetch('/api/regression/calculate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            mainTicker,
+            mainData,
+            overlayData
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Regression API failed: ${response.statusText}`);
+        }
+        
+        result = await response.json();
+      }
       
       // Reset button state
       runRegressionBtn.textContent = originalText;
@@ -3015,14 +3216,14 @@ async updateLiveInfo(freshWsData = null) {
       height: 400 * numOverlays,
       plot_bgcolor: '#000000',
       paper_bgcolor: '#000000',
-      font: { color: '#e0e0e0', size: 11 },
+      font: { family: 'Quantico, monospace', color: '#e0e0e0', size: 11 },
       showlegend: false,
       margin: { l: 60, r: 20, t: 40, b: 60 },
       hovermode: 'x unified',
       hoverlabel: {
         bgcolor: '#000000',
         bordercolor: '#4ecdc4',
-        font: { color: '#ffffff', size: 12 }
+        font: { family: 'Quantico, monospace', color: '#ffffff', size: 12 }
       },
       annotations: []
     };
@@ -3053,44 +3254,44 @@ async updateLiveInfo(freshWsData = null) {
         xanchor: 'center',
         yanchor: 'bottom',
         showarrow: false,
-        font: { size: 14, color: '#e0e0e0', weight: 'bold' }
+        font: { family: 'Quantico, monospace', size: 14, color: '#e0e0e0', weight: 'bold' }
       });
       
       layout[`xaxis${scatterRow}`] = {
         title: '',
-        titlefont: { color: '#e0e0e0' },
+        titlefont: { family: 'Quantico, monospace', color: '#e0e0e0' },
         gridcolor: '#1a1a1a',
         zerolinecolor: '#333',
-        tickfont: { color: '#999' },
+        tickfont: { family: 'Quantico, monospace', color: '#999' },
         anchor: `y${scatterRow}`
       };
       
       layout[`yaxis${scatterRow}`] = {
         title: '',
-        titlefont: { color: '#e0e0e0' },
+        titlefont: { family: 'Quantico, monospace', color: '#e0e0e0' },
         gridcolor: '#1a1a1a',
         zerolinecolor: '#333',
-        tickfont: { color: '#999' },
+        tickfont: { family: 'Quantico, monospace', color: '#999' },
         domain: scatterDomain,
         anchor: `x${scatterRow}`
       };
       
       layout[`xaxis${residualRow}`] = {
         title: '',
-        titlefont: { color: '#e0e0e0' },
+        titlefont: { family: 'Quantico, monospace', color: '#e0e0e0' },
         gridcolor: '#1a1a1a',
         zerolinecolor: '#333',
-        tickfont: { color: '#999' },
+        tickfont: { family: 'Quantico, monospace', color: '#999' },
         type: 'date',
         anchor: `y${residualRow}`
       };
       
       layout[`yaxis${residualRow}`] = {
         title: 'Residual',
-        titlefont: { color: '#e0e0e0' },
+        titlefont: { family: 'Quantico, monospace', color: '#e0e0e0' },
         gridcolor: '#1a1a1a',
         zerolinecolor: '#ff6b6b',
-        tickfont: { color: '#999' },
+        tickfont: { family: 'Quantico, monospace', color: '#999' },
         zeroline: true,
         zerolinewidth: 2,
         domain: residualDomain,
@@ -3150,23 +3351,28 @@ async updateLiveInfo(freshWsData = null) {
       xaxis: {
         title: `${ticker} Price`,
         gridcolor: '#2a2a2a',
-        zerolinecolor: '#444'
+        zerolinecolor: '#444',
+        titlefont: { family: 'Quantico, monospace' },
+        tickfont: { family: 'Quantico, monospace' }
       },
       yaxis: {
         title: `${mainTicker} Price`,
         gridcolor: '#2a2a2a',
-        zerolinecolor: '#444'
+        zerolinecolor: '#444',
+        titlefont: { family: 'Quantico, monospace' },
+        tickfont: { family: 'Quantico, monospace' }
       },
       plot_bgcolor: '#1a1a1a',
       paper_bgcolor: '#1a1a1a',
-      font: { color: '#e0e0e0', size: 11 },
+      font: { family: 'Quantico, monospace', color: '#e0e0e0', size: 11 },
       showlegend: true,
       legend: {
         x: 0.02,
         y: 0.98,
         bgcolor: 'rgba(26, 26, 26, 0.8)',
         bordercolor: '#444',
-        borderwidth: 1
+        borderwidth: 1,
+        font: { family: 'Quantico, monospace' }
       },
       margin: { l: 60, r: 20, t: 40, b: 60 }
     };
@@ -4127,16 +4333,17 @@ function initializeChartTabs() {
   // Show sidebar toggle button initially
   sidebarToggleBtn?.classList.add('visible');
   
-  // Set up websocket listener to update live info when data comes in
-  window.electronAPI.onPolygonUpdate((data) => {
-    const updateTime = new Date().toLocaleTimeString();
-    console.log(`[WEBSOCKET UPDATE ${updateTime}] ${data.ticker}:`, {
-      price: data.close,
-      volume: data.volume,
-      changePercent: data.changePercent,
-      prevClose: data.prevClose,
-      timestamp: data.timestamp
-    });
+  // Set up websocket listener to update live info when data comes in (Electron only)
+  if (window.electronAPI && window.electronAPI.onPolygonUpdate) {
+    window.electronAPI.onPolygonUpdate((data) => {
+      const updateTime = new Date().toLocaleTimeString();
+      console.log(`[WEBSOCKET UPDATE ${updateTime}] ${data.ticker}:`, {
+        price: data.close,
+        volume: data.volume,
+        changePercent: data.changePercent,
+        prevClose: data.prevClose,
+        timestamp: data.timestamp
+      });
     
     // Update all chart tabs showing this ticker (main or overlay)
     chartTabs.forEach(tab => {
@@ -4155,7 +4362,10 @@ function initializeChartTabs() {
         tab.updateChartWithLiveData(data.ticker, data);
       }
     });
-  });
+    });
+  } else {
+    console.log('[CHART TABS] Running in browser mode - live updates disabled');
+  }
 }
 
 // =====================================================

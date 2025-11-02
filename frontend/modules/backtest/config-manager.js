@@ -303,6 +303,17 @@ function openSettings() {
 }
 window.openSettings = openSettings;
 
+// Handle sign out
+function handleSignOut() {
+  // Clear any stored session data
+  localStorage.clear();
+  sessionStorage.clear();
+  
+  // Redirect to auth page
+  window.location.href = '/';
+}
+window.handleSignOut = handleSignOut;
+
 // Close settings modal
 function closeSettings() {
   const modal = document.getElementById('settingsModal');
@@ -346,8 +357,12 @@ function updateColor(colorName) {
   
   // Update CSS variable (use actual CSS variable names without 'color-' prefix)
   const cssVarName = `--${colorName}`;
-  document.documentElement.style.setProperty(cssVarName, picker.value);
+  document.documentElement.style.setProperty(cssVarName, picker.value, 'important');
   console.log('[COLOR] Updated', cssVarName, 'to', picker.value);
+  
+  // Force repaint by toggling a class
+  document.body.classList.add('color-updating');
+  setTimeout(() => document.body.classList.remove('color-updating'), 0);
   
   // Save to localStorage
   saveUserColors();
@@ -407,8 +422,12 @@ function resetColor(colorName) {
   
   // Update CSS variable (use actual CSS variable names without 'color-' prefix)
   const cssVarName = `--${colorName}`;
-  document.documentElement.style.setProperty(cssVarName, defaultValue);
+  document.documentElement.style.setProperty(cssVarName, defaultValue, 'important');
   console.log('[COLOR] Reset', cssVarName, 'to', defaultValue);
+  
+  // Force repaint
+  document.body.classList.add('color-updating');
+  setTimeout(() => document.body.classList.remove('color-updating'), 0);
   
   // Save to localStorage
   saveUserColors();
@@ -559,7 +578,7 @@ function loadUserColors() {
       
       // Apply to CSS (use actual CSS variable names without 'color-' prefix)
       const cssVarName = `--${colorName}`;
-      document.documentElement.style.setProperty(cssVarName, value);
+      document.documentElement.style.setProperty(cssVarName, value, 'important');
       // Removed excessive logging: console.log('[COLOR] Loaded', cssVarName, '=', value);
     }
   });
@@ -636,8 +655,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Global keyboard shortcut handler (use capture phase to run before other handlers)
   document.addEventListener('keydown', (e) => {
-    // Ctrl+PageUp/PageDown: Always handle these first
-    if (e.ctrlKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
+    // Shift+PageUp/PageDown: Always handle these first
+    if (e.shiftKey && !e.ctrlKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
       // Don't prevent default if user is typing in an input
       if (document.activeElement.tagName === 'INPUT' || 
           document.activeElement.tagName === 'TEXTAREA' ||
@@ -662,8 +681,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Ctrl+, opens settings
-    if (e.ctrlKey && e.key === ',') {
+    // Shift+, opens settings
+    if (e.shiftKey && !e.ctrlKey && e.key === '<') {  // Shift+, produces '<'
       e.preventDefault();
       console.log('[SHORTCUT] Opening settings');
       openSettings();
@@ -714,12 +733,14 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Ctrl+1 through Ctrl+9: Direct tab access
-    if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
+    // Shift+1 through Shift+9: Direct tab access
+    if (e.shiftKey && !e.ctrlKey && e.key >= '!' && e.key <= '(') {  // Shift+1-9 produces !, @, #, etc.
       e.preventDefault();
-      const index = parseInt(e.key) - 1;
-      console.log('[SHORTCUT] Ctrl+' + e.key + ', switching to:', MAIN_TABS[index]);
-      if (index < MAIN_TABS.length) {
+      // Map shifted numbers to indices: ! = 1, @ = 2, # = 3, $ = 4, % = 5, ^ = 6, & = 7, * = 8, ( = 9
+      const keyMap = { '!': 0, '@': 1, '#': 2, '$': 3, '%': 4, '^': 5, '&': 6, '*': 7, '(': 8 };
+      const index = keyMap[e.key];
+      console.log('[SHORTCUT] Shift+' + (index + 1) + ', switching to:', MAIN_TABS[index]);
+      if (index !== undefined && index < MAIN_TABS.length) {
         switchMainTab(MAIN_TABS[index]);
       }
       return;

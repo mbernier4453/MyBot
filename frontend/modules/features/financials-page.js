@@ -306,11 +306,68 @@ const FinancialsPage = {
       // Get up to 5 years of data (20 quarters or 5 annual reports)
       const limit = this.currentTimeframe === 'quarterly' ? 20 : 5;
       
-      const [balanceSheet, incomeStatement, cashFlow] = await Promise.all([
-        window.electronAPI.polygonGetBalanceSheet(ticker, { timeframe: this.currentTimeframe, limit }),
-        window.electronAPI.polygonGetIncomeStatement(ticker, { timeframe: this.currentTimeframe, limit }),
-        window.electronAPI.polygonGetCashFlow(ticker, { timeframe: this.currentTimeframe, limit })
-      ]);
+      let balanceSheet, incomeStatement, cashFlow;
+      
+      if (window.electronAPI && window.electronAPI.polygonGetBalanceSheet) {
+        // Electron mode
+        [balanceSheet, incomeStatement, cashFlow] = await Promise.all([
+          window.electronAPI.polygonGetBalanceSheet(ticker, { timeframe: this.currentTimeframe, limit }),
+          window.electronAPI.polygonGetIncomeStatement(ticker, { timeframe: this.currentTimeframe, limit }),
+          window.electronAPI.polygonGetCashFlow(ticker, { timeframe: this.currentTimeframe, limit })
+        ]);
+      } else {
+        // Browser mode - use REST API
+        const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+        if (!apiKey) {
+          throw new Error('API key not available');
+        }
+        
+        const timeframe = this.currentTimeframe === 'quarterly' ? 'quarterly' : 'annual';
+        
+        // Fetch all three financial statements in parallel
+        const [bsResponse, isResponse, cfResponse] = await Promise.all([
+          fetch(`https://api.polygon.io/vX/reference/financials?ticker=${ticker}&timeframe=${timeframe}&limit=${limit}&apiKey=${apiKey}`),
+          fetch(`https://api.polygon.io/vX/reference/financials?ticker=${ticker}&timeframe=${timeframe}&limit=${limit}&apiKey=${apiKey}`),
+          fetch(`https://api.polygon.io/vX/reference/financials?ticker=${ticker}&timeframe=${timeframe}&limit=${limit}&apiKey=${apiKey}`)
+        ]);
+        
+        const [bsData, isData, cfData] = await Promise.all([
+          bsResponse.json(),
+          isResponse.json(),
+          cfResponse.json()
+        ]);
+        
+        // Convert to expected format - preserve fiscal period metadata
+        balanceSheet = {
+          success: bsData.status === 'OK',
+          results: bsData.results?.map(r => ({
+            ...r.financials?.balance_sheet,
+            fiscal_period: r.fiscal_period,
+            fiscal_year: r.fiscal_year,
+            fiscal_quarter: r.fiscal_period?.replace('Q', '')
+          })).filter(r => r && Object.keys(r).length > 3) || []
+        };
+        
+        incomeStatement = {
+          success: isData.status === 'OK',
+          results: isData.results?.map(r => ({
+            ...r.financials?.income_statement,
+            fiscal_period: r.fiscal_period,
+            fiscal_year: r.fiscal_year,
+            fiscal_quarter: r.fiscal_period?.replace('Q', '')
+          })).filter(r => r && Object.keys(r).length > 3) || []
+        };
+        
+        cashFlow = {
+          success: cfData.status === 'OK',
+          results: cfData.results?.map(r => ({
+            ...r.financials?.cash_flow_statement,
+            fiscal_period: r.fiscal_period,
+            fiscal_year: r.fiscal_year,
+            fiscal_quarter: r.fiscal_period?.replace('Q', '')
+          })).filter(r => r && Object.keys(r).length > 3) || []
+        };
+      }
       
       loadingEl.style.display = 'none';
       

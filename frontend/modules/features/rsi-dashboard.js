@@ -78,17 +78,42 @@ async function fetchRSIMarketData(ticker, timeframe, interval) {
     const dateRange = getDateRange(timeframe, interval);
     const { timespan, multiplier } = getTimespanParams(interval);
     
-    const result = await window.electronAPI.polygonGetHistoricalBars({
-      ticker: ticker,
-      from: dateRange.from,
-      to: dateRange.to,
-      timespan: timespan,
-      multiplier: multiplier,
-      includeExtendedHours: false
-    });
-    
-    if (result.success && result.bars && result.bars.length > 0) {
-      return result.bars;
+    // Check if running in Electron or browser
+    if (window.electronAPI && window.electronAPI.polygonGetHistoricalBars) {
+      // Electron mode - use IPC
+      const result = await window.electronAPI.polygonGetHistoricalBars({
+        ticker: ticker,
+        from: dateRange.from,
+        to: dateRange.to,
+        timespan: timespan,
+        multiplier: multiplier,
+        includeExtendedHours: false
+      });
+      
+      if (result.success && result.bars && result.bars.length > 0) {
+        return result.bars;
+      }
+    } else if (window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY) {
+      // Browser mode - use REST API directly
+      const apiKey = window.POLYGON_API_KEY || window.api.POLYGON_API_KEY;
+      const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.status === 'OK' && data.results && data.results.length > 0) {
+        // Convert Polygon format to internal format
+        return data.results.map(bar => ({
+          timestamp: bar.t,
+          open: bar.o,
+          high: bar.h,
+          low: bar.l,
+          close: bar.c,
+          volume: bar.v
+        }));
+      }
+    } else {
+      console.error('[RSI DASHBOARD] No Polygon API key configured');
     }
     
     return null;
@@ -389,7 +414,7 @@ async function loadRSIWatchlistData(watchlistName) {
       const data = await fetchRSIMarketData(ticker, '1Y', 'day');
       
       if (data && data.length > rsiPeriod) {
-        const closes = data.map(bar => bar.c).filter(c => c !== null && c !== undefined && !isNaN(c));
+        const closes = data.map(bar => bar.close || bar.c).filter(c => c !== null && c !== undefined && !isNaN(c));
         
         if (closes.length <= rsiPeriod) {
           console.warn(`${ticker}: Not enough valid price data after filtering`);
@@ -474,10 +499,13 @@ async function loadRSISingleTicker(ticker, group = 'None') {
   
   try {
     const data = await fetchRSIMarketData(ticker, '1Y', 'day');
+    console.log(`[RSI] Fetched data for ${ticker}:`, data ? `${data.length} bars` : 'null');
     
     if (data && data.length > rsiPeriod) {
-      const closes = data.map(bar => bar.c);
+      const closes = data.map(bar => bar.close || bar.c);
+      console.log(`[RSI] Extracted ${closes.length} close prices`);
       const rsiValues = calculateRSI(closes, rsiPeriod);
+      console.log(`[RSI] Calculated ${rsiValues?.length || 0} RSI values`);
       
       if (rsiValues && rsiValues.length > 0) {
         const currentRSI = rsiValues[rsiValues.length - 1].rsi;
@@ -511,9 +539,11 @@ async function loadRSISingleTicker(ticker, group = 'None') {
           console.log(`[RSI] Set ticker ${ticker} for group ${group}`);
         }
         
+        console.log(`[RSI] Adding ${ticker} to basket. Basket now has ${rsiBasketData.length} items`);
         updateRSIHeaders();
         renderRSIBasketTable();
         document.getElementById('rsiBasketCount').textContent = '1 symbol';
+        console.log(`[RSI] UI updated for ${ticker}`);
       }
     }
   } catch (error) {
@@ -560,10 +590,16 @@ function updateRSIHeaders() {
 // - Red (Overbought): RSI above upper Bollinger Band - Potential selling opportunity  
 // - Gray/White (Neutral): RSI within Bollinger Bands - Normal trading range
 function renderRSIBasketTable() {
+  console.log(`[RSI] renderRSIBasketTable called with ${rsiBasketData.length} items`);
   const tbody = document.getElementById('rsiBasketTable').querySelector('tbody');
+  if (!tbody) {
+    console.error('[RSI] Could not find rsiBasketTable tbody element');
+    return;
+  }
   tbody.innerHTML = '';
 
   if (rsiBasketData.length === 0) {
+    console.log('[RSI] No basket data, showing empty state');
     tbody.innerHTML = '<tr class="empty-state-row"><td colspan="2">No data available</td></tr>';
     return;
   }
@@ -593,7 +629,7 @@ function renderRSIBasketTable() {
           status === 'overbought' ? 'rgba(239, 68, 68, 0.4)' :
           'rgba(150, 150, 150, 0.4)'
         }"></div>
-        <span class="${
+        <span class="numeric ${
           status === 'oversold' ? 'rsi-oversold' :
           status === 'overbought' ? 'rsi-overbought' :
           'rsi-neutral'
@@ -630,16 +666,24 @@ async function selectRSISymbol(ticker) {
 
   // Find the ticker data
   const tickerData = rsiBasketData.find(item => item.ticker === ticker);
+  console.log('[RSI] Found ticker data:', tickerData ? 'yes' : 'no', tickerData);
   
   if (tickerData) {
+    console.log('[RSI] Rendering history chart...');
     await renderRSIHistory(ticker, tickerData);
+    console.log('[RSI] Rendering synergy panel...');
     await renderRSISynergy(ticker);
+    console.log('[RSI] Rendering Bollinger chart...');
     await renderRSIBollingerChart(ticker, tickerData);
+    console.log('[RSI] All charts rendered');
+  } else {
+    console.error('[RSI] No data found for ticker:', ticker);
   }
 }
 
 // Render RSI History table
 async function renderRSIHistory(ticker, tickerData) {
+  console.log('[RSI] renderRSIHistory called for', ticker, 'data length:', tickerData?.data?.length);
   const tbody = document.getElementById('rsiHistoryTable').querySelector('tbody');
   tbody.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
 
@@ -662,7 +706,7 @@ async function renderRSIHistory(ticker, tickerData) {
 
       // Filter data for this window
       const windowData = tickerData.data.filter(bar => {
-        const barDate = new Date(bar.t);
+        const barDate = new Date(bar.timestamp || bar.t);
         return barDate >= fromDate && barDate <= toDate;
       });
 
@@ -671,7 +715,7 @@ async function renderRSIHistory(ticker, tickerData) {
       const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
       
       if (windowData.length > rsiPeriod) {
-        const closes = windowData.map(bar => bar.c);
+        const closes = windowData.map(bar => bar.close || bar.c);
         const rsiValues = calculateRSI(closes, rsiPeriod);
 
         if (rsiValues && rsiValues.length > 0) {
@@ -689,11 +733,11 @@ async function renderRSIHistory(ticker, tickerData) {
               if (rsiValue !== null && rsiValue !== undefined) {
                 if (rsiValue < minRSI) {
                   minRSI = rsiValue;
-                  minDate = new Date(windowData[dataIdx].t);
+                  minDate = new Date(windowData[dataIdx].timestamp || windowData[dataIdx].t);
                 }
                 if (rsiValue > maxRSI) {
                   maxRSI = rsiValue;
-                  maxDate = new Date(windowData[dataIdx].t);
+                  maxDate = new Date(windowData[dataIdx].timestamp || windowData[dataIdx].t);
                 }
               }
             }
@@ -744,7 +788,7 @@ async function renderRSISynergy(ticker) {
       const data = await fetchRSIMarketData(ticker, tf.timeframe, tf.interval);
       
       if (data && data.length > rsiPeriod) {
-        const closes = data.map(bar => bar.c);
+        const closes = data.map(bar => bar.close || bar.c);
         const rsiValues = calculateRSI(closes, rsiPeriod);
         
         if (rsiValues && rsiValues.length > 0) {
@@ -822,8 +866,8 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       return;
     }
 
-    const closes = data.map(bar => bar.c);
-    const dates = data.map(bar => new Date(bar.t));
+    const closes = data.map(bar => bar.close || bar.c);
+    const dates = data.map(bar => new Date(bar.timestamp || bar.t));
     const rsiValues = calculateRSI(closes, rsiPeriod);
     
     if (!rsiValues || rsiValues.length < bollingerPeriod) {
@@ -859,14 +903,19 @@ async function renderRSIBollingerChart(ticker, tickerData) {
     // Create traces
     const smaLine = bollingerData.map(item => item.sma);
     
+    // Get CSS variables for colors
+    const accentBlue = getComputedStyle(document.documentElement).getPropertyValue('--accent-blue').trim() || '#00aa55';
+    const accentGreen = getComputedStyle(document.documentElement).getPropertyValue('--accent-green').trim() || '#006633';
+    
     const upperTrace = {
       x: chartDates,
       y: upperBand,
       type: 'scatter',
       mode: 'lines',
       name: 'Upper Band',
-      line: { color: '#d946ef', width: 1.5, dash: 'dot' },
-      hovertemplate: 'Upper: %{y:.2f}<extra></extra>'
+      line: { color: accentGreen, width: 1.5, dash: 'dot' },
+      hovertemplate: 'Upper: %{y:.2f}<extra></extra>',
+      hoverlabel: { namelength: 0 }
     };
 
     const middleTrace = {
@@ -876,7 +925,8 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       mode: 'lines',
       name: `Middle (${bollingerPeriod}-SMA)`,
       line: { color: '#666', width: 1, dash: 'dash' },
-      hovertemplate: `${bollingerPeriod}-SMA: %{y:.2f}<extra></extra>`
+      hovertemplate: `${bollingerPeriod}-SMA: %{y:.2f}<extra></extra>`,
+      hoverlabel: { namelength: 0 }
     };
 
     const rsiTrace = {
@@ -885,8 +935,9 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       type: 'scatter',
       mode: 'lines',
       name: `RSI (${rsiPeriod}D)`,
-      line: { color: '#4a9eff', width: 2 },
-      hovertemplate: `%{x}<br>RSI(${rsiPeriod}): %{y:.2f}<extra></extra>`
+      line: { color: accentBlue, width: 2 },
+      hovertemplate: `RSI(${rsiPeriod}): %{y:.2f}<extra></extra>`,
+      hoverlabel: { namelength: 0 }
     };
 
     const lowerTrace = {
@@ -895,8 +946,9 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       type: 'scatter',
       mode: 'lines',
       name: 'Lower Band',
-      line: { color: '#d946ef', width: 1.5, dash: 'dot' },
-      hovertemplate: 'Lower: %{y:.2f}<extra></extra>'
+      line: { color: accentGreen, width: 1.5, dash: 'dot' },
+      hovertemplate: 'Lower: %{y:.2f}<extra></extra>',
+      hoverlabel: { namelength: 0 }
     };
 
     // Reference lines at 30 and 70
@@ -935,7 +987,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       autosize: true,
       paper_bgcolor: 'transparent',
       plot_bgcolor: 'transparent',
-      font: { color: '#e4e4e7' },
+      font: { family: 'Quantico, monospace', color: '#e4e4e7', size: 11 },
       margin: { l: 60, r: 40, t: 10, b: 60 },
       xaxis: {
         gridcolor: '#1a1a1a',
@@ -947,10 +999,13 @@ async function renderRSIBollingerChart(ticker, tickerData) {
         spikecolor: '#666',
         spikethickness: 0.5,
         spikedash: 'dot',
-        range: xAxisRange
+        range: xAxisRange,
+        tickfont: { family: 'Quantico, monospace' }
       },
       yaxis: {
         title: 'RSI',
+        titlefont: { family: 'Quantico, monospace' },
+        tickfont: { family: 'Quantico, monospace' },
         gridcolor: '#333',
         griddash: 'dot',
         gridwidth: 0.5,
@@ -960,7 +1015,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       },
       hovermode: 'x',
       dragmode: 'pan',
-      showlegend: false
+      showlegend: false  // Hide Plotly's legend, use custom one
     };
 
     window.addWatermark(layout);
@@ -979,46 +1034,67 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       Plotly.Plots.resize(chartDiv);
     }, 100);
     
-    // Apply crosshair lock behavior - reposition hover labels to top-left, stacked
-    let isHovering = false;
-    let animationFrameId = null;
+    // Setup custom legend
+    const legendEl = document.querySelector('.custom-rsi-legend');
+    const currentValuesEl = document.getElementById('rsiCurrentValues');
     
-    function repositionHoverLabels() {
-      const hoverGroups = document.querySelectorAll('#rsiBollingerChart .hoverlayer g.hovertext');
-      let yOffset = 80;
-      hoverGroups.forEach((group, index) => {
-        // Stack vertically with spacing
-        group.setAttribute('transform', `translate(80, ${yOffset})`);
-        if (!group.classList.contains('positioned')) {
-          group.classList.add('positioned');
-        }
-        // Approximate height per label + spacing (increased for better separation)
-        yOffset += 40;
-      });
-      
-      if (isHovering) {
-        animationFrameId = requestAnimationFrame(repositionHoverLabels);
-      }
-    }
+    // Show current values (last data point)
+    const lastRSI = rsiLine[rsiLine.length - 1];
+    const lastUpper = upperBand[upperBand.length - 1];
+    const lastLower = lowerBand[lowerBand.length - 1];
     
+    currentValuesEl.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div style="width: 12px; height: 12px; background: ${accentBlue}; border-radius: 2px;"></div>
+        <span>RSI: ${lastRSI.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div style="width: 12px; height: 12px; background: ${accentGreen}; border-radius: 2px;"></div>
+        <span>Upper: ${lastUpper.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div style="width: 12px; height: 12px; background: ${accentGreen}; border-radius: 2px;"></div>
+        <span>Lower: ${lastLower.toFixed(2)}</span>
+      </div>
+    `;
+    
+    // Custom legend on hover
     chartDiv.on('plotly_hover', function(data) {
-      isHovering = true;
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-      repositionHoverLabels();
+      if (!data.points || data.points.length === 0) return;
+      
+      const point = data.points[0];
+      const xIndex = point.pointIndex;
+      
+      const rsiVal = rsiLine[xIndex];
+      const upperVal = upperBand[xIndex];
+      const lowerVal = lowerBand[xIndex];
+      const smaVal = smaLine[xIndex];
+      const dateStr = chartDates[xIndex].toLocaleDateString();
+      
+      let html = `<div style="margin-bottom: 4px; font-weight: bold;">${dateStr}</div>`;
+      html += `<div style="display: flex; align-items: center; margin-bottom: 2px;">
+        <div style="width: 12px; height: 12px; background: ${accentBlue}; border-radius: 2px; margin-right: 6px;"></div>
+        <span>RSI: <span class="numeric">${rsiVal.toFixed(2)}</span></span>
+      </div>`;
+      html += `<div style="display: flex; align-items: center; margin-bottom: 2px;">
+        <div style="width: 12px; height: 12px; background: ${accentGreen}; border-radius: 2px; margin-right: 6px;"></div>
+        <span>Upper: <span class="numeric">${upperVal.toFixed(2)}</span></span>
+      </div>`;
+      html += `<div style="display: flex; align-items: center; margin-bottom: 2px;">
+        <div style="width: 12px; height: 12px; background: ${accentGreen}; border-radius: 2px; margin-right: 6px;"></div>
+        <span>Lower: <span class="numeric">${lowerVal.toFixed(2)}</span></span>
+      </div>`;
+      html += `<div style="display: flex; align-items: center;">
+        <div style="width: 12px; height: 12px; background: #666; border-radius: 2px; margin-right: 6px;"></div>
+        <span>SMA: <span class="numeric">${smaVal.toFixed(2)}</span></span>
+      </div>`;
+      
+      legendEl.innerHTML = html;
+      legendEl.style.display = 'block';
     });
     
     chartDiv.on('plotly_unhover', function() {
-      isHovering = false;
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-      }
-      const hoverGroups = document.querySelectorAll('#rsiBollingerChart .hoverlayer g.hovertext');
-      hoverGroups.forEach(group => {
-        group.classList.remove('positioned');
-      });
+      legendEl.style.display = 'none';
     });
     
     loadingDiv.style.display = 'none';
@@ -1034,23 +1110,27 @@ setTimeout(() => {
   initializeRSIDashboard();
 }, 1500);
 
-// Check if database is already connected and load favorites
-setTimeout(async () => {
-  console.log('[INIT] Checking for existing database connection...');
-  try {
-    // Try to get favorites - if it works, database is connected
-    const result = await window.electronAPI.getFavorites();
-    if (result.success) {
-      console.log('[INIT] Database already connected, loading favorites and watchlists...');
-      await loadFavorites();
-      await loadWatchlistsForBacktest();
-    } else {
-      console.log('[INIT] No database connected yet');
+// Check if database is already connected and load favorites (Electron only)
+if (window.electronAPI && window.electronAPI.getFavorites) {
+  setTimeout(async () => {
+    console.log('[INIT] Checking for existing database connection...');
+    try {
+      // Try to get favorites - if it works, database is connected
+      const result = await window.electronAPI.getFavorites();
+      if (result.success) {
+        console.log('[INIT] Database already connected, loading favorites and watchlists...');
+        await loadFavorites();
+        await loadWatchlistsForBacktest();
+      } else {
+        console.log('[INIT] No database connected yet');
+      }
+    } catch (error) {
+      console.log('[INIT] No database connected:', error.message);
     }
-  } catch (error) {
-    console.log('[INIT] No database connected:', error.message);
-  }
-}, 500);
+  }, 500);
+} else {
+  console.log('[INIT] Running in browser mode - database features disabled');
+}
 
 
 // Export for external use

@@ -3,26 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>alpharhythm</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>αlpharhythm</title>
+  <link rel="stylesheet" href="styles.css?v=20250102d">
+  <!-- Fonts: Sanskrit for text, Quantico for numbers -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700&family=Tiro+Devanagari+Sanskrit:ital@0;1&family=Quantico:wght@400;700&display=swap" rel="stylesheet">
+  <script src="polygon-config.js"></script>
   <script src="config.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
   <div class="app-container">
     <!-- Main Dashboard Navigation -->
     <nav class="main-nav">
       <div class="nav-brand">
-        <h1>alpharhythm</h1>
+        <h1>αlpharhythm</h1>
       </div>
       <div class="nav-tabs">
         <button class="main-tab active" data-main-tab="home">Home</button>
+        <button class="main-tab" data-main-tab="watchlists">Watchlists</button>
         <button class="main-tab" data-main-tab="charting">Charting</button>
         <button class="main-tab" data-main-tab="financials">Financials</button>
         <button class="main-tab" data-main-tab="rsi">RSI Dashboard</button>
       </div>
-      <button class="settings-btn" onclick="openSettings()" title="Settings (Ctrl+,)">⚙️</button>
+      <div class="nav-actions">
+        <button class="settings-btn" onclick="openSettings()" title="Settings (Shift+,)">⚙️</button>
+        <button class="signout-btn" onclick="handleSignOut()" title="Sign Out">Sign Out</button>
+      </div>
     </nav>
 
     <!-- Main Page Content -->
@@ -143,8 +153,7 @@
             </div>
             <div id="watchlistsList" class="watchlists-list">
               <div class="empty-state">
-                <p>No watchlists yet</p>
-                <p style="font-size: 12px; color: #666;">Create your first watchlist</p>
+                <p style="font-size: 14px; color: #999;">Create your first watchlist</p>
               </div>
             </div>
           </div>
@@ -260,9 +269,6 @@
                     <label>
                       <input type="radio" name="financialsTimeframe" value="annual"> Annual
                     </label>
-                    <a id="polygonSourceLink" href="#" target="_blank" style="margin-left: 15px; color: #3498db; text-decoration: none; font-size: 12px; display: none;" title="View source data on Polygon.io">
-                      Verify on Polygon.io
-                    </a>
                   </div>
                 </div>
                 
@@ -426,6 +432,7 @@
                 </div>
               </div>
               <div style="display: flex; gap: 4px; margin-left: 10px;">
+                <button class="chart-add-indicator-btn" style="padding: 6px 12px; font-size: 12px;">+ Add Indicator</button>
                 <button class="chart-load-preset-btn" title="Load preset configuration">Load Preset</button>
                 <button class="chart-save-preset-btn" title="Save current configuration">Save Preset</button>
               </div>
@@ -462,7 +469,6 @@
                   <option value="cumret" title="Shows percentage returns from anchor date. e.g., +0.15 means +15% gain.">% Return</option>
                   <option value="log" title="Log returns - makes multiplicative changes additive. Good for analyzing compounding.">Log Index</option>
                   <option value="zscore" title="Shows how many standard deviations away from the rolling average. Uses lookback period.">Z-Score</option>
-                  <option value="volscale" title="Scales to target volatility. Makes high/low vol stocks comparable. Uses lookback period.">Vol Scale</option>
                 </select>
               </div>
               <div class="control-group chart-normalize-anchor" style="display: none;">
@@ -476,9 +482,6 @@
               <div class="control-group chart-normalize-lookback" style="display: none;">
                 <label title="Number of bars to use for rolling statistics (mean, std dev). Higher = smoother but slower to react.">Lookback:</label>
                 <input type="number" class="chart-lookback-input" value="60" min="5" max="500" style="width: 60px;" title="Bars used for calculating rolling mean and standard deviation" />
-              </div>
-              <div class="control-group">
-                <button class="chart-add-indicator-btn">+ Add Indicator</button>
               </div>
               <div class="control-group">
                 <label>Timeframe:</label>
@@ -542,10 +545,10 @@
                 <button class="chart-add-overlay-btn">+ Add Overlay</button>
               </div>
               <div class="control-group">
-                <button class="chart-run-regression-btn" style="display: none;">Run Regression</button>
+                <button class="chart-export-btn">Export</button>
               </div>
               <div class="control-group">
-                <button class="chart-export-btn">Export</button>
+                <button class="chart-run-regression-btn" style="display: none;">Run Regression</button>
               </div>
             </div>
             <div class="chart-indicators-list" style="display: none;">
@@ -738,8 +741,24 @@
             <div class="rsi-panel rsi-chart-panel">
               <div class="rsi-panel-header">
                 <h3><span id="rsiChartSymbol">-</span> <span id="rsiChartHeader">Bollinger Bands of RSI (14D)</span></h3>
+                <div id="rsiCurrentValues" style="display: flex; gap: 15px; font-size: 12px; color: var(--text-secondary);"></div>
               </div>
-              <div id="rsiBollingerChart" class="rsi-chart-container"></div>
+              <div id="rsiBollingerChart" class="rsi-chart-container" style="position: relative;">
+                <div class="custom-rsi-legend" style="
+                  position: absolute;
+                  top: 10px;
+                  left: 10px;
+                  background: rgba(26, 26, 26, 0.9);
+                  border: 1px solid #444;
+                  border-radius: 4px;
+                  padding: 8px 12px;
+                  font-size: 11px;
+                  color: #e0e0e0;
+                  z-index: 1000;
+                  pointer-events: none;
+                  display: none;
+                "></div>
+              </div>
               <div id="rsiChartLoading" class="loading-state" style="display: none;">
                 Loading chart...
               </div>
@@ -1019,7 +1038,7 @@
   </div>
 
   <!-- Load main application as ES6 module -->
-  <script type="module" src="renderer.js"></script>
+  <script type="module" src="renderer.js?v=20250102d"></script>
 </body>
 </html>
 
@@ -1175,39 +1194,31 @@
               <h5>Navigation</h5>
               <div class="shortcut-item">
                 <span class="shortcut-desc">Next Tab</span>
-                <kbd>Ctrl + PageDown</kbd>
+                <kbd>Shift + PageDown</kbd>
               </div>
               <div class="shortcut-item">
                 <span class="shortcut-desc">Previous Tab</span>
-                <kbd>Ctrl + PageUp</kbd>
+                <kbd>Shift + PageUp</kbd>
               </div>
               <div class="shortcut-item">
                 <span class="shortcut-desc">Home</span>
-                <kbd>Ctrl + 1</kbd>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-desc">Screener</span>
-                <kbd>Ctrl + 2</kbd>
+                <kbd>Shift + 1</kbd>
               </div>
               <div class="shortcut-item">
                 <span class="shortcut-desc">Watchlists</span>
-                <kbd>Ctrl + 3</kbd>
+                <kbd>Shift + 2</kbd>
               </div>
               <div class="shortcut-item">
                 <span class="shortcut-desc">Charting</span>
-                <kbd>Ctrl + 4</kbd>
+                <kbd>Shift + 3</kbd>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-desc">Financials</span>
+                <kbd>Shift + 4</kbd>
               </div>
               <div class="shortcut-item">
                 <span class="shortcut-desc">RSI Dashboard</span>
-                <kbd>Ctrl + 5</kbd>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-desc">Backtesting</span>
-                <kbd>Ctrl + 6</kbd>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-desc">Results</span>
-                <kbd>Ctrl + 7</kbd>
+                <kbd>Shift + 5</kbd>
               </div>
             </div>
 
@@ -1215,7 +1226,7 @@
               <h5>General</h5>
               <div class="shortcut-item">
                 <span class="shortcut-desc">Open Settings</span>
-                <kbd>Ctrl + ,</kbd>
+                <kbd>Shift + ,</kbd>
               </div>
               <div class="shortcut-item">
                 <span class="shortcut-desc">Close Modal</span>
@@ -1440,6 +1451,6 @@
   </div>
 
   <!-- Load main application as ES6 module -->
-  <script type="module" src="renderer.js"></script>
+  <script type="module" src="renderer.js?v=20250102d"></script>
 </body>
 </html>

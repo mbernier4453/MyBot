@@ -1,3 +1,44 @@
+// Check authentication before loading app
+import { getSession, signOut } from './supabase-client.js';
+
+// Verify user is authenticated
+async function checkAuthentication() {
+  try {
+    const session = await getSession();
+    if (!session) {
+      console.log('No active session, redirecting to login...');
+      window.location.href = '/';
+      return false;
+    }
+    console.log('User authenticated:', session.user.email);
+    return true;
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    window.location.href = '/';
+    return false;
+  }
+}
+
+// Handle sign out
+async function handleSignOut() {
+  try {
+    await signOut();
+    window.location.href = '/';
+  } catch (error) {
+    console.error('Sign out error:', error);
+    alert('Failed to sign out. Please try again.');
+  }
+}
+
+// Make sign out available globally
+window.handleSignOut = handleSignOut;
+
+// Check auth before loading modules
+const isAuthenticated = await checkAuthentication();
+if (!isAuthenticated) {
+  throw new Error('Authentication required');
+}
+
 // Import modules
 import * as State from './modules/core/state.js';
 import * as Utils from './modules/core/utils.js';
@@ -5,9 +46,6 @@ import * as API from './modules/core/api.js';
 import tickerGroups from './modules/core/ticker-groups.js';
 import * as DatabaseUI from './modules/ui/database.js';
 import * as TabsUI from './modules/ui/tabs.js';
-import * as StrategiesUI from './modules/results/strategies.js';
-import * as TradesUI from './modules/results/trades.js';
-import * as TearsheetUI from './modules/results/tearsheet.js';
 import * as BacktestConfig from './modules/backtest/config.js';
 import * as BacktestRuns from './modules/backtest/runs.js';
 import * as BacktestRunsUI from './modules/backtest/runs-ui.js';
@@ -16,20 +54,15 @@ import { FavoritesUI } from './modules/features/favorites.js';
 import { ConditionModals } from './modules/backtest/conditions.js';
 import * as BacktestExecution from './modules/backtest/execution.js';
 import Indicators from './modules/indicators/calculations.js';
-import TearsheetCharts from './modules/charts/tearsheet-charts.js';
-import TearsheetMetrics from './modules/results/tearsheet-metrics.js';
 import ConfigManagerModule from './modules/backtest/config-manager.js'; // Import early for color functions
+import './modules/socketio-client.js'; // Initialize Socket.io client
 import PolygonTreemap from './modules/features/polygon-treemap.js';
+import WatchlistsModule from './modules/features/watchlists.js';
 import FinancialsPage from './modules/features/financials-page.js';
 import RatiosPage from './modules/features/ratios-page.js';
 import ChartTabSystem from './modules/charts/chart-tabs.js';
 import CandlestickChart from './modules/charts/candlestick.js';
 import RSIDashboard from './modules/features/rsi-dashboard.js';
-import WatchlistsModule from './modules/features/watchlists.js';
-import RunDetailsModule from './modules/results/run-details.js';
-import BacktestConfigModule from './modules/backtest/configuration.js';
-import StrategyConditionsModule from './modules/backtest/conditions-builder.js';
-import StrategyResultChartsModule from './modules/results/result-charts.js';
 import * as Formatters from './modules/core/formatters.js';
 
 console.log('[INIT] BacktestConfig module functions:', Object.keys(BacktestConfig));
@@ -42,9 +75,6 @@ console.log('[APP] Utils functions available:', Object.keys(Utils).length);
 console.log('[APP] API functions available:', Object.keys(API).length);
 console.log('[APP] DatabaseUI functions available:', Object.keys(DatabaseUI).length);
 console.log('[APP] TabsUI functions available:', Object.keys(TabsUI).length);
-console.log('[APP] StrategiesUI functions available:', Object.keys(StrategiesUI).length);
-console.log('[APP] TradesUI functions available:', Object.keys(TradesUI).length);
-console.log('[INIT] TearsheetUI functions available:', Object.keys(TearsheetUI).length);
 
 console.log('[RENDERER] Module loaded, preparing to initialize DOM...');
 
@@ -173,17 +203,6 @@ document.getElementById('toggleFavorites')?.addEventListener('click', () => {
   btn.classList.toggle('collapsed');
   list.classList.toggle('collapsed');
 });
-
-// Tearsheet Functions - delegated to TearsheetUI module
-const viewTearsheet = TearsheetUI.viewTearsheet;
-const viewPortfolioTearsheet = TearsheetUI.viewPortfolioTearsheet;
-const closeTearsheet = TearsheetUI.closeTearsheet;
-
-// CRITICAL: Expose tearsheet functions to window
-window.viewTearsheet = viewTearsheet;
-window.viewPortfolioTearsheet = viewPortfolioTearsheet;
-window.closeTearsheet = closeTearsheet;
-console.log('[INIT] Exposed tearsheet functions');
 
 // CRITICAL: Expose backtest runs UI functions to window
 window.addNewStrategyRun = BacktestRunsUI.addNewStrategyRun;
@@ -426,15 +445,15 @@ window.addEventListener('click', (e) => {
 // ============================================================================
 
 document.addEventListener('keydown', (e) => {
-  // Ctrl+T: Create new chart tab
-  if (e.ctrlKey && e.key === 't') {
+  // Shift+T: Create new chart tab
+  if (e.shiftKey && !e.ctrlKey && !e.altKey && e.key === 'T') {
     e.preventDefault();
     createChartTab();
     return;
   }
   
-  // Ctrl+W: Close current chart tab
-  if (e.ctrlKey && e.key === 'w') {
+  // Shift+W: Close current chart tab
+  if (e.shiftKey && !e.ctrlKey && !e.altKey && e.key === 'W') {
     e.preventDefault();
     const activeTab = ChartTabSystem.getActiveTab();
     if (activeTab) {
@@ -443,8 +462,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   
-  // Ctrl+Tab: Next tab
-  if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
+  // Shift+Tab: Next tab
+  if (e.shiftKey && !e.ctrlKey && e.key === 'Tab') {
     e.preventDefault();
     const chartTabs = ChartTabSystem.getAllTabs();
     const activeChartTabId = ChartTabSystem.getActiveTab()?.id;
@@ -452,19 +471,6 @@ document.addEventListener('keydown', (e) => {
     if (currentIndex !== -1 && chartTabs.length > 1) {
       const nextIndex = (currentIndex + 1) % chartTabs.length;
       activateChartTab(chartTabs[nextIndex].id);
-    }
-    return;
-  }
-  
-  // Ctrl+Shift+Tab: Previous tab
-  if (e.ctrlKey && e.shiftKey && e.key === 'Tab') {
-    e.preventDefault();
-    const chartTabs = ChartTabSystem.getAllTabs();
-    const activeChartTabId = ChartTabSystem.getActiveTab()?.id;
-    const currentIndex = chartTabs.findIndex(t => t.id === activeChartTabId);
-    if (currentIndex !== -1 && chartTabs.length > 1) {
-      const prevIndex = (currentIndex - 1 + chartTabs.length) % chartTabs.length;
-      activateChartTab(chartTabs[prevIndex].id);
     }
     return;
   }
@@ -517,25 +523,8 @@ function initializeDOMElements() {
     // compareBtn removed - no longer needed
   });
   
-  // Initialize StrategiesUI module
-  StrategiesUI.initializeStrategiesDisplay({
-    tickerFilter,
-    strategiesContent: document.getElementById('strategiesContent')
-  });
-  
-  // Initialize TradesUI module
-  TradesUI.initializeTradesDisplay({
-    tradeSearch,
-    sideFilter,
-    tradesContent: document.getElementById('tradesContent')
-  });
-  
   // Attach event listeners
   selectDbBtn?.addEventListener('click', DatabaseUI.selectDatabase);
-  tickerFilter?.addEventListener('change', StrategiesUI.filterStrategies);
-  tradeSearch?.addEventListener('input', TradesUI.filterTrades);
-  sideFilter?.addEventListener('change', TradesUI.filterTrades);
-  // compareBtn removed - Compare feature no longer needed
   
   // Backtest DB selector listeners
   if (selectBacktestDbBtn) {
@@ -581,6 +570,10 @@ function initializeDOMElements() {
   console.log('[INIT] Initializing PolygonTreemap...');
   PolygonTreemap.initialize();
   
+  console.log('[INIT] Initializing Watchlists...');
+  WatchlistsModule.initializeWatchlistEventListeners();
+  WatchlistsModule.loadWatchlists();
+  
   console.log('[INIT] Initializing Financials Page...');
   FinancialsPage.initialize();
   
@@ -590,14 +583,8 @@ function initializeDOMElements() {
   console.log('[INIT] Initializing RSIDashboard...');
   RSIDashboard.initialize();
   
-  console.log('[INIT] Initializing Watchlists...');
-  WatchlistsModule.initializeWatchlistEventListeners();
-  
   console.log('[INIT] Initializing Chart Tabs...');
   initializeChartTabs();
-  
-  console.log('[INIT] Initializing Backtest Configuration...');
-  BacktestConfigModule.initializeBacktestConfig();
   
   // Load favorites on startup (use setTimeout to ensure everything is ready)
   setTimeout(() => {
@@ -613,8 +600,8 @@ function initializeDOMElements() {
   }, 100);
 }
 
-// Listen for watchlist updates
-if (window.electronAPI.onWatchlistsUpdated) {
+// Listen for watchlist updates (Electron only)
+if (window.electronAPI && window.electronAPI.onWatchlistsUpdated) {
   window.electronAPI.onWatchlistsUpdated(() => {
     console.log('[RENDERER] Watchlists updated, reloading chart ticker lists');
     // Reload watchlists for all chart tabs
