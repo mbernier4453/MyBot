@@ -644,8 +644,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Global keyboard shortcut handler (use capture phase to run before other handlers)
   document.addEventListener('keydown', (e) => {
-    // Ctrl+PageUp/PageDown: Always handle these first
-    if (e.ctrlKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
+    // Shift+PageUp/PageDown: Always handle these first
+    if (e.shiftKey && !e.ctrlKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
       // Don't prevent default if user is typing in an input
       if (document.activeElement.tagName === 'INPUT' || 
           document.activeElement.tagName === 'TEXTAREA' ||
@@ -670,8 +670,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Ctrl+, opens settings
-    if (e.ctrlKey && e.key === ',') {
+    // Shift+, opens settings
+    if (e.shiftKey && !e.ctrlKey && e.key === '<') {  // Shift+, produces '<'
       e.preventDefault();
       console.log('[SHORTCUT] Opening settings');
       openSettings();
@@ -722,12 +722,14 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Ctrl+1 through Ctrl+9: Direct tab access
-    if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
+    // Shift+1 through Shift+9: Direct tab access
+    if (e.shiftKey && !e.ctrlKey && e.key >= '!' && e.key <= '(') {  // Shift+1-9 produces !, @, #, etc.
       e.preventDefault();
-      const index = parseInt(e.key) - 1;
-      console.log('[SHORTCUT] Ctrl+' + e.key + ', switching to:', MAIN_TABS[index]);
-      if (index < MAIN_TABS.length) {
+      // Map shifted numbers to indices: ! = 1, @ = 2, # = 3, $ = 4, % = 5, ^ = 6, & = 7, * = 8, ( = 9
+      const keyMap = { '!': 0, '@': 1, '#': 2, '$': 3, '%': 4, '^': 5, '&': 6, '*': 7, '(': 8 };
+      const index = keyMap[e.key];
+      console.log('[SHORTCUT] Shift+' + (index + 1) + ', switching to:', MAIN_TABS[index]);
+      if (index !== undefined && index < MAIN_TABS.length) {
         switchMainTab(MAIN_TABS[index]);
       }
       return;

@@ -291,7 +291,7 @@ export function addWatermark(layout) {
     layout.annotations = [];
   }
   layout.annotations.push({
-    text: 'alpharhythm',
+    text: 'αlpharhythm',
     xref: 'paper',
     yref: 'paper',
     x: 0.5,

@@ -85,7 +85,7 @@ app.use(express.static(__dirname, {
 }));
 
 app.listen(PORT, () => {
-  console.log(`🚀 alpharhythm server running on http://localhost:${PORT}`);
+  console.log(`🚀 αlpharhythm server running on http://localhost:${PORT}`);
   console.log(`📊 Home: http://localhost:${PORT}`);
   console.log(`📈 Charting: http://localhost:${PORT}#charting`);
   console.log(`💰 Financials: http://localhost:${PORT}#financials`);

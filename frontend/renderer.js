@@ -403,15 +403,15 @@ window.addEventListener('click', (e) => {
 // ============================================================================
 
 document.addEventListener('keydown', (e) => {
-  // Ctrl+T: Create new chart tab
-  if (e.ctrlKey && e.key === 't') {
+  // Shift+T: Create new chart tab
+  if (e.shiftKey && !e.ctrlKey && !e.altKey && e.key === 'T') {
     e.preventDefault();
     createChartTab();
     return;
   }
   
-  // Ctrl+W: Close current chart tab
-  if (e.ctrlKey && e.key === 'w') {
+  // Shift+W: Close current chart tab
+  if (e.shiftKey && !e.ctrlKey && !e.altKey && e.key === 'W') {
     e.preventDefault();
     const activeTab = ChartTabSystem.getActiveTab();
     if (activeTab) {
@@ -420,8 +420,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   
-  // Ctrl+Tab: Next tab
-  if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
+  // Shift+Tab: Next tab
+  if (e.shiftKey && !e.ctrlKey && e.key === 'Tab') {
     e.preventDefault();
     const chartTabs = ChartTabSystem.getAllTabs();
     const activeChartTabId = ChartTabSystem.getActiveTab()?.id;
@@ -429,19 +429,6 @@ document.addEventListener('keydown', (e) => {
     if (currentIndex !== -1 && chartTabs.length > 1) {
       const nextIndex = (currentIndex + 1) % chartTabs.length;
       activateChartTab(chartTabs[nextIndex].id);
-    }
-    return;
-  }
-  
-  // Ctrl+Shift+Tab: Previous tab
-  if (e.ctrlKey && e.shiftKey && e.key === 'Tab') {
-    e.preventDefault();
-    const chartTabs = ChartTabSystem.getAllTabs();
-    const activeChartTabId = ChartTabSystem.getActiveTab()?.id;
-    const currentIndex = chartTabs.findIndex(t => t.id === activeChartTabId);
-    if (currentIndex !== -1 && chartTabs.length > 1) {
-      const prevIndex = (currentIndex - 1 + chartTabs.length) % chartTabs.length;
-      activateChartTab(chartTabs[prevIndex].id);
     }
     return;
   }

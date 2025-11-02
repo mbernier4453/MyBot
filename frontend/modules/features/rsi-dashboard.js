@@ -914,7 +914,8 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       mode: 'lines',
       name: 'Upper Band',
       line: { color: accentGreen, width: 1.5, dash: 'dot' },
-      hoverinfo: 'skip'  // Hide default hover, custom legend handles it
+      hovertemplate: 'Upper: %{y:.2f}<extra></extra>',
+      hoverlabel: { namelength: 0 }
     };
 
     const middleTrace = {
@@ -924,7 +925,8 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       mode: 'lines',
       name: `Middle (${bollingerPeriod}-SMA)`,
       line: { color: '#666', width: 1, dash: 'dash' },
-      hoverinfo: 'skip'  // Hide default hover, custom legend handles it
+      hovertemplate: `${bollingerPeriod}-SMA: %{y:.2f}<extra></extra>`,
+      hoverlabel: { namelength: 0 }
     };
 
     const rsiTrace = {
@@ -934,7 +936,8 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       mode: 'lines',
       name: `RSI (${rsiPeriod}D)`,
       line: { color: accentBlue, width: 2 },
-      hoverinfo: 'skip'  // Hide default hover, custom legend handles it
+      hovertemplate: `RSI(${rsiPeriod}): %{y:.2f}<extra></extra>`,
+      hoverlabel: { namelength: 0 }
     };
 
     const lowerTrace = {
@@ -944,7 +947,8 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       mode: 'lines',
       name: 'Lower Band',
       line: { color: accentGreen, width: 1.5, dash: 'dot' },
-      hoverinfo: 'skip'  // Hide default hover, custom legend handles it
+      hovertemplate: 'Lower: %{y:.2f}<extra></extra>',
+      hoverlabel: { namelength: 0 }
     };
 
     // Reference lines at 30 and 70
