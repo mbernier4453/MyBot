@@ -1937,6 +1937,14 @@ async updateLiveInfo(freshWsData = null) {
     
     // Return the promise so we can chain handlers
     return Plotly.newPlot(chartCanvas, traces, layout, config).then(() => {
+      // Force numeric font on all hover labels
+      setTimeout(() => {
+        const hoverTexts = chartCanvas.querySelectorAll('.hoverlayer text, g.hovertext text, .hoverlabel text');
+        hoverTexts.forEach(el => {
+          el.style.fontFamily = 'Quantico, monospace';
+        });
+      }, 50);
+      
       // Update candle percentage display
       this.updateCandlePercentage(bars);
       
