@@ -52,9 +52,14 @@ input[type="number"], .number, .numeric, td, th, .table-cell,
 
 /* Plotly chart numbers - including hover labels */
 .plotly text, .plotly .xtick text, .plotly .ytick text,
-.plotly .annotation-text, .plotly .hoverlayer text,
+.plotly .hoverlayer text,
 g.hovertext text, .hoverlabel text {
   font-family: var(--font-numeric) !important;
+}
+
+/* Plotly annotation text (watermark) should use Sanskrit */
+.plotly .annotation-text, .plotly g.annotation text {
+  font-family: var(--font-display) !important;
 }
 
 /* Sanskrit font for all text elements (buttons, labels, etc.) */
