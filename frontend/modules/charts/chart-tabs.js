@@ -686,6 +686,15 @@ class ChartTab {
     }
   }
   
+  isDST(date) {
+    // Check if a date is in daylight saving time (2nd Sunday of March to 1st Sunday of November)
+    const year = date.getFullYear();
+    const jan = new Date(year, 0, 1);
+    const jul = new Date(year, 6, 1);
+    const stdOffset = Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+    return date.getTimezoneOffset() < stdOffset;
+  }
+
   isMarketOpen() {
     const now = new Date();
     const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
@@ -988,6 +997,24 @@ async updateLiveInfo(freshWsData = null) {
       
       if (!result.success || !result.bars || result.bars.length === 0) {
         throw new Error('No data available for this ticker and timeframe');
+      }
+      
+      // Filter extended hours if disabled and we're in intraday mode
+      if (!this.extendedHoursEnabled && (this.interval === '1' || this.interval === '5' || this.interval === '15' || this.interval === '30' || this.interval === '60')) {
+        result.bars = result.bars.filter(bar => {
+          const date = new Date(bar.t);
+          const hour = date.getUTCHours();
+          const minute = date.getUTCMinutes();
+          const timeInMinutes = hour * 60 + minute;
+          
+          // Regular market hours in UTC: 14:30 (9:30am ET) to 21:00 (4:00pm ET)
+          // Adjust for daylight saving time
+          const isDST = this.isDST(date);
+          const marketOpen = isDST ? 13 * 60 + 30 : 14 * 60 + 30; // 9:30am ET
+          const marketClose = isDST ? 20 * 60 : 21 * 60; // 4:00pm ET
+          
+          return timeInMinutes >= marketOpen && timeInMinutes < marketClose;
+        });
       }
       
       // Store chart data - make a COPY if market is closed to prevent modifications
@@ -2395,6 +2422,24 @@ async updateLiveInfo(freshWsData = null) {
       
       if (!result.success || !result.bars || result.bars.length === 0) {
         throw new Error('No data available for this ticker');
+      }
+      
+      // Filter extended hours if disabled and we're in intraday mode
+      if (!this.extendedHoursEnabled && (this.interval === '1' || this.interval === '5' || this.interval === '15' || this.interval === '30' || this.interval === '60')) {
+        result.bars = result.bars.filter(bar => {
+          const date = new Date(bar.t);
+          const hour = date.getUTCHours();
+          const minute = date.getUTCMinutes();
+          const timeInMinutes = hour * 60 + minute;
+          
+          // Regular market hours in UTC: 14:30 (9:30am ET) to 21:00 (4:00pm ET)
+          // Adjust for daylight saving time
+          const isDST = this.isDST(date);
+          const marketOpen = isDST ? 13 * 60 + 30 : 14 * 60 + 30; // 9:30am ET
+          const marketClose = isDST ? 20 * 60 : 21 * 60; // 4:00pm ET
+          
+          return timeInMinutes >= marketOpen && timeInMinutes < marketClose;
+        });
       }
       
       // Calculate auto-lightened colors based on overlay index
