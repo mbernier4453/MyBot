@@ -66,7 +66,18 @@ app.post('/api/regression/calculate', express.json(), async (req, res) => {
   }
 });
 
+// Route for root - serve auth page (BEFORE static middleware)
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/auth.html');
+});
+
+// Route for main app (after login)
+app.get('/app', (req, res) => {
+  res.sendFile(__dirname + '/index.html');
+});
+
 // Serve static files from the current directory with proper MIME types
+// This comes AFTER routes so index.html isn't auto-served on /
 app.use(express.static(__dirname, {
   setHeaders: (res, filePath) => {
     // Set proper MIME types for modules
@@ -83,16 +94,6 @@ app.use(express.static(__dirname, {
     }
   }
 }));
-
-// Route for root - serve auth page
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/auth.html');
-});
-
-// Route for main app (after login)
-app.get('/app', (req, res) => {
-  res.sendFile(__dirname + '/index.html');
-});
 
 app.listen(PORT, () => {
   console.log(`� αlpharhythm server running on http://localhost:${PORT}`);
