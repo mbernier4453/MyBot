@@ -136,11 +136,129 @@ async function checkAuth() {
   }
 }
 
+// Password visibility toggle
+function togglePassword(inputId) {
+  const input = document.getElementById(inputId);
+  const button = input.parentElement.querySelector('.toggle-password');
+  const eyeIcon = button.querySelector('.eye-icon');
+  const eyeOffIcon = button.querySelector('.eye-off-icon');
+  
+  if (input.type === 'password') {
+    input.type = 'text';
+    eyeIcon.style.display = 'none';
+    eyeOffIcon.style.display = 'block';
+  } else {
+    input.type = 'password';
+    eyeIcon.style.display = 'block';
+    eyeOffIcon.style.display = 'none';
+  }
+}
+
+// Terms and Conditions modal
+function showTerms(event) {
+  event.preventDefault();
+  const modal = document.getElementById('termsModal');
+  modal.classList.add('active');
+}
+
+function closeTerms() {
+  const modal = document.getElementById('termsModal');
+  modal.classList.remove('active');
+}
+
+// Forgot Password modal
+function showForgotPassword(event) {
+  event.preventDefault();
+  const modal = document.getElementById('forgotPasswordModal');
+  modal.classList.add('active');
+}
+
+function closeForgotPassword() {
+  const modal = document.getElementById('forgotPasswordModal');
+  modal.classList.remove('active');
+}
+
+// Handle forgot password submission
+async function handleForgotPassword(event) {
+  event.preventDefault();
+  
+  const email = document.getElementById('reset-email').value;
+  const submitButton = event.target.querySelector('button[type="submit"]');
+  const originalText = submitButton.textContent;
+  
+  try {
+    submitButton.textContent = 'Sending...';
+    submitButton.disabled = true;
+    
+    const { supabase } = await import('./supabase-client.js');
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'http://138.197.6.220/reset-password'
+    });
+    
+    if (error) throw error;
+    
+    // Show success message
+    const formGroup = event.target.querySelector('.form-group');
+    const existingMessage = event.target.querySelector('.success-message');
+    if (existingMessage) existingMessage.remove();
+    
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-message';
+    successDiv.style.cssText = 'background: #00aa5522; border: 1px solid #00aa55; padding: 12px; border-radius: 6px; margin-top: 12px; color: #00cc66;';
+    successDiv.textContent = 'Password reset link sent! Check your email.';
+    formGroup.after(successDiv);
+    
+    // Clear form
+    document.getElementById('reset-email').value = '';
+    
+    // Close modal after 3 seconds
+    setTimeout(() => {
+      closeForgotPassword();
+      if (successDiv) successDiv.remove();
+    }, 3000);
+    
+  } catch (error) {
+    console.error('Password reset error:', error);
+    
+    const formGroup = event.target.querySelector('.form-group');
+    const existingError = event.target.querySelector('.error-message');
+    if (existingError) existingError.remove();
+    
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.style.cssText = 'background: #aa000022; border: 1px solid #aa0000; padding: 12px; border-radius: 6px; margin-top: 12px; color: #ff6666;';
+    errorDiv.textContent = error.message || 'Failed to send reset link. Please try again.';
+    formGroup.after(errorDiv);
+  } finally {
+    submitButton.textContent = originalText;
+    submitButton.disabled = false;
+  }
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+  const termsModal = document.getElementById('termsModal');
+  const forgotModal = document.getElementById('forgotPasswordModal');
+  
+  if (event.target === termsModal) {
+    closeTerms();
+  }
+  if (event.target === forgotModal) {
+    closeForgotPassword();
+  }
+}
+
 // Expose functions globally for onclick handlers
 window.showSignIn = showSignIn;
 window.showSignUp = showSignUp;
 window.handleSignIn = handleSignIn;
 window.handleSignUp = handleSignUp;
+window.togglePassword = togglePassword;
+window.showTerms = showTerms;
+window.closeTerms = closeTerms;
+window.showForgotPassword = showForgotPassword;
+window.closeForgotPassword = closeForgotPassword;
+window.handleForgotPassword = handleForgotPassword;
 
 // Run on page load
 checkAuth();
