@@ -804,7 +804,7 @@ async updateLiveInfo(freshWsData = null) {
     const changeEl = content.querySelector('.chart-live-change');
     if (changeEl && currentPrice && prevClose) {
       const changePercent = ((currentPrice - prevClose) / prevClose) * 100;
-      changeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+      changeEl.innerHTML = `<span class="numeric">${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%</span>`;
       changeEl.style.backgroundColor = changePercent >= 0 ? '#00aa55' : '#ff4444';
       changeEl.style.color = 'white';
       console.log(`[LIVE INFO] ${this.ticker} change: ${changePercent.toFixed(2)}%`);
@@ -821,7 +821,7 @@ async updateLiveInfo(freshWsData = null) {
         : currentVolume >= 1e3
         ? (currentVolume / 1e3).toFixed(1) + 'K'
         : currentVolume.toFixed(0);
-      volumeEl.textContent = `Vol: ${volDisplay}`;
+      volumeEl.innerHTML = `Vol: <span class="numeric">${volDisplay}</span>`;
     } else if (volumeEl) {
       volumeEl.textContent = 'Vol: --';
     }
@@ -829,7 +829,7 @@ async updateLiveInfo(freshWsData = null) {
     // Update market cap
     const marketCapEl = content.querySelector('.chart-live-marketcap');
     if (marketCapEl && wsData && wsData.marketCap) {
-      marketCapEl.textContent = 'MCap: $' + (wsData.marketCap / 1e9).toFixed(2) + 'B';
+      marketCapEl.innerHTML = 'MCap: <span class="numeric">$' + (wsData.marketCap / 1e9).toFixed(2) + 'B</span>';
     } else if (marketCapEl) {
       marketCapEl.textContent = '';
     }
@@ -848,7 +848,7 @@ async updateLiveInfo(freshWsData = null) {
     const changePercent = ((lastClose - firstClose) / firstClose) * 100;
     
     // Update display
-    candleChangeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+    candleChangeEl.innerHTML = `<span class="numeric">${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%</span>`;
     if (changePercent >= 0) {
       candleChangeEl.style.backgroundColor = '#00aa55';
       candleChangeEl.style.color = 'white';

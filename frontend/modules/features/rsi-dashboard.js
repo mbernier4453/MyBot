@@ -629,7 +629,7 @@ function renderRSIBasketTable() {
           status === 'overbought' ? 'rgba(239, 68, 68, 0.4)' :
           'rgba(150, 150, 150, 0.4)'
         }"></div>
-        <span class="${
+        <span class="numeric ${
           status === 'oversold' ? 'rsi-oversold' :
           status === 'overbought' ? 'rsi-overbought' :
           'rsi-neutral'
@@ -1074,19 +1074,19 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       let html = `<div style="margin-bottom: 4px; font-weight: bold;">${dateStr}</div>`;
       html += `<div style="display: flex; align-items: center; margin-bottom: 2px;">
         <div style="width: 12px; height: 12px; background: ${accentBlue}; border-radius: 2px; margin-right: 6px;"></div>
-        <span>RSI: ${rsiVal.toFixed(2)}</span>
+        <span>RSI: <span class="numeric">${rsiVal.toFixed(2)}</span></span>
       </div>`;
       html += `<div style="display: flex; align-items: center; margin-bottom: 2px;">
         <div style="width: 12px; height: 12px; background: ${accentGreen}; border-radius: 2px; margin-right: 6px;"></div>
-        <span>Upper: ${upperVal.toFixed(2)}</span>
+        <span>Upper: <span class="numeric">${upperVal.toFixed(2)}</span></span>
       </div>`;
       html += `<div style="display: flex; align-items: center; margin-bottom: 2px;">
         <div style="width: 12px; height: 12px; background: ${accentGreen}; border-radius: 2px; margin-right: 6px;"></div>
-        <span>Lower: ${lowerVal.toFixed(2)}</span>
+        <span>Lower: <span class="numeric">${lowerVal.toFixed(2)}</span></span>
       </div>`;
       html += `<div style="display: flex; align-items: center;">
         <div style="width: 12px; height: 12px; background: #666; border-radius: 2px; margin-right: 6px;"></div>
-        <span>SMA: ${smaVal.toFixed(2)}</span>
+        <span>SMA: <span class="numeric">${smaVal.toFixed(2)}</span></span>
       </div>`;
       
       legendEl.innerHTML = html;

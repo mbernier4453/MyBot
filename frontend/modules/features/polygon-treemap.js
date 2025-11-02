@@ -724,9 +724,16 @@ const PolygonTreemap = {
       if (tickersToFetch.length > 0) {
         console.log(`[TREEMAP] Fetching data for ${tickersToFetch.length} watchlist tickers...`);
         try {
-          await window.electronAPI.polygonFetchTickers(tickersToFetch);
-          // Give it a moment to receive the data
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Check if electronAPI exists (Electron mode)
+          if (window.electronAPI && window.electronAPI.polygonFetchTickers) {
+            await window.electronAPI.polygonFetchTickers(tickersToFetch);
+            // Give it a moment to receive the data
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            // Server mode - data comes through WebSocket, just wait a bit for it
+            console.log('[TREEMAP] Server mode - waiting for WebSocket data...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
         } catch (error) {
           console.error('[TREEMAP] Error fetching watchlist tickers:', error);
         }
