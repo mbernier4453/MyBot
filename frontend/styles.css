@@ -2999,6 +2999,7 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
   font-size: 28px;
   font-weight: 700;
   color: var(--text-primary);
+  font-family: var(--font-numeric) !important;
 }
 
 .live-change-large {
@@ -3006,6 +3007,12 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
   font-weight: 600;
   padding: 4px 12px;
   border-radius: 4px;
+  font-family: var(--font-numeric) !important;
+}
+
+/* Force numeric font on all live stats */
+.chart-live-change, .chart-live-volume, .chart-live-marketcap, .chart-live-price, .chart-live-afterhours {
+  font-family: var(--font-numeric) !important;
 }
 
 /* Legacy live info bar (kept for backward compatibility) */
@@ -4094,16 +4101,29 @@ g.annotation-text-g:has(text[data-unformatted*="Alpharhythm"]) {
   background: rgba(34, 197, 94, 0.3);
   color: #22c55e;
   font-weight: 600;
+  font-family: var(--font-numeric) !important;
 }
 
 .rsi-overbought {
   background: rgba(239, 68, 68, 0.3);
   color: #ef4444;
   font-weight: 600;
+  font-family: var(--font-numeric) !important;
 }
 
 .rsi-neutral {
   color: var(--text-primary);
+  font-family: var(--font-numeric) !important;
+}
+
+/* Candle change display */
+.chart-candle-change {
+  font-family: var(--font-numeric) !important;
+}
+
+/* Custom RSI legend - numeric values only */
+.custom-rsi-legend .numeric {
+  font-family: var(--font-numeric) !important;
 }
 
 /* RSI Chart */
