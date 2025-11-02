@@ -1682,14 +1682,14 @@ async updateLiveInfo(freshWsData = null) {
               mode: 'lines',
               x: dates,
               y: normalizedUpper,
-              name: `${label} Upper ${params}${tickerLabel}`,
+              name: `${label} ${params}${tickerLabel}`,
               line: { color: color, width: source.isMain ? 1 : 0.8, dash: 'dash' },
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: true,
-              legendgroup: `${indicator.type}-${indIdx}-${sourceIdx}-upper`, // Unique group per band
-              hovertemplate: `${source.ticker} ${label} Upper: <span class="numeric">%{y:.2f}</span><extra></extra>`
+              showlegend: sourceIdx === 0, // Only show one legend entry
+              legendgroup: `${indicator.type}-${indIdx}`,
+              hovertemplate: `${source.ticker} ${label} Upper: %{y:.2f}<extra></extra>`
             });
             
             // Middle band
@@ -1698,14 +1698,14 @@ async updateLiveInfo(freshWsData = null) {
               mode: 'lines',
               x: dates,
               y: normalizedMiddle,
-              name: `${label} Middle ${params}${tickerLabel}`,
+              name: `${label} ${params}${tickerLabel}`,
               line: { color: color, width: source.isMain ? 1.5 : 1 },
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: true,
-              legendgroup: `${indicator.type}-${indIdx}-${sourceIdx}-middle`, // Unique group per band
-              hovertemplate: `${source.ticker} ${label} Middle: <span class="numeric">%{y:.2f}</span><extra></extra>`
+              showlegend: false,
+              legendgroup: `${indicator.type}-${indIdx}`,
+              hovertemplate: `${source.ticker} ${label} Middle: %{y:.2f}<extra></extra>`
             });
             
             // Lower band
@@ -1714,14 +1714,14 @@ async updateLiveInfo(freshWsData = null) {
               mode: 'lines',
               x: dates,
               y: normalizedLower,
-              name: `${label} Lower ${params}${tickerLabel}`,
+              name: `${label} ${params}${tickerLabel}`,
               line: { color: color, width: source.isMain ? 1 : 0.8, dash: 'dash' },
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: true,
-              legendgroup: `${indicator.type}-${indIdx}-${sourceIdx}-lower`, // Unique group per band
-              hovertemplate: `${source.ticker} ${label} Lower: <span class="numeric">%{y:.2f}</span><extra></extra>`
+              showlegend: false,
+              legendgroup: `${indicator.type}-${indIdx}`,
+              hovertemplate: `${source.ticker} ${label} Lower: %{y:.2f}<extra></extra>`
             });
           } else if (indicator.type === 'RSI') {
             // RSI uses tertiary y-axis (separate panel below volume)
