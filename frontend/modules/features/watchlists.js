@@ -15,23 +15,86 @@ let editingWatchlistId = null;
 // This will be populated by the main treemap when it loads data
 const treemapData = new Map();
 
-// Load watchlists from localStorage
-function loadWatchlists() {
-  const stored = localStorage.getItem('watchlists');
-  if (stored) {
+// Load watchlists from Supabase
+async function loadWatchlists() {
+  // Check if we're in browser mode with Supabase
+  if (window.supabase) {
     try {
-      watchlists = JSON.parse(stored);
+      const { data: { user } } = await window.supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await window.supabase
+          .from('watchlists')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        // Convert from Supabase format to internal format
+        watchlists = data.map(w => ({
+          id: w.id,
+          name: w.name,
+          tickers: w.tickers || [],
+          description: '' // We can add this column to Supabase later if needed
+        }));
+      } else {
+        watchlists = [];
+      }
     } catch (error) {
-      console.error('Error loading watchlists:', error);
-      watchlists = [];
+      console.error('Error loading watchlists from Supabase:', error);
+      // Fallback to localStorage
+      const stored = localStorage.getItem('watchlists');
+      if (stored) {
+        try {
+          watchlists = JSON.parse(stored);
+        } catch (e) {
+          watchlists = [];
+        }
+      }
+    }
+  } else {
+    // Electron mode - use localStorage
+    const stored = localStorage.getItem('watchlists');
+    if (stored) {
+      try {
+        watchlists = JSON.parse(stored);
+      } catch (error) {
+        console.error('Error loading watchlists:', error);
+        watchlists = [];
+      }
     }
   }
   displayWatchlists();
 }
 
-// Save watchlists to localStorage
-function saveWatchlistsToStorage() {
+// Save watchlists to Supabase
+async function saveWatchlistsToStorage() {
+  // Always save to localStorage as backup
   localStorage.setItem('watchlists', JSON.stringify(watchlists));
+  
+  // If in browser mode, also save to Supabase
+  if (window.supabase) {
+    try {
+      const { data: { user } } = await window.supabase.auth.getUser();
+      if (!user) return;
+      
+      // For each watchlist, upsert to Supabase
+      for (const watchlist of watchlists) {
+        const { error } = await window.supabase
+          .from('watchlists')
+          .upsert({
+            id: watchlist.id,
+            user_id: user.id,
+            name: watchlist.name,
+            tickers: watchlist.tickers || [],
+            updated_at: new Date().toISOString()
+          });
+        
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Error saving watchlists to Supabase:', error);
+    }
+  }
 }
 
 // Display watchlists in sidebar
@@ -315,11 +378,28 @@ document.getElementById('saveWatchlistBtn')?.addEventListener('click', () => {
 });
 
 // Delete watchlist
-document.getElementById('deleteWatchlistBtn')?.addEventListener('click', () => {
+document.getElementById('deleteWatchlistBtn')?.addEventListener('click', async () => {
   if (!currentWatchlist) return;
   
   if (confirm(`Are you sure you want to delete "${currentWatchlist.name}"?`)) {
-    watchlists = watchlists.filter(w => w.id !== currentWatchlist.id);
+    const watchlistId = currentWatchlist.id;
+    
+    // Delete from Supabase if in browser mode
+    if (window.supabase) {
+      try {
+        const { error } = await window.supabase
+          .from('watchlists')
+          .delete()
+          .eq('id', watchlistId);
+        
+        if (error) throw error;
+      } catch (error) {
+        console.error('Error deleting watchlist from Supabase:', error);
+      }
+    }
+    
+    // Delete from local state
+    watchlists = watchlists.filter(w => w.id !== watchlistId);
     saveWatchlistsToStorage();
     currentWatchlist = null;
     

@@ -1,5 +1,8 @@
 // Check authentication before loading app
-import { getSession, signOut } from './supabase-client.js';
+import { getSession, signOut, supabase } from './supabase-client.js';
+
+// Expose supabase to window for other modules
+window.supabase = supabase;
 
 // Verify user is authenticated
 async function checkAuthentication() {
@@ -11,6 +14,16 @@ async function checkAuthentication() {
       return false;
     }
     console.log('User authenticated:', session.user.email);
+    
+    // Clear localStorage watchlists to prevent data leakage between users
+    // TODO: Move watchlists to Supabase for proper multi-user support
+    const currentUser = localStorage.getItem('currentUserId');
+    if (currentUser !== session.user.id) {
+      console.log('[AUTH] New user detected, clearing localStorage');
+      localStorage.removeItem('watchlists');
+      localStorage.setItem('currentUserId', session.user.id);
+    }
+    
     return true;
   } catch (error) {
     console.error('Auth check failed:', error);
