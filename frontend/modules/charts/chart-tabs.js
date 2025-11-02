@@ -1344,13 +1344,13 @@ async updateLiveInfo(freshWsData = null) {
         if (normalizedClose[i] === null) return `${date}<br>Insufficient data`;
         
         const formatValue = (val) => {
-          if (this.normalizeMode === 'off') return `$${val.toFixed(2)}`;
-          if (this.normalizeMode === 'cumret') return `${(val * 100).toFixed(2)}%`;
-          return val.toFixed(2);
+          if (this.normalizeMode === 'off') return `<span class="numeric">$${val.toFixed(2)}</span>`;
+          if (this.normalizeMode === 'cumret') return `<span class="numeric">${(val * 100).toFixed(2)}%</span>`;
+          return `<span class="numeric">${val.toFixed(2)}</span>`;
         };
         
         if (this.normalizeMode === 'off') {
-          return `${date}<br>O: $${open[i].toFixed(2)}<br>H: $${high[i].toFixed(2)}<br>L: $${low[i].toFixed(2)}<br>C: $${close[i].toFixed(2)}`;
+          return `${date}<br>O: <span class="numeric">$${open[i].toFixed(2)}</span><br>H: <span class="numeric">$${high[i].toFixed(2)}</span><br>L: <span class="numeric">$${low[i].toFixed(2)}</span><br>C: <span class="numeric">$${close[i].toFixed(2)}</span>`;
         } else {
           return `${date}<br>O: ${formatValue(normalizedOpen[i])}<br>H: ${formatValue(normalizedHigh[i])}<br>L: ${formatValue(normalizedLow[i])}<br>C: ${formatValue(normalizedClose[i])}`;
         }
@@ -1376,7 +1376,7 @@ async updateLiveInfo(freshWsData = null) {
       },
       xaxis: 'x',
       yaxis: 'y2',
-      hovertemplate: 'Volume: %{y:,.0f}<extra></extra>'
+      hovertemplate: 'Volume: <span class="numeric">%{y:,.0f}</span><extra></extra>'
     };
     
     const layout = {
@@ -1687,9 +1687,9 @@ async updateLiveInfo(freshWsData = null) {
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: true, // Show all 3 bands in legend
-              legendgroup: `${indicator.type}-${indIdx}-upper`,
-              hovertemplate: `${source.ticker} ${label} Upper: %{y:.2f}<extra></extra>`
+              showlegend: true,
+              legendgroup: `${indicator.type}-${indIdx}-${sourceIdx}-upper`, // Unique group per band
+              hovertemplate: `${source.ticker} ${label} Upper: <span class="numeric">%{y:.2f}</span><extra></extra>`
             });
             
             // Middle band
@@ -1703,9 +1703,9 @@ async updateLiveInfo(freshWsData = null) {
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: true, // Show all 3 bands in legend
-              legendgroup: `${indicator.type}-${indIdx}-middle`,
-              hovertemplate: `${source.ticker} ${label} Middle: %{y:.2f}<extra></extra>`
+              showlegend: true,
+              legendgroup: `${indicator.type}-${indIdx}-${sourceIdx}-middle`, // Unique group per band
+              hovertemplate: `${source.ticker} ${label} Middle: <span class="numeric">%{y:.2f}</span><extra></extra>`
             });
             
             // Lower band
@@ -1719,9 +1719,9 @@ async updateLiveInfo(freshWsData = null) {
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: true, // Show all 3 bands in legend
-              legendgroup: `${indicator.type}-${indIdx}-lower`,
-              hovertemplate: `${source.ticker} ${label} Lower: %{y:.2f}<extra></extra>`
+              showlegend: true,
+              legendgroup: `${indicator.type}-${indIdx}-${sourceIdx}-lower`, // Unique group per band
+              hovertemplate: `${source.ticker} ${label} Lower: <span class="numeric">%{y:.2f}</span><extra></extra>`
             });
           } else if (indicator.type === 'RSI') {
             // RSI uses tertiary y-axis (separate panel below volume)
@@ -1736,7 +1736,7 @@ async updateLiveInfo(freshWsData = null) {
               xaxis: 'x',
               yaxis: 'y3',
               showlegend: true,
-              hovertemplate: `${source.ticker} RSI: %{y:.2f}<extra></extra>`
+              hovertemplate: `${source.ticker} RSI: <span class="numeric">%{y:.2f}</span><extra></extra>`
             });
             
             // Only add RSI reference lines and axis setup once
@@ -1785,7 +1785,7 @@ async updateLiveInfo(freshWsData = null) {
                 xaxis: 'x',
                 yaxis: 'y3',
                 showlegend: true,
-                hovertemplate: `${source.ticker} StochRSI %K: %{y:.2f}<extra></extra>`
+                hovertemplate: `${source.ticker} StochRSI %K: <span class="numeric">%{y:.2f}</span><extra></extra>`
               });
               
               // %D line (use slightly darker/lighter color)
@@ -1801,7 +1801,7 @@ async updateLiveInfo(freshWsData = null) {
                 xaxis: 'x',
                 yaxis: 'y3',
                 showlegend: true,
-                hovertemplate: `${source.ticker} StochRSI %D: %{y:.2f}<extra></extra>`
+                hovertemplate: `${source.ticker} StochRSI %D: <span class="numeric">%{y:.2f}</span><extra></extra>`
               });
             }
             
@@ -1851,7 +1851,7 @@ async updateLiveInfo(freshWsData = null) {
               xaxis: 'x',
               yaxis: 'y4',
               showlegend: true,
-              hovertemplate: `${source.ticker} ATR: %{y:.2f}<extra></extra>`
+              hovertemplate: `${source.ticker} ATR: <span class="numeric">%{y:.2f}</span><extra></extra>`
             });
             
             // Setup y4 axis for ATR if not already done
@@ -1892,7 +1892,7 @@ async updateLiveInfo(freshWsData = null) {
               xaxis: 'x',
               yaxis: 'y',
               showlegend: true,
-              hovertemplate: `${source.ticker} ${label}: %{y:.2f}<extra></extra>`
+              hovertemplate: `${source.ticker} ${label}: <span class="numeric">%{y:.2f}</span><extra></extra>`
             };
             
             console.log('  Created trace:', {
