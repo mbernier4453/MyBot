@@ -2325,8 +2325,23 @@ async updateLiveInfo(freshWsData = null) {
     try {
       // Subscribe to live updates for this overlay ticker
       try {
-        await window.electronAPI.polygonSubscribeTickers([ticker]);
-        console.log(`[CHART] Subscribed to overlay ${ticker}`);
+        if (window.socketIOClient) {
+          window.socketIOClient.subscribe([ticker], (data) => {
+            // Update treemapData
+            if (window.treemapData) {
+              window.treemapData.set(data.ticker, data);
+            }
+            // Update this chart tab if it has this overlay
+            const overlay = this.overlays.find(o => o.ticker === ticker);
+            if (overlay) {
+              this.updateLiveInfo(data);
+            }
+          });
+          console.log(`[CHART] Subscribed to overlay ${ticker} via Socket.io`);
+        } else if (window.electronAPI && window.electronAPI.polygonSubscribeTickers) {
+          await window.electronAPI.polygonSubscribeTickers([ticker]);
+          console.log(`[CHART] Subscribed to overlay ${ticker} via Electron`);
+        }
       } catch (subError) {
         console.warn(`[CHART] Failed to subscribe to overlay ${ticker}:`, subError);
       }
