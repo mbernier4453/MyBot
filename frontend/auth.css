@@ -21,7 +21,7 @@
 }
 
 body {
-  font-family: 'Noto Sans Devanagari', var(--font-sans);
+  font-family: 'Tiro Devanagari Sanskrit', 'Noto Sans Devanagari', var(--font-sans);
   background: linear-gradient(135deg, #0a0a0a 0%, #0f1f0f 50%, #0a0a0a 100%);
   color: var(--text-primary);
   min-height: 100vh;
@@ -59,18 +59,12 @@ body {
 
 .brand-tagline {
   font-family: var(--font-display);
-  font-size: 32px;
+  font-size: 36px;
   color: var(--accent-green);
-  margin-bottom: 10px;
+  margin-bottom: 60px;
   font-weight: 400;
   font-style: italic;
-}
-
-.brand-subtitle {
-  font-size: 18px;
-  color: var(--text-secondary);
-  margin-bottom: 60px;
-  font-style: italic;
+  letter-spacing: 2px;
 }
 
 .brand-features {
@@ -80,26 +74,22 @@ body {
 }
 
 .feature {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
+  margin-bottom: 30px;
 }
 
-.feature-icon {
-  font-size: 32px;
-  flex-shrink: 0;
-}
-
-.feature-text h3 {
-  font-size: 20px;
+.feature h3 {
+  font-size: 24px;
   margin-bottom: 8px;
-  color: var(--text-primary);
+  color: var(--accent-blue);
+  font-family: var(--font-display);
+  font-weight: 500;
 }
 
-.feature-text p {
+.feature p {
   font-size: 14px;
   color: var(--text-secondary);
   line-height: 1.6;
+  font-family: var(--font-sans);
 }
 
 /* Auth Side */
