@@ -55,7 +55,10 @@ input[type="number"], .number, .numeric, td, th, .table-cell,
 .plotly .hoverlayer text, .plotly .hoverlayer tspan,
 g.hovertext text, g.hovertext tspan,
 .hoverlabel text, .hoverlabel tspan,
-path.hoverlayer, g.hoverlayer text {
+path.hoverlayer, g.hoverlayer text,
+.js-plotly-plot .hoverlayer text,
+.js-plotly-plot .hoverlayer tspan,
+svg.main-svg text.nums {
   font-family: var(--font-numeric) !important;
 }
 

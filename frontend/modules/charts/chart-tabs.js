@@ -1687,8 +1687,8 @@ async updateLiveInfo(freshWsData = null) {
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: sourceIdx === 0, // Only show in legend once
-              legendgroup: `${indicator.type}-${indIdx}`,
+              showlegend: true, // Show all 3 bands in legend
+              legendgroup: `${indicator.type}-${indIdx}-upper`,
               hovertemplate: `${source.ticker} ${label} Upper: %{y:.2f}<extra></extra>`
             });
             
@@ -1703,8 +1703,8 @@ async updateLiveInfo(freshWsData = null) {
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: sourceIdx === 0,
-              legendgroup: `${indicator.type}-${indIdx}`,
+              showlegend: true, // Show all 3 bands in legend
+              legendgroup: `${indicator.type}-${indIdx}-middle`,
               hovertemplate: `${source.ticker} ${label} Middle: %{y:.2f}<extra></extra>`
             });
             
@@ -1719,8 +1719,8 @@ async updateLiveInfo(freshWsData = null) {
               opacity: opacity,
               xaxis: 'x',
               yaxis: 'y',
-              showlegend: false, // Don't show lower in legend
-              legendgroup: `${indicator.type}-${indIdx}`,
+              showlegend: true, // Show all 3 bands in legend
+              legendgroup: `${indicator.type}-${indIdx}-lower`,
               hovertemplate: `${source.ticker} ${label} Lower: %{y:.2f}<extra></extra>`
             });
           } else if (indicator.type === 'RSI') {
