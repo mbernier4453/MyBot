@@ -4,8 +4,15 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const SUPABASE_URL = 'https://vstxdwkdsuhlazzgyiux.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdHhkd2tkc3VobGF6emd5aXV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwMzg0MTgsImV4cCI6MjA3NzYxNDQxOH0.vcR7hlNnBvT1VuCw1EOXTMELnui0iGgusQF5P7O6rwU';
 
-// Create Supabase client
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Create Supabase client with redirect configuration
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    redirectTo: 'http://138.197.6.220/',
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+});
 
 // Auth helper functions
 export async function signUp(email, password) {

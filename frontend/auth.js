@@ -110,12 +110,24 @@ function createErrorDiv(id, form) {
   return errorDiv;
 }
 
-// Check if user is already logged in
+// Check if user is already logged in and handle email confirmation
 async function checkAuth() {
   try {
-    const { getSession } = await import('./supabase-client.js');
-    const session = await getSession();
+    const { getSession, supabase } = await import('./supabase-client.js');
     
+    // Check for email confirmation in URL (Supabase redirects here after email click)
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+    const type = hashParams.get('type');
+    
+    if (accessToken && type === 'signup') {
+      // User clicked email confirmation link
+      console.log('Email confirmed! Redirecting to app...');
+      window.location.href = '/app';
+      return;
+    }
+    
+    const session = await getSession();
     if (session) {
       window.location.href = '/app';
     }
