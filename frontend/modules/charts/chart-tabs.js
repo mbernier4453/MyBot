@@ -616,11 +616,35 @@ class ChartTab {
       tickerGroups.setGroupTicker(this.group, ticker);
     }
     
-  // Subscribe to websocket for this ticker (Electron only)
-  if (window.electronAPI && window.electronAPI.polygonSubscribeTickers) {
+  // Subscribe to websocket for this ticker
+  if (window.socketIOClient) {
+    try {
+      // Subscribe via Socket.io client
+      window.socketIOClient.subscribe([ticker], (data) => {
+        // Update treemapData with incoming data
+        if (window.treemapData) {
+          window.treemapData.set(data.ticker, data);
+        }
+        
+        // Update active chart tabs for this ticker
+        const tabs = Array.from(document.querySelectorAll('.chart-tab-item'));
+        tabs.forEach(tabEl => {
+          const tab = chartTabs.find(t => t.id === tabEl.dataset.tabId);
+          if (tab && tab.ticker === data.ticker) {
+            tab.updateLiveInfo(data);
+          }
+        });
+      });
+      
+      console.log(`[WEBSOCKET] Subscribed to ${ticker} via Socket.io`);
+    } catch (error) {
+      console.error(`[WEBSOCKET] Failed to subscribe to ${ticker}:`, error);
+    }
+  } else if (window.electronAPI && window.electronAPI.polygonSubscribeTickers) {
+    // Fallback to Electron API if available
     try {
       await window.electronAPI.polygonSubscribeTickers([ticker]);
-      console.log(`[WEBSOCKET] Subscribed to ${ticker}`);
+      console.log(`[WEBSOCKET] Subscribed to ${ticker} via Electron`);
       
       // ALWAYS force fetch ticker data immediately for latest price
       console.log(`[WEBSOCKET] Force fetching latest data for ${ticker}`);
