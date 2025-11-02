@@ -1008,14 +1008,7 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       },
       hovermode: 'x',
       dragmode: 'pan',
-      showlegend: true,
-      legend: {
-        x: 0.02,
-        y: 0.98,
-        bgcolor: 'rgba(26, 26, 26, 0.8)',
-        bordercolor: '#444',
-        borderwidth: 1
-      }
+      showlegend: false  // Hide Plotly's legend, use custom one
     };
 
     window.addWatermark(layout);
@@ -1034,46 +1027,67 @@ async function renderRSIBollingerChart(ticker, tickerData) {
       Plotly.Plots.resize(chartDiv);
     }, 100);
     
-    // Apply crosshair lock behavior - reposition hover labels to top-left, stacked
-    let isHovering = false;
-    let animationFrameId = null;
+    // Setup custom legend
+    const legendEl = document.querySelector('.custom-rsi-legend');
+    const currentValuesEl = document.getElementById('rsiCurrentValues');
     
-    function repositionHoverLabels() {
-      const hoverGroups = document.querySelectorAll('#rsiBollingerChart .hoverlayer g.hovertext');
-      let yOffset = 80;
-      hoverGroups.forEach((group, index) => {
-        // Stack vertically with spacing
-        group.setAttribute('transform', `translate(80, ${yOffset})`);
-        if (!group.classList.contains('positioned')) {
-          group.classList.add('positioned');
-        }
-        // Approximate height per label + spacing (increased for better separation)
-        yOffset += 40;
-      });
-      
-      if (isHovering) {
-        animationFrameId = requestAnimationFrame(repositionHoverLabels);
-      }
-    }
+    // Show current values (last data point)
+    const lastRSI = rsiLine[rsiLine.length - 1];
+    const lastUpper = upperBand[upperBand.length - 1];
+    const lastLower = lowerBand[lowerBand.length - 1];
     
+    currentValuesEl.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div style="width: 12px; height: 12px; background: ${accentBlue}; border-radius: 2px;"></div>
+        <span>RSI: ${lastRSI.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div style="width: 12px; height: 12px; background: ${accentGreen}; border-radius: 2px;"></div>
+        <span>Upper: ${lastUpper.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div style="width: 12px; height: 12px; background: ${accentGreen}; border-radius: 2px;"></div>
+        <span>Lower: ${lastLower.toFixed(2)}</span>
+      </div>
+    `;
+    
+    // Custom legend on hover
     chartDiv.on('plotly_hover', function(data) {
-      isHovering = true;
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-      repositionHoverLabels();
+      if (!data.points || data.points.length === 0) return;
+      
+      const point = data.points[0];
+      const xIndex = point.pointIndex;
+      
+      const rsiVal = rsiLine[xIndex];
+      const upperVal = upperBand[xIndex];
+      const lowerVal = lowerBand[xIndex];
+      const smaVal = smaLine[xIndex];
+      const dateStr = chartDates[xIndex].toLocaleDateString();
+      
+      let html = `<div style="margin-bottom: 4px; font-weight: bold;">${dateStr}</div>`;
+      html += `<div style="display: flex; align-items: center; margin-bottom: 2px;">
+        <div style="width: 12px; height: 12px; background: ${accentBlue}; border-radius: 2px; margin-right: 6px;"></div>
+        <span>RSI: ${rsiVal.toFixed(2)}</span>
+      </div>`;
+      html += `<div style="display: flex; align-items: center; margin-bottom: 2px;">
+        <div style="width: 12px; height: 12px; background: ${accentGreen}; border-radius: 2px; margin-right: 6px;"></div>
+        <span>Upper: ${upperVal.toFixed(2)}</span>
+      </div>`;
+      html += `<div style="display: flex; align-items: center; margin-bottom: 2px;">
+        <div style="width: 12px; height: 12px; background: ${accentGreen}; border-radius: 2px; margin-right: 6px;"></div>
+        <span>Lower: ${lowerVal.toFixed(2)}</span>
+      </div>`;
+      html += `<div style="display: flex; align-items: center;">
+        <div style="width: 12px; height: 12px; background: #666; border-radius: 2px; margin-right: 6px;"></div>
+        <span>SMA: ${smaVal.toFixed(2)}</span>
+      </div>`;
+      
+      legendEl.innerHTML = html;
+      legendEl.style.display = 'block';
     });
     
     chartDiv.on('plotly_unhover', function() {
-      isHovering = false;
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-      }
-      const hoverGroups = document.querySelectorAll('#rsiBollingerChart .hoverlayer g.hovertext');
-      hoverGroups.forEach(group => {
-        group.classList.remove('positioned');
-      });
+      legendEl.style.display = 'none';
     });
     
     loadingDiv.style.display = 'none';

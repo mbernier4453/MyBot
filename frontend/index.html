@@ -518,6 +518,7 @@
                 </div>
               </div>
               <div style="display: flex; gap: 4px; margin-left: 10px;">
+                <button class="chart-add-indicator-btn" style="padding: 6px 12px; font-size: 12px;">+ Add Indicator</button>
                 <button class="chart-load-preset-btn" title="Load preset configuration">Load Preset</button>
                 <button class="chart-save-preset-btn" title="Save current configuration">Save Preset</button>
               </div>
@@ -568,9 +569,6 @@
               <div class="control-group chart-normalize-lookback" style="display: none;">
                 <label title="Number of bars to use for rolling statistics (mean, std dev). Higher = smoother but slower to react.">Lookback:</label>
                 <input type="number" class="chart-lookback-input" value="60" min="5" max="500" style="width: 60px;" title="Bars used for calculating rolling mean and standard deviation" />
-              </div>
-              <div class="control-group">
-                <button class="chart-add-indicator-btn">+ Add Indicator</button>
               </div>
               <div class="control-group">
                 <label>Timeframe:</label>
@@ -830,8 +828,24 @@
             <div class="rsi-panel rsi-chart-panel">
               <div class="rsi-panel-header">
                 <h3><span id="rsiChartSymbol">-</span> <span id="rsiChartHeader">Bollinger Bands of RSI (14D)</span></h3>
+                <div id="rsiCurrentValues" style="display: flex; gap: 15px; font-size: 12px; color: var(--text-secondary);"></div>
               </div>
-              <div id="rsiBollingerChart" class="rsi-chart-container"></div>
+              <div id="rsiBollingerChart" class="rsi-chart-container" style="position: relative;">
+                <div class="custom-rsi-legend" style="
+                  position: absolute;
+                  top: 10px;
+                  left: 10px;
+                  background: rgba(26, 26, 26, 0.9);
+                  border: 1px solid #444;
+                  border-radius: 4px;
+                  padding: 8px 12px;
+                  font-size: 11px;
+                  color: #e0e0e0;
+                  z-index: 1000;
+                  pointer-events: none;
+                  display: none;
+                "></div>
+              </div>
               <div id="rsiChartLoading" class="loading-state" style="display: none;">
                 Loading chart...
               </div>
