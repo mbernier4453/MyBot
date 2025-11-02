@@ -57,7 +57,7 @@ input[type="number"], .number, .numeric, td, th, .table-cell,
 }
 
 /* Sanskrit font for all text elements (buttons, labels, etc.) */
-button, label, h1, h2, h3, h4, h5, h6, p, span:not([class*="price"]):not([class*="percent"]):not([class*="value"]),
+button, label, h1, h2, h3, h4, h5, h6, p, span:not(.numeric):not([class*="price"]):not([class*="percent"]):not([class*="value"]),
 .nav-brand, .main-tab, .tab-button, .control-select, .settings-content label,
 .treemap-controls label, .status-text, .page-title, .section-title {
   font-family: var(--font-display) !important;
