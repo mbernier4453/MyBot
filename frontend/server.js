@@ -80,6 +80,14 @@ app.get('/app', (req, res) => {
 // This comes AFTER routes so index.html isn't auto-served on /
 app.use(express.static(__dirname, {
   setHeaders: (res, filePath) => {
+    // Disable caching for JS, CSS, and HTML files during development
+    if (filePath.endsWith('.js') || filePath.endsWith('.mjs') || filePath.endsWith('.css') || filePath.endsWith('.html')) {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      res.set('Surrogate-Control', 'no-store');
+    }
+    
     // Set proper MIME types for modules
     if (filePath.endsWith('.js')) {
       res.set('Content-Type', 'application/javascript; charset=utf-8');
