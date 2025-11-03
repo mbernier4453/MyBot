@@ -81,10 +81,14 @@ async function handleSignUp(event) {
       full_name: name
     });
     
-    console.log('Sign up successful:', user.email);
+    console.log('Sign up successful:', user);
     
-    // Show success message
-    errorDiv.textContent = 'Account created! Check your email to verify your account.';
+    // Show success message with clear instructions
+    errorDiv.innerHTML = `
+      <strong>Account created!</strong><br>
+      Check your email (${email}) for a confirmation link.<br>
+      Click the link to verify your account and sign in.
+    `;
     errorDiv.style.color = '#4ecdc4';
     errorDiv.style.display = 'block';
     
@@ -95,7 +99,20 @@ async function handleSignUp(event) {
     submitBtn.textContent = 'Sign Up';
   } catch (error) {
     console.error('Sign up error:', error);
-    errorDiv.textContent = error.message || 'Failed to create account';
+    
+    // More helpful error messages
+    let errorMessage = error.message || 'Failed to create account';
+    
+    // Handle common errors
+    if (errorMessage.includes('already registered')) {
+      errorMessage = 'This email is already registered. Try signing in instead.';
+    } else if (errorMessage.includes('Password')) {
+      errorMessage = 'Password must be at least 6 characters.';
+    } else if (errorMessage.includes('rate limit')) {
+      errorMessage = 'Too many attempts. Please wait a moment and try again.';
+    }
+    
+    errorDiv.textContent = errorMessage;
     errorDiv.style.color = '#ff6b6b';
     errorDiv.style.display = 'block';
     submitBtn.disabled = false;
