@@ -14,9 +14,32 @@ const PolygonTreemap = {
    * Initialize Polygon connection and event listeners
    */
   async initialize() {
+    console.log('[POLYGON TREEMAP] Initializing...');
+    
     // Check if running in Electron or browser
     if (!window.electronAPI || !window.electronAPI.polygonGetSP500Data) {
-      console.log('[POLYGON TREEMAP] Running in browser mode - using REST API');
+      console.log('[POLYGON TREEMAP] Running in browser mode - using Socket.io');
+      
+      // Wait for Socket.io client to be available
+      if (!window.socketIOClient) {
+        console.log('[POLYGON TREEMAP] Waiting for Socket.io client...');
+        await new Promise(resolve => {
+          let attempts = 0;
+          const checkInterval = setInterval(() => {
+            attempts++;
+            if (window.socketIOClient || attempts > 20) {
+              clearInterval(checkInterval);
+              if (window.socketIOClient) {
+                console.log('[POLYGON TREEMAP] Socket.io client ready');
+              } else {
+                console.error('[POLYGON TREEMAP] Socket.io client not available after waiting');
+              }
+              resolve();
+            }
+          }, 100);
+        });
+      }
+      
       await this.initializeBrowserMode();
       return;
     }
@@ -304,10 +327,15 @@ const PolygonTreemap = {
       const socketClient = window.socketIOClient;
       if (!socketClient) {
         console.error('[POLYGON TREEMAP] Socket.io client not available');
+        console.error('[POLYGON TREEMAP] window.io exists?', typeof window.io);
+        console.error('[POLYGON TREEMAP] window.socketIOClient exists?', typeof window.socketIOClient);
         lastUpdateEl.textContent = 'Socket.io not loaded';
         lastUpdateEl.style.color = '#ff4444';
+        reconnectBtn.style.display = 'block';
         return;
       }
+      
+      console.log('[POLYGON TREEMAP] Socket.io client found, subscribing...');
 
       // Subscribe to ticker updates via Socket.io
       this.socketUnsubscribe = socketClient.subscribe(tickers, (data) => {

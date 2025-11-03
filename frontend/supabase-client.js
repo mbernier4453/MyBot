@@ -24,7 +24,16 @@ export async function signUp(email, password, metadata = {}) {
     }
   });
   
-  if (error) throw error;
+  // If there's an error BUT the user was created, don't throw - return the user
+  if (error) {
+    console.error('[Supabase] Signup error:', error);
+    // Check if user was still created despite error
+    if (data && data.user) {
+      console.log('[Supabase] User created despite error, proceeding');
+      return data;
+    }
+    throw error;
+  }
   return data;
 }
 
