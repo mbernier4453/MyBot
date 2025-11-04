@@ -9,7 +9,7 @@
  */
 
 const WebSocket = require('ws');
-const fetch = require('node-fetch');
+// fetch is built-in to Node 18+
 
 class WebSocketManager {
   constructor(io) {
