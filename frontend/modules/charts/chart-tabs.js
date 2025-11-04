@@ -4402,35 +4402,41 @@ function setupSocketIOLiveUpdates() {
 function registerSocketIOListeners() {
   const socketClient = window.socketIOClient;
   
-  // Subscribe to all ticker updates (wildcard subscription)
-  socketClient.subscribeAll((data) => {
-    const updateTime = new Date().toLocaleTimeString();
-    console.log(`[SOCKET.IO UPDATE ${updateTime}] ${data.ticker}:`, {
-      price: data.close,
-      volume: data.volume,
-      changePercent: data.changePercent,
-      prevClose: data.prevClose,
-      timestamp: data.timestamp
-    });
-    
-    // Update all chart tabs showing this ticker (main or overlay)
-    chartTabs.forEach(tab => {
-      const hasThisTicker = tab.ticker === data.ticker || 
-                           (tab.overlays && tab.overlays.some(o => o.ticker === data.ticker));
+  // Listen to polygon-batch events directly (don't subscribe - tickers are subscribed individually in setTicker)
+  if (socketClient && socketClient.socket) {
+    socketClient.socket.on('polygon-batch', (updates) => {
+      if (!Array.isArray(updates)) return;
       
-      if (hasThisTicker) {
-        console.log(`[SOCKET.IO UPDATE] Updating chart tab ${tab.id} for ${data.ticker}`);
+      updates.forEach(data => {
+        const updateTime = new Date().toLocaleTimeString();
+        console.log(`[SOCKET.IO UPDATE ${updateTime}] ${data.ticker}:`, {
+          price: data.close,
+          volume: data.volume,
+          changePercent: data.changePercent,
+          prevClose: data.prevClose,
+          timestamp: data.timestamp
+        });
         
-        // Update live info display with fresh websocket data
-        if (tab.ticker === data.ticker) {
-          tab.updateLiveInfo(data);
-        }
-        
-        // Update chart with live data (includes main ticker and overlays)
-        tab.updateChartWithLiveData(data.ticker, data);
-      }
+        // Update all chart tabs showing this ticker (main or overlay)
+        chartTabs.forEach(tab => {
+          const hasThisTicker = tab.ticker === data.ticker || 
+                               (tab.overlays && tab.overlays.some(o => o.ticker === data.ticker));
+          
+          if (hasThisTicker) {
+            console.log(`[SOCKET.IO UPDATE] Updating chart tab ${tab.id} for ${data.ticker}`);
+            
+            // Update live info display with fresh websocket data
+            if (tab.ticker === data.ticker) {
+              tab.updateLiveInfo(data);
+            }
+            
+            // Update chart with live data (includes main ticker and overlays)
+            tab.updateChartWithLiveData(data.ticker, data);
+          }
+        });
+      });
     });
-  });
+  }
   
   console.log('[CHART TABS] Socket.io live update listeners registered');
 }
