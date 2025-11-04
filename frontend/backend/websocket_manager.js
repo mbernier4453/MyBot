@@ -202,10 +202,13 @@ class WebSocketManager {
       return;
     }
     
+    const params = tickers.map(t => `AM.${t}`);
+    console.log(`[WS_MANAGER] Sending subscription to Polygon for: ${params.slice(0, 5).join(', ')}${params.length > 5 ? ` ...and ${params.length - 5} more` : ''}`);
+    
     // Subscribe to minute aggregates (AM) for each ticker
     this.polygonWs.send(JSON.stringify({
       action: 'subscribe',
-      params: tickers.map(t => `AM.${t}`)
+      params: params
     }));
   }
 
