@@ -24,6 +24,10 @@ const WebSocketManager = require('./backend/websocket_manager');
 const wsManager = new WebSocketManager(io);
 wsManager.init();
 
+// Maintenance mode middleware - PLACE THIS FIRST
+const maintenanceMiddleware = require('./maintenance-middleware');
+app.use(maintenanceMiddleware);
+
 // Enable CORS for API requests
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
