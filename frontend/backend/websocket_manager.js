@@ -25,6 +25,8 @@ class WebSocketManager {
     
     if (!this.POLYGON_API_KEY) {
       console.error('[WS_MANAGER] No POLYGON_API_KEY found in environment');
+    } else {
+      console.log(`[WS_MANAGER] API Key loaded: ${this.POLYGON_API_KEY.substring(0, 10)}...`);
     }
   }
 
