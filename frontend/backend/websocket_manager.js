@@ -9,6 +9,7 @@
  */
 
 const WebSocket = require('ws');
+const fetch = require('node-fetch');
 
 class WebSocketManager {
   constructor(io) {
@@ -16,6 +17,7 @@ class WebSocketManager {
     this.polygonWs = null;
     this.subscribedTickers = new Set();
     this.updateBuffer = new Map(); // ticker -> latest data
+    this.prevCloseCache = new Map(); // ticker -> previous day's close
     this.broadcastInterval = null;
     this.isConnected = false;
     
@@ -113,18 +115,29 @@ class WebSocketManager {
         messages.forEach((msg) => {
           if (msg.ev === 'A' || msg.ev === 'AM' || msg.ev === 'T') {
             // Aggregate bar, Minute bar, or Trade
+            const currentPrice = msg.p || msg.c;
+            
+            // Get or fetch previous close
+            let prevClose = this.prevCloseCache.get(msg.sym);
+            if (!prevClose) {
+              // First time seeing this ticker - use today's open as fallback
+              prevClose = msg.o;
+              // Async fetch actual prev close (don't wait for it)
+              this.fetchPrevClose(msg.sym);
+            }
+            
             const tickerData = {
               ticker: msg.sym,
-              close: msg.p || msg.c,  // Trade price or close price
-              price: msg.p || msg.c,  // Alias for compatibility
+              close: currentPrice,
+              price: currentPrice,
               open: msg.o,
               high: msg.h,
               low: msg.l,
               volume: msg.v,
               vwap: msg.vw,
-              prevClose: msg.o,       // Use open as previous close (approximation)
-              change: msg.c - msg.o,
-              changePercent: ((msg.c - msg.o) / msg.o) * 100,
+              prevClose: prevClose,
+              change: currentPrice - prevClose,
+              changePercent: ((currentPrice - prevClose) / prevClose) * 100,
               timestamp: msg.s || msg.e,
               eventType: msg.ev
             };
@@ -166,28 +179,29 @@ class WebSocketManager {
    * Subscribe to tickers on Polygon
    */
   subscribeToTickers(tickers) {
-    console.error(`\n>>>>>>> subscribeToTickers ENTRY - tickers type: ${typeof tickers}, isArray: ${Array.isArray(tickers)}, length: ${tickers?.length}`);
-    
     if (!Array.isArray(tickers) || tickers.length === 0) {
-      console.error('[WS_MANAGER] ❌ subscribeToTickers called with empty/invalid tickers');
       return;
     }
     
-    console.error(`[WS_MANAGER] ✅ subscribeToTickers called with: ${JSON.stringify(tickers.slice(0, 5))}`);
-    console.error(`[WS_MANAGER] isConnected: ${this.isConnected}, polygonWs readyState: ${this.polygonWs?.readyState}`);
+    // Filter out tickers we're already subscribed to
+    const newTickers = tickers.filter(ticker => !this.subscribedTickers.has(ticker));
+    
+    if (newTickers.length === 0) {
+      console.log(`[WS_MANAGER] All ${tickers.length} tickers already subscribed`);
+      return;
+    }
+    
+    console.log(`[WS_MANAGER] Subscribing to ${newTickers.length} new tickers (${tickers.length - newTickers.length} already subscribed)`);
     
     // Add to our set
-    tickers.forEach(ticker => this.subscribedTickers.add(ticker));
+    newTickers.forEach(ticker => this.subscribedTickers.add(ticker));
     
     // Send to Polygon if connected
     if (this.isConnected) {
-      console.log('[WS_MANAGER] Calling sendSubscription...');
-      this.sendSubscription(tickers);
-    } else {
-      console.log('[WS_MANAGER] NOT sending subscription - not connected yet');
+      this.sendSubscription(newTickers);
     }
     
-    console.log(`[WS_MANAGER] Subscribed to ${tickers.length} tickers. Total: ${this.subscribedTickers.size}`);
+    console.log(`[WS_MANAGER] Total subscribed tickers: ${this.subscribedTickers.size}`);
   }
 
   /**
@@ -254,6 +268,25 @@ class WebSocketManager {
         }
       }
     }, this.TICK_RATE);
+  }
+
+  /**
+   * Fetch previous day's close from Polygon REST API
+   */
+  async fetchPrevClose(ticker) {
+    try {
+      const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${this.POLYGON_API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.results && data.results[0]) {
+        const prevClose = data.results[0].c;
+        this.prevCloseCache.set(ticker, prevClose);
+        console.log(`[WS_MANAGER] Fetched prev close for ${ticker}: $${prevClose}`);
+      }
+    } catch (error) {
+      console.error(`[WS_MANAGER] Error fetching prev close for ${ticker}:`, error.message);
+    }
   }
 
   /**

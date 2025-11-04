@@ -4402,9 +4402,13 @@ function setupSocketIOLiveUpdates() {
 function registerSocketIOListeners() {
   const socketClient = window.socketIOClient;
   
+  console.error('[CHART TABS] registerSocketIOListeners called, socketClient exists:', !!socketClient, 'socket exists:', !!socketClient?.socket);
+  
   // Listen to polygon-batch events directly (don't subscribe - tickers are subscribed individually in setTicker)
   if (socketClient && socketClient.socket) {
+    console.error('[CHART TABS] Adding polygon-batch listener to socket');
     socketClient.socket.on('polygon-batch', (updates) => {
+      console.error('[CHART TABS] 🎯 polygon-batch event received! Updates:', updates?.length);
       if (!Array.isArray(updates)) return;
       
       updates.forEach(data => {
