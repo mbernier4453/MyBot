@@ -4,6 +4,10 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config(); // Loads from frontend/.env
 
+// Debug: Check if API key loaded
+console.log('[SERVER] POLYGON_API_KEY loaded:', process.env.POLYGON_API_KEY ? 'YES' : 'NO');
+console.log('[SERVER] API Key value:', process.env.POLYGON_API_KEY?.substring(0, 15) + '...');
+
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
