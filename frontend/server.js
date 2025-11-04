@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config(); // Loads from frontend/.env
 
 const app = express();
 const server = http.createServer(app);
