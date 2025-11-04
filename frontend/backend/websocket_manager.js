@@ -162,14 +162,23 @@ class WebSocketManager {
    * Subscribe to tickers on Polygon
    */
   subscribeToTickers(tickers) {
-    if (!Array.isArray(tickers) || tickers.length === 0) return;
+    if (!Array.isArray(tickers) || tickers.length === 0) {
+      console.log('[WS_MANAGER] subscribeToTickers called with empty/invalid tickers');
+      return;
+    }
+    
+    console.log(`[WS_MANAGER] subscribeToTickers called with: ${tickers.slice(0, 3).join(', ')}${tickers.length > 3 ? '...' : ''}`);
+    console.log(`[WS_MANAGER] isConnected: ${this.isConnected}, polygonWs readyState: ${this.polygonWs?.readyState}`);
     
     // Add to our set
     tickers.forEach(ticker => this.subscribedTickers.add(ticker));
     
     // Send to Polygon if connected
     if (this.isConnected) {
+      console.log('[WS_MANAGER] Calling sendSubscription...');
       this.sendSubscription(tickers);
+    } else {
+      console.log('[WS_MANAGER] NOT sending subscription - not connected yet');
     }
     
     console.log(`[WS_MANAGER] Subscribed to ${tickers.length} tickers. Total: ${this.subscribedTickers.size}`);
