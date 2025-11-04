@@ -25,8 +25,24 @@ const wsManager = new WebSocketManager(io);
 wsManager.init();
 
 // Maintenance mode middleware - PLACE THIS FIRST
-const maintenanceMiddleware = require('./maintenance-middleware');
-app.use(maintenanceMiddleware);
+const MAINTENANCE_MODE = true; // Set to false to disable
+app.use((req, res, next) => {
+  console.log(`[MAINTENANCE CHECK] ${req.method} ${req.path} - Mode: ${MAINTENANCE_MODE}`);
+  
+  // Skip for static assets, API, WebSocket
+  if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|csv|json)$/) ||
+      req.path.startsWith('/api/') ||
+      req.path.startsWith('/socket.io/')) {
+    return next();
+  }
+  
+  if (MAINTENANCE_MODE) {
+    console.log(`[MAINTENANCE] Serving maintenance page for ${req.path}`);
+    return res.status(503).sendFile(__dirname + '/maintenance.html');
+  }
+  
+  next();
+});
 
 // Enable CORS for API requests
 app.use((req, res, next) => {
