@@ -26,6 +26,8 @@ wsManager.init();
 
 // Maintenance mode middleware - PLACE THIS FIRST
 const MAINTENANCE_MODE = true; // Set to false to disable
+const BYPASS_KEY = 'alpha2025dev'; // Secret key to bypass maintenance
+
 app.use((req, res, next) => {
   console.log(`[MAINTENANCE CHECK] ${req.method} ${req.path} - Mode: ${MAINTENANCE_MODE}`);
   
@@ -37,6 +39,12 @@ app.use((req, res, next) => {
   }
   
   if (MAINTENANCE_MODE) {
+    // Check for bypass key in query parameter
+    if (req.query.bypass === BYPASS_KEY) {
+      console.log(`[MAINTENANCE] Valid bypass key - allowing access`);
+      return next();
+    }
+    
     console.log(`[MAINTENANCE] Serving maintenance page for ${req.path}`);
     return res.status(503).sendFile(__dirname + '/maintenance.html');
   }
