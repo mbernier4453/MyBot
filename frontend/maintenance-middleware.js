@@ -17,6 +17,8 @@ const ALLOWED_IPS = [
 ];
 
 function maintenanceMiddleware(req, res, next) {
+  console.log(`[MAINTENANCE] Request: ${req.method} ${req.path} - Mode: ${MAINTENANCE_MODE}`);
+  
   // Skip maintenance for certain paths
   const excludedPaths = ['/health', '/api/health'];
   
@@ -28,11 +30,14 @@ function maintenanceMiddleware(req, res, next) {
   const isApiRoute = req.path.startsWith('/api/') || req.path.startsWith('/socket.io/');
   
   if (excludedPaths.includes(req.path) || isStaticAsset || isApiRoute) {
+    console.log(`[MAINTENANCE] Skipping maintenance for ${req.path}`);
     return next();
   }
 
   // Check if maintenance mode is enabled
   if (MAINTENANCE_MODE) {
+    console.log(`[MAINTENANCE] Serving maintenance page for ${req.path}`);
+
     // Allow certain IPs to bypass
     const clientIP = req.ip || req.connection.remoteAddress;
     if (ALLOWED_IPS.includes(clientIP)) {
