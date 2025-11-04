@@ -21,11 +21,11 @@ function maintenanceMiddleware(req, res, next) {
   const excludedPaths = ['/health', '/api/health'];
   
   // Skip maintenance for static assets (JS, CSS, images, fonts, etc.)
-  const staticExtensions = ['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.csv'];
+  const staticExtensions = ['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.csv', '.json'];
   const isStaticAsset = staticExtensions.some(ext => req.path.endsWith(ext));
   
-  // Skip maintenance for API routes
-  const isApiRoute = req.path.startsWith('/api/');
+  // Skip maintenance for API routes and WebSocket
+  const isApiRoute = req.path.startsWith('/api/') || req.path.startsWith('/socket.io/');
   
   if (excludedPaths.includes(req.path) || isStaticAsset || isApiRoute) {
     return next();
@@ -39,7 +39,8 @@ function maintenanceMiddleware(req, res, next) {
       return next();
     }
 
-    // Serve maintenance page for HTML requests only
+    // Serve maintenance page for ALL HTML routes (/, /app, /auth.html, etc.)
+    // This ensures refresh always shows maintenance
     const maintenancePath = path.join(__dirname, 'maintenance.html');
     return res.status(503).sendFile(maintenancePath);
   }
