@@ -4364,8 +4364,70 @@ function initializeChartTabs() {
     });
     });
   } else {
-    console.log('[CHART TABS] Running in browser mode - live updates disabled');
+    // Socket.io mode (browser/server version)
+    setupSocketIOLiveUpdates();
   }
+}
+
+// Setup Socket.io listeners for live price updates (browser mode)
+function setupSocketIOLiveUpdates() {
+  if (!window.socketIOClient) {
+    console.log('[CHART TABS] Socket.io client not available yet, will retry...');
+    
+    // Wait for Socket.io client to be initialized
+    let attempts = 0;
+    const waitInterval = setInterval(() => {
+      attempts++;
+      if (window.socketIOClient || attempts > 20) {
+        clearInterval(waitInterval);
+        if (window.socketIOClient) {
+          console.log('[CHART TABS] Socket.io client now available, setting up listeners');
+          registerSocketIOListeners();
+        } else {
+          console.error('[CHART TABS] Socket.io client never initialized');
+        }
+      }
+    }, 500);
+    return;
+  }
+  
+  registerSocketIOListeners();
+}
+
+function registerSocketIOListeners() {
+  const socket = window.socketIOClient;
+  
+  // Listen for real-time price updates from Polygon via Socket.io
+  socket.on('polygon-data', (data) => {
+    const updateTime = new Date().toLocaleTimeString();
+    console.log(`[SOCKET.IO UPDATE ${updateTime}] ${data.ticker}:`, {
+      price: data.close,
+      volume: data.volume,
+      changePercent: data.changePercent,
+      prevClose: data.prevClose,
+      timestamp: data.timestamp
+    });
+    
+    // Update all chart tabs showing this ticker (main or overlay)
+    chartTabs.forEach(tab => {
+      const hasThisTicker = tab.ticker === data.ticker || 
+                           (tab.overlays && tab.overlays.some(o => o.ticker === data.ticker));
+      
+      if (hasThisTicker) {
+        console.log(`[SOCKET.IO UPDATE] Updating chart tab ${tab.id} for ${data.ticker}`);
+        
+        // Update live info display with fresh websocket data
+        if (tab.ticker === data.ticker) {
+          tab.updateLiveInfo(data);
+        }
+        
+        // Update chart with live data (includes main ticker and overlays)
+        tab.updateChartWithLiveData(data.ticker, data);
+      }
+    });
+  });
+  
+  console.log('[CHART TABS] Socket.io live update listeners registered');
 }
 
 // =====================================================
