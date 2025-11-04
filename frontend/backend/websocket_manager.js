@@ -111,12 +111,12 @@ class WebSocketManager {
         if (!Array.isArray(messages)) return;
         
         messages.forEach((msg) => {
-          if (msg.ev === 'A' || msg.ev === 'AM') {
-            // Aggregate bar or Minute bar
+          if (msg.ev === 'A' || msg.ev === 'AM' || msg.ev === 'T') {
+            // Aggregate bar, Minute bar, or Trade
             const tickerData = {
               ticker: msg.sym,
-              close: msg.c,           // Current price (close of current bar)
-              price: msg.c,           // Alias for compatibility
+              close: msg.p || msg.c,  // Trade price or close price
+              price: msg.p || msg.c,  // Alias for compatibility
               open: msg.o,
               high: msg.h,
               low: msg.l,
@@ -217,14 +217,17 @@ class WebSocketManager {
       return;
     }
     
-    // Use A. for second aggregates (more real-time) instead of AM. for minute aggregates
-    const params = tickers.map(t => `A.${t}`);
-    console.log(`[WS_MANAGER] Sending subscription to Polygon for: ${params.slice(0, 5).join(', ')}${params.length > 5 ? ` ...and ${params.length - 5} more` : ''}`);
+    // Use AM. for minute aggregates
+    const params = tickers.map(t => `AM.${t}`);
     
-    // Subscribe to minute aggregates (AM) for each ticker
+    // Polygon requires params as COMMA-SEPARATED STRING, not array!
+    const paramsString = params.join(',');
+    
+    console.error(`[WS_MANAGER] 🚀 Subscribing to ${tickers.length} tickers: ${params.slice(0, 3).join(', ')}${params.length > 3 ? '...' : ''}`);
+    
     this.polygonWs.send(JSON.stringify({
       action: 'subscribe',
-      params: params
+      params: paramsString  // String, not array!
     }));
   }
 
