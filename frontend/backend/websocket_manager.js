@@ -51,6 +51,7 @@ class WebSocketManager {
       
       // Handle subscription requests from user
       socket.on('subscribe-tickers', (tickers) => {
+        console.log(`[WS_MANAGER] [SOCKET EVENT] subscribe-tickers received:`, tickers);
         this.subscribeToTickers(tickers);
       });
       
