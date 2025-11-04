@@ -51,7 +51,9 @@ class WebSocketManager {
       
       // Handle subscription requests from user
       socket.on('subscribe-tickers', (tickers) => {
-        console.log(`[WS_MANAGER] [SOCKET EVENT] subscribe-tickers received:`, tickers);
+        console.error(`\n\n========== SUBSCRIBE EVENT FIRED ==========`);
+        console.error(`Tickers received:`, JSON.stringify(tickers));
+        console.error(`===========================================\n\n`);
         this.subscribeToTickers(tickers);
       });
       
@@ -163,13 +165,15 @@ class WebSocketManager {
    * Subscribe to tickers on Polygon
    */
   subscribeToTickers(tickers) {
+    console.error(`\n>>>>>>> subscribeToTickers ENTRY - tickers type: ${typeof tickers}, isArray: ${Array.isArray(tickers)}, length: ${tickers?.length}`);
+    
     if (!Array.isArray(tickers) || tickers.length === 0) {
-      console.log('[WS_MANAGER] subscribeToTickers called with empty/invalid tickers');
+      console.error('[WS_MANAGER] ❌ subscribeToTickers called with empty/invalid tickers');
       return;
     }
     
-    console.log(`[WS_MANAGER] subscribeToTickers called with: ${tickers.slice(0, 3).join(', ')}${tickers.length > 3 ? '...' : ''}`);
-    console.log(`[WS_MANAGER] isConnected: ${this.isConnected}, polygonWs readyState: ${this.polygonWs?.readyState}`);
+    console.error(`[WS_MANAGER] ✅ subscribeToTickers called with: ${JSON.stringify(tickers.slice(0, 5))}`);
+    console.error(`[WS_MANAGER] isConnected: ${this.isConnected}, polygonWs readyState: ${this.polygonWs?.readyState}`);
     
     // Add to our set
     tickers.forEach(ticker => this.subscribedTickers.add(ticker));
