@@ -157,19 +157,21 @@
         </div>
 
         <div class="eta">
-            <strong>Estimated Return:</strong> Within the next 15-30 minutes
+            <strong>Estimated Return:</strong> Shortly
         </div>
 
         <div class="social-links">
             <a href="mailto:support@alpharhythm.io">Contact Support</a>
+            <span style="margin: 0 5px;">•</span>
+            <a href="#" onclick="window.location.reload(); return false;">Refresh Page</a>
         </div>
     </div>
 
     <script>
-        // Auto-refresh every 60 seconds to check if maintenance is over
+        // Auto-refresh every 2 minutes to check if maintenance is over
         setTimeout(() => {
             window.location.reload();
-        }, 60000);
+        }, 120000);
     </script>
 </body>
 </html>

@@ -17,9 +17,17 @@ const ALLOWED_IPS = [
 ];
 
 function maintenanceMiddleware(req, res, next) {
-  // Skip maintenance for certain paths (like health checks)
+  // Skip maintenance for certain paths
   const excludedPaths = ['/health', '/api/health'];
-  if (excludedPaths.includes(req.path)) {
+  
+  // Skip maintenance for static assets (JS, CSS, images, fonts, etc.)
+  const staticExtensions = ['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.csv'];
+  const isStaticAsset = staticExtensions.some(ext => req.path.endsWith(ext));
+  
+  // Skip maintenance for API routes
+  const isApiRoute = req.path.startsWith('/api/');
+  
+  if (excludedPaths.includes(req.path) || isStaticAsset || isApiRoute) {
     return next();
   }
 
@@ -31,7 +39,7 @@ function maintenanceMiddleware(req, res, next) {
       return next();
     }
 
-    // Serve maintenance page
+    // Serve maintenance page for HTML requests only
     const maintenancePath = path.join(__dirname, 'maintenance.html');
     return res.status(503).sendFile(maintenancePath);
   }
