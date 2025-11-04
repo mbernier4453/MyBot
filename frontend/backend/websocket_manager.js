@@ -217,7 +217,8 @@ class WebSocketManager {
       return;
     }
     
-    const params = tickers.map(t => `AM.${t}`);
+    // Use A. for second aggregates (more real-time) instead of AM. for minute aggregates
+    const params = tickers.map(t => `A.${t}`);
     console.log(`[WS_MANAGER] Sending subscription to Polygon for: ${params.slice(0, 5).join(', ')}${params.length > 5 ? ` ...and ${params.length - 5} more` : ''}`);
     
     // Subscribe to minute aggregates (AM) for each ticker
