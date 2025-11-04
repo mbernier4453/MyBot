@@ -725,6 +725,8 @@ class ChartTab {
     const minutes = et.getMinutes();
     const time = hours * 100 + minutes;
     
+    console.log(`[MARKET CHECK] ET Time: ${hours}:${minutes.toString().padStart(2, '0')} (${time}), Day: ${day}`);
+    
     // Weekend
     if (day === 0 || day === 6) return false;
     
@@ -732,7 +734,10 @@ class ChartTab {
     const marketOpen = 930;
     const marketClose = 1600;
     
-    return time >= marketOpen && time < marketClose;
+    const isOpen = time >= marketOpen && time < marketClose;
+    console.log(`[MARKET CHECK] Market ${isOpen ? 'OPEN' : 'CLOSED'}`);
+    
+    return isOpen;
   }
 
   updateChartWithLiveData(ticker, wsData) {
