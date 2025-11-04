@@ -4395,10 +4395,10 @@ function setupSocketIOLiveUpdates() {
 }
 
 function registerSocketIOListeners() {
-  const socket = window.socketIOClient;
+  const socketClient = window.socketIOClient;
   
-  // Listen for real-time price updates from Polygon via Socket.io
-  socket.on('polygon-data', (data) => {
+  // Subscribe to all ticker updates (wildcard subscription)
+  socketClient.subscribeAll((data) => {
     const updateTime = new Date().toLocaleTimeString();
     console.log(`[SOCKET.IO UPDATE ${updateTime}] ${data.ticker}:`, {
       price: data.close,
