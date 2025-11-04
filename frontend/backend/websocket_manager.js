@@ -111,12 +111,14 @@ class WebSocketManager {
             // Aggregate bar or Minute bar
             const tickerData = {
               ticker: msg.sym,
-              price: msg.c,
+              close: msg.c,           // Current price (close of current bar)
+              price: msg.c,           // Alias for compatibility
               open: msg.o,
               high: msg.h,
               low: msg.l,
               volume: msg.v,
               vwap: msg.vw,
+              prevClose: msg.o,       // Use open as previous close (approximation)
               change: msg.c - msg.o,
               changePercent: ((msg.c - msg.o) / msg.o) * 100,
               timestamp: msg.s || msg.e,
