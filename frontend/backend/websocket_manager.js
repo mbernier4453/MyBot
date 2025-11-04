@@ -106,6 +106,7 @@ class WebSocketManager {
     this.polygonWs.on('message', (data) => {
       try {
         const messages = JSON.parse(data);
+        console.error(`[WS_MANAGER] 📨 Received message from Polygon: ${JSON.stringify(messages).substring(0, 200)}`);
         
         if (!Array.isArray(messages)) return;
         
