@@ -38,6 +38,7 @@ class ChartTab {
     this.indicators = []; // Array to store indicators {type, params, id}
     this.userInteracting = false; // Flag to pause updates during user interaction
     this.interactionTimeout = null;
+    this.lastLiveUpdate = null; // Throttle live updates
     
     // Custom colors for this chart tab (null = use theme colors)
     this.customUpColor = null;
@@ -743,6 +744,13 @@ class ChartTab {
   }
 
   updateChartWithLiveData(ticker, wsData) {
+    // Throttle updates to once per second max
+    const now = Date.now();
+    if (this.lastLiveUpdate && now - this.lastLiveUpdate < 1000) {
+      return;
+    }
+    this.lastLiveUpdate = now;
+    
     // Skip if user is currently interacting with chart
     if (this.userInteracting) {
       return;
@@ -750,18 +758,19 @@ class ChartTab {
     
     // Only update during market hours
     if (!this.isMarketOpen()) {
-      console.log(`[LIVE CHART] Market closed, skipping chart update for ${ticker}`);
       return;
     }
+
+    let dataChanged = false;
 
     // Update main ticker
     if (this.ticker === ticker && this.chartData && this.chartData.length > 0) {
       const lastBar = this.chartData[this.chartData.length - 1];
-      const now = new Date();
+      const barDate = new Date();
       const barTime = new Date(lastBar.t);
       
-      // Check if this update is for the current bar (same day for daily, same period for intraday)
-      const isSameBar = barTime.toDateString() === now.toDateString();
+      // Check if this update is for the current bar
+      const isSameBar = barTime.toDateString() === barDate.toDateString();
       
       if (isSameBar) {
         // Update the last bar with live data
@@ -769,12 +778,7 @@ class ChartTab {
         lastBar.h = Math.max(lastBar.h, wsData.close);
         lastBar.l = Math.min(lastBar.l, wsData.close);
         lastBar.v = wsData.volume || lastBar.v;
-        
-        console.log(`[LIVE CHART] Updated ${ticker} bar - Close: $${wsData.close.toFixed(2)}, Vol: ${wsData.volume}`);
-        
-        // Redraw chart with updated data
-        const { timespan } = this.getTimespanParams();
-        this.drawChart(this.chartData, timespan);
+        dataChanged = true;
       }
     }
     
@@ -783,25 +787,76 @@ class ChartTab {
       this.overlays.forEach(overlay => {
         if (overlay.ticker === ticker && overlay.data && overlay.data.length > 0) {
           const lastBar = overlay.data[overlay.data.length - 1];
-          const now = new Date();
+          const barDate = new Date();
           const barTime = new Date(lastBar.t);
-          const isSameBar = barTime.toDateString() === now.toDateString();
+          const isSameBar = barTime.toDateString() === barDate.toDateString();
           
           if (isSameBar) {
             lastBar.c = wsData.close;
             lastBar.h = Math.max(lastBar.h, wsData.close);
             lastBar.l = Math.min(lastBar.l, wsData.close);
             lastBar.v = wsData.volume || lastBar.v;
-            
-            console.log(`[LIVE CHART] Updated overlay ${ticker} bar`);
-            
-            // Redraw chart with updated overlay data
-            const { timespan } = this.getTimespanParams();
-            this.drawChart(this.chartData, timespan);
+            dataChanged = true;
           }
         }
       });
     }
+    
+    // Only update chart if data actually changed
+    if (dataChanged && this.chartDiv) {
+      this.updateChartReact();
+    }
+  }
+  
+  /**
+   * Update chart using Plotly.react (preserves viewport and drawings)
+   */
+  updateChartReact() {
+    const chartCanvas = document.getElementById(this.chartDiv);
+    if (!chartCanvas || !chartCanvas.data) return;
+    
+    // Rebuild traces with updated data
+    const { timespan } = this.getTimespanParams();
+    const traces = this.buildChartTraces(this.chartData, timespan);
+    
+    // Use Plotly.react to update without destroying viewport
+    Plotly.react(chartCanvas, traces, chartCanvas.layout, chartCanvas.config);
+  }
+  
+  /**
+   * Build chart traces from data (extracted for reuse)
+   */
+  buildChartTraces(data, timespan) {
+    // This logic should mirror what's in drawChart but return traces array
+    // For now, just return the existing traces from the chart
+    const chartCanvas = document.getElementById(this.chartDiv);
+    if (!chartCanvas || !chartCanvas.data) return [];
+    
+    // Extract key data arrays
+    const dates = data.map(d => new Date(d.t));
+    const opens = data.map(d => d.o);
+    const highs = data.map(d => d.h);
+    const lows = data.map(d => d.l);
+    const closes = data.map(d => d.c);
+    const volumes = data.map(d => d.v);
+    
+    // Update candlestick trace (always index 0)
+    const traces = [...chartCanvas.data];
+    if (traces[0] && traces[0].type === 'candlestick') {
+      traces[0].x = dates;
+      traces[0].open = opens;
+      traces[0].high = highs;
+      traces[0].low = lows;
+      traces[0].close = closes;
+    }
+    
+    // Update volume trace (usually index 1)
+    if (traces[1] && traces[1].yaxis === 'y2') {
+      traces[1].x = dates;
+      traces[1].y = volumes;
+    }
+    
+    return traces;
   }
 
 async updateLiveInfo(freshWsData = null) {
