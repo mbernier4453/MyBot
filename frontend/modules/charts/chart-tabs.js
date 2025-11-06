@@ -622,6 +622,31 @@ class ChartTab {
       tickerGroups.setGroupTicker(this.group, ticker);
     }
     
+  // Fetch prevClose FIRST before subscribing to WebSocket
+  try {
+    const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+    if (apiKey) {
+      const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.results && data.results[0]) {
+        // Store in treemapData so updateLiveInfo can use it immediately
+        if (!window.treemapData) window.treemapData = new Map();
+        const existing = window.treemapData.get(ticker) || {};
+        window.treemapData.set(ticker, {
+          ...existing,
+          ticker: ticker,
+          prevClose: data.results[0].c,
+          close: data.results[0].c // Use prev close as initial price
+        });
+        console.log(`[CHART TAB] Fetched prevClose for ${ticker}: $${data.results[0].c}`);
+      }
+    }
+  } catch (error) {
+    console.error(`[CHART TAB] Error fetching prevClose for ${ticker}:`, error);
+  }
+    
   // Subscribe to websocket for this ticker
   if (window.socketIOClient) {
     try {
