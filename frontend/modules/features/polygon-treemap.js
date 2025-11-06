@@ -431,20 +431,15 @@ const PolygonTreemap = {
               console.warn(`[POLYGON TREEMAP] Could not fetch market cap for ${ticker}`);
             }
             
-            // Note: /prev endpoint returns previous trading day's data
-            // For today's % change, we need current price vs prev close
-            // Since market may not be open, use prev day's close as current price
-            // and fetch one more day back for the comparison
             treemapData.set(ticker, {
               ticker,
-              price: r.c,  // Yesterday's close (latest available)
-              prevClose: r.c, // Use same as price initially
+              price: r.c,
               open: r.o,
               high: r.h,
               low: r.l,
               volume: r.v,
-              change: 0,  // No change until we get live data
-              changePercent: 0,  // No change until we get live data
+              change: r.c - r.o,
+              changePercent: ((r.c - r.o) / r.o) * 100,
               marketCap
             });
           }
@@ -496,19 +491,17 @@ const PolygonTreemap = {
           
           if (data.status === 'OK' && data.results && data.results.length > 0) {
             const result = data.results[0];
-            // /prev returns previous trading day - use close as both price and prevClose initially
-            // WebSocket will update with live data
+            const changePercent = ((result.c - result.o) / result.o) * 100;
             
             return {
               ticker,
-              price: result.c,  // Yesterday's close
-              prevClose: result.c, // Same initially
+              price: result.c,
               open: result.o,
               high: result.h,
               low: result.l,
               volume: result.v,
-              change: 0,  // No change until live data
-              changePercent: 0,  // No change until live data
+              change: result.c - result.o,
+              changePercent,
               timestamp: result.t
             };
           }
@@ -755,15 +748,14 @@ const PolygonTreemap = {
                     const r = data.results[0];
                     const stockData = {
                       ticker,
-                      price: r.c,  // Yesterday's close
+                      price: r.c,
                       close: r.c,
-                      prevClose: r.c, // Same initially
                       open: r.o,
                       high: r.h,
                       low: r.l,
                       volume: r.v,
-                      change: 0,  // No change until live data
-                      changePercent: 0,  // No change until live data
+                      change: r.c - r.o,
+                      changePercent: ((r.c - r.o) / r.o) * 100,
                       marketCap: null
                     };
                     treemapData.set(ticker, stockData);
