@@ -805,41 +805,26 @@ class ChartTab {
     
     // Only update chart if data actually changed
     if (dataChanged && this.chartDiv) {
-      this.updateChartReact();
+      // DON'T update chart - too complex to preserve viewport/drawings/indicators
+      // User can see live prices in the header metrics
+      // this.updateChartReact();
     }
   }
   
   /**
-   * Update chart using Plotly.update (preserves viewport and drawings)
+   * Update chart using Plotly.react (preserves viewport and drawings)
+   * DISABLED - too complex, causes issues with viewport/drawings
    */
-  updateChartReact() {
-    const chartCanvas = document.getElementById(this.chartDiv);
-    if (!chartCanvas || !this.chartData) return;
-    
-    // Extract updated data arrays
-    const dates = this.chartData.map(d => new Date(d.t));
-    const opens = this.chartData.map(d => d.o);
-    const highs = this.chartData.map(d => d.h);
-    const lows = this.chartData.map(d => d.l);
-    const closes = this.chartData.map(d => d.c);
-    const volumes = this.chartData.map(d => d.v);
-    
-    // Update main candlestick trace (index 0)
-    Plotly.update(chartCanvas, {
-      x: [dates],
-      open: [opens],
-      high: [highs],
-      low: [lows],
-      close: [closes]
-    }, {}, [0]);
-    
-    // Update volume trace (index 1)
-    if (chartCanvas.data[1] && chartCanvas.data[1].yaxis === 'y2') {
-      Plotly.update(chartCanvas, {
-        x: [dates],
-        y: [volumes]
-      }, {}, [1]);
-    }
+  async updateChartReact() {
+    return; // Disabled for now
+  }
+  
+  /**
+   * Build all traces (extracted from drawChart for reuse)
+   * DISABLED - too complex
+   */
+  async buildAllTraces(data, timespan) {
+    return { traces: [], layout: {}, config: {} }; // Disabled
   }
 
 async updateLiveInfo(freshWsData = null) {
@@ -911,24 +896,25 @@ async updateLiveInfo(freshWsData = null) {
     const changeEl = content.querySelector('.chart-live-change');
     if (changeEl && currentPrice && prevClose) {
       const changePercent = ((currentPrice - prevClose) / prevClose) * 100;
-      changeEl.innerHTML = `<span class="numeric">${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%</span>`;
+      const isPositive = changePercent >= 0;
+      const bgColor = isPositive ? '#00aa55' : '#ff4444';
       
-      // Flash effect when data updates (from WebSocket)
+      changeEl.innerHTML = `<span class="numeric">${isPositive ? '+' : ''}${changePercent.toFixed(2)}%</span>`;
+      changeEl.style.backgroundColor = bgColor;
+      
+      // Flash effect when data updates (from WebSocket) - invert text and background
       if (wsData && this.lastFlashPrice !== currentPrice) {
         this.lastFlashPrice = currentPrice;
         
-        // Invert colors briefly
-        const normalBg = changePercent >= 0 ? '#00aa55' : '#ff4444';
-        const flashBg = changePercent >= 0 ? '#ff4444' : '#00aa55';
-        
-        changeEl.style.backgroundColor = flashBg;
-        changeEl.style.color = 'white';
+        // Invert: background becomes white, text becomes the old background color
+        changeEl.style.backgroundColor = 'white';
+        changeEl.style.color = bgColor;
         
         setTimeout(() => {
-          changeEl.style.backgroundColor = normalBg;
+          changeEl.style.backgroundColor = bgColor;
+          changeEl.style.color = 'white';
         }, 200);
       } else {
-        changeEl.style.backgroundColor = changePercent >= 0 ? '#00aa55' : '#ff4444';
         changeEl.style.color = 'white';
       }
       
@@ -4349,6 +4335,48 @@ function closeChartTab(tabId) {
   if (index === -1) return;
   
   const tab = chartTabs[index];
+  
+  // Unsubscribe from WebSocket for this tab's ticker and overlays
+  const tickersToUnsubscribe = [];
+  if (tab.ticker) {
+    tickersToUnsubscribe.push(tab.ticker);
+  }
+  if (tab.overlays && tab.overlays.length > 0) {
+    tab.overlays.forEach(overlay => {
+      if (overlay.ticker) {
+        tickersToUnsubscribe.push(overlay.ticker);
+      }
+    });
+  }
+  
+  // Check if any other tabs are still using these tickers
+  const tickersStillInUse = new Set();
+  chartTabs.forEach(otherTab => {
+    if (otherTab.id === tabId) return; // Skip the tab we're closing
+    
+    if (otherTab.ticker) {
+      tickersStillInUse.add(otherTab.ticker);
+    }
+    if (otherTab.overlays) {
+      otherTab.overlays.forEach(overlay => {
+        if (overlay.ticker) {
+          tickersStillInUse.add(overlay.ticker);
+        }
+      });
+    }
+  });
+  
+  // Only unsubscribe from tickers not used by other tabs
+  const tickersToActuallyUnsubscribe = tickersToUnsubscribe.filter(ticker => !tickersStillInUse.has(ticker));
+  
+  if (tickersToActuallyUnsubscribe.length > 0) {
+    console.log(`[CHART TAB] Unsubscribing from ${tickersToActuallyUnsubscribe.length} tickers:`, tickersToActuallyUnsubscribe);
+    
+    // Unsubscribe via Socket.io
+    if (window.socketClient && window.socketClient.socket) {
+      window.socketClient.socket.emit('unsubscribe-tickers', tickersToActuallyUnsubscribe);
+    }
+  }
   
   // Remove from DOM
   tab.tabElement.remove();
