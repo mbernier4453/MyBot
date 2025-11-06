@@ -20,7 +20,7 @@ class WebSocketManager {
     this.isConnected = false;
     
     // Configuration
-    this.TICK_RATE = 250; // ms - send updates 4x per second
+    this.TICK_RATE = 2000; // ms - check every 2 seconds
     this.POLYGON_API_KEY = process.env.POLYGON_API_KEY;
     
     if (!this.POLYGON_API_KEY) {

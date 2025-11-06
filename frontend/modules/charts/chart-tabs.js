@@ -39,6 +39,7 @@ class ChartTab {
     this.userInteracting = false; // Flag to pause updates during user interaction
     this.interactionTimeout = null;
     this.lastLiveUpdate = null; // Throttle live updates
+    this.lastFlashPrice = null; // Track last price for flash effect
     
     // Custom colors for this chart tab (null = use theme colors)
     this.customUpColor = null;
@@ -809,54 +810,36 @@ class ChartTab {
   }
   
   /**
-   * Update chart using Plotly.react (preserves viewport and drawings)
+   * Update chart using Plotly.update (preserves viewport and drawings)
    */
   updateChartReact() {
     const chartCanvas = document.getElementById(this.chartDiv);
-    if (!chartCanvas || !chartCanvas.data) return;
+    if (!chartCanvas || !this.chartData) return;
     
-    // Rebuild traces with updated data
-    const { timespan } = this.getTimespanParams();
-    const traces = this.buildChartTraces(this.chartData, timespan);
+    // Extract updated data arrays
+    const dates = this.chartData.map(d => new Date(d.t));
+    const opens = this.chartData.map(d => d.o);
+    const highs = this.chartData.map(d => d.h);
+    const lows = this.chartData.map(d => d.l);
+    const closes = this.chartData.map(d => d.c);
+    const volumes = this.chartData.map(d => d.v);
     
-    // Use Plotly.react to update without destroying viewport
-    Plotly.react(chartCanvas, traces, chartCanvas.layout, chartCanvas.config);
-  }
-  
-  /**
-   * Build chart traces from data (extracted for reuse)
-   */
-  buildChartTraces(data, timespan) {
-    // This logic should mirror what's in drawChart but return traces array
-    // For now, just return the existing traces from the chart
-    const chartCanvas = document.getElementById(this.chartDiv);
-    if (!chartCanvas || !chartCanvas.data) return [];
+    // Update main candlestick trace (index 0)
+    Plotly.update(chartCanvas, {
+      x: [dates],
+      open: [opens],
+      high: [highs],
+      low: [lows],
+      close: [closes]
+    }, {}, [0]);
     
-    // Extract key data arrays
-    const dates = data.map(d => new Date(d.t));
-    const opens = data.map(d => d.o);
-    const highs = data.map(d => d.h);
-    const lows = data.map(d => d.l);
-    const closes = data.map(d => d.c);
-    const volumes = data.map(d => d.v);
-    
-    // Update candlestick trace (always index 0)
-    const traces = [...chartCanvas.data];
-    if (traces[0] && traces[0].type === 'candlestick') {
-      traces[0].x = dates;
-      traces[0].open = opens;
-      traces[0].high = highs;
-      traces[0].low = lows;
-      traces[0].close = closes;
+    // Update volume trace (index 1)
+    if (chartCanvas.data[1] && chartCanvas.data[1].yaxis === 'y2') {
+      Plotly.update(chartCanvas, {
+        x: [dates],
+        y: [volumes]
+      }, {}, [1]);
     }
-    
-    // Update volume trace (usually index 1)
-    if (traces[1] && traces[1].yaxis === 'y2') {
-      traces[1].x = dates;
-      traces[1].y = volumes;
-    }
-    
-    return traces;
   }
 
 async updateLiveInfo(freshWsData = null) {
@@ -929,8 +912,26 @@ async updateLiveInfo(freshWsData = null) {
     if (changeEl && currentPrice && prevClose) {
       const changePercent = ((currentPrice - prevClose) / prevClose) * 100;
       changeEl.innerHTML = `<span class="numeric">${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%</span>`;
-      changeEl.style.backgroundColor = changePercent >= 0 ? '#00aa55' : '#ff4444';
-      changeEl.style.color = 'white';
+      
+      // Flash effect when data updates (from WebSocket)
+      if (wsData && this.lastFlashPrice !== currentPrice) {
+        this.lastFlashPrice = currentPrice;
+        
+        // Invert colors briefly
+        const normalBg = changePercent >= 0 ? '#00aa55' : '#ff4444';
+        const flashBg = changePercent >= 0 ? '#ff4444' : '#00aa55';
+        
+        changeEl.style.backgroundColor = flashBg;
+        changeEl.style.color = 'white';
+        
+        setTimeout(() => {
+          changeEl.style.backgroundColor = normalBg;
+        }, 200);
+      } else {
+        changeEl.style.backgroundColor = changePercent >= 0 ? '#00aa55' : '#ff4444';
+        changeEl.style.color = 'white';
+      }
+      
       console.log(`[LIVE INFO] ${this.ticker} change: ${changePercent.toFixed(2)}%`);
     } else if (changeEl) {
       changeEl.textContent = '--';
