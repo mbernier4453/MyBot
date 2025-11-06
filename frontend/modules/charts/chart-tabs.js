@@ -36,6 +36,8 @@ class ChartTab {
     this.liveData = new Map();
     this.overlays = []; // Array to store overlay tickers
     this.indicators = []; // Array to store indicators {type, params, id}
+    this.userInteracting = false; // Flag to pause updates during user interaction
+    this.interactionTimeout = null;
     
     // Custom colors for this chart tab (null = use theme colors)
     this.customUpColor = null;
@@ -741,6 +743,11 @@ class ChartTab {
   }
 
   updateChartWithLiveData(ticker, wsData) {
+    // Skip if user is currently interacting with chart
+    if (this.userInteracting) {
+      return;
+    }
+    
     // Only update during market hours
     if (!this.isMarketOpen()) {
       console.log(`[LIVE CHART] Market closed, skipping chart update for ${ticker}`);
@@ -1993,6 +2000,15 @@ async updateLiveInfo(freshWsData = null) {
     
     // Return the promise so we can chain handlers
     return Plotly.newPlot(chartCanvas, traces, layout, config).then(() => {
+      // Add interaction detection
+      chartCanvas.on('plotly_relayout', () => {
+        this.userInteracting = true;
+        clearTimeout(this.interactionTimeout);
+        this.interactionTimeout = setTimeout(() => {
+          this.userInteracting = false;
+        }, 3000); // Resume updates 3 seconds after last interaction
+      });
+      
       // Force numeric font on all hover labels
       setTimeout(() => {
         const hoverTexts = chartCanvas.querySelectorAll('.hoverlayer text, g.hovertext text, .hoverlabel text');

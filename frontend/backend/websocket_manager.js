@@ -113,18 +113,21 @@ class WebSocketManager {
         messages.forEach((msg) => {
           if (msg.ev === 'A' || msg.ev === 'AM' || msg.ev === 'T') {
             // Aggregate bar, Minute bar, or Trade
+            const currentPrice = msg.p || msg.c;
+            const prevClose = this.prevCloseCache?.get(msg.sym) || msg.o; // Use cached prevClose or fallback to open
+            
             const tickerData = {
               ticker: msg.sym,
-              close: msg.p || msg.c,  // Trade price or close price
-              price: msg.p || msg.c,  // Alias for compatibility
+              close: currentPrice,
+              price: currentPrice,
               open: msg.o,
               high: msg.h,
               low: msg.l,
               volume: msg.v,
               vwap: msg.vw,
-              prevClose: msg.o,       // Use open as previous close (approximation)
-              change: msg.c - msg.o,
-              changePercent: ((msg.c - msg.o) / msg.o) * 100,
+              prevClose: prevClose,
+              change: currentPrice - prevClose,
+              changePercent: ((currentPrice - prevClose) / prevClose) * 100,
               timestamp: msg.s || msg.e,
               eventType: msg.ev
             };
@@ -165,26 +168,41 @@ class WebSocketManager {
   /**
    * Subscribe to tickers on Polygon
    */
-  subscribeToTickers(tickers) {
-    console.error(`\n>>>>>>> subscribeToTickers ENTRY - tickers type: ${typeof tickers}, isArray: ${Array.isArray(tickers)}, length: ${tickers?.length}`);
-    
+  async subscribeToTickers(tickers) {
     if (!Array.isArray(tickers) || tickers.length === 0) {
-      console.error('[WS_MANAGER] ❌ subscribeToTickers called with empty/invalid tickers');
       return;
     }
     
-    console.error(`[WS_MANAGER] ✅ subscribeToTickers called with: ${JSON.stringify(tickers.slice(0, 5))}`);
-    console.error(`[WS_MANAGER] isConnected: ${this.isConnected}, polygonWs readyState: ${this.polygonWs?.readyState}`);
+    console.log(`[WS_MANAGER] Subscribing to ${tickers.length} tickers`);
+    
+    // Fetch previous close for all new tickers BEFORE subscribing to WebSocket
+    const fetchPromises = tickers.map(async ticker => {
+      if (!this.prevCloseCache || !this.prevCloseCache.has(ticker)) {
+        try {
+          const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${this.POLYGON_API_KEY}`;
+          const response = await fetch(url);
+          const data = await response.json();
+          
+          if (data.results && data.results[0]) {
+            if (!this.prevCloseCache) this.prevCloseCache = new Map();
+            this.prevCloseCache.set(ticker, data.results[0].c);
+            console.log(`[WS_MANAGER] Fetched prev close for ${ticker}: $${data.results[0].c}`);
+          }
+        } catch (error) {
+          console.error(`[WS_MANAGER] Error fetching prev close for ${ticker}:`, error.message);
+        }
+      }
+    });
+    
+    // Wait for all prevClose fetches to complete
+    await Promise.all(fetchPromises);
     
     // Add to our set
     tickers.forEach(ticker => this.subscribedTickers.add(ticker));
     
     // Send to Polygon if connected
     if (this.isConnected) {
-      console.log('[WS_MANAGER] Calling sendSubscription...');
       this.sendSubscription(tickers);
-    } else {
-      console.log('[WS_MANAGER] NOT sending subscription - not connected yet');
     }
     
     console.log(`[WS_MANAGER] Subscribed to ${tickers.length} tickers. Total: ${this.subscribedTickers.size}`);
