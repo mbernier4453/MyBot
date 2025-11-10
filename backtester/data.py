@@ -1,11 +1,13 @@
 """
-Fetch OHLCV via yfinance. Normalize columns whether single- or multi-index.
-No caching.
+Fetch OHLCV data - supports both S3 flatfiles and yfinance
+Toggle via USE_S3_DATA environment variable
 """
 import os
 import pandas as pd
-import yfinance as yf
 from .settings import get
+
+# Import unified data loader
+from .data_loader import load_bars as data_loader_load_bars, get_data_source
 
 OHLCV = ["Open", "High", "Low", "Close", "Volume"]
 
@@ -43,126 +45,96 @@ def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 def load_bars(symbols: list[str]) -> dict[str, pd.DataFrame]:
-    source = get("SOURCE")
-    if source != "yfinance":
-        raise NotImplementedError("Only yfinance supported")
-
+    """
+    Load OHLCV bars for multiple symbols using configured data source
+    
+    Args:
+        symbols: List of ticker symbols
+    
+    Returns:
+        Dict mapping symbol -> DataFrame with OHLCV columns
+    """
     start, end = get("START"), get("END")
-    auto_adjust = get("ADJUST") == "split_and_div"
-
+    
+    print(f"[DATA] Loading {len(symbols)} symbols using {get_data_source()}")
+    
     out: dict[str, pd.DataFrame] = {}
-    for s in symbols:
-        df = yf.download(
-            s,
-            start=start,
-            end=end,
-            interval="1d",
-            auto_adjust=auto_adjust,
-            progress=False,
-            group_by="column",  # prefer field-first layout
-        )
-        if df.empty:
+    for symbol in symbols:
+        try:
+            df = data_loader_load_bars(symbol, start=start, end=end)
+            
+            if df.empty:
+                print(f"[DATA] No data for {symbol}")
+                continue
+            
+            # Ensure OHLCV columns exist
+            missing = [c for c in OHLCV if c not in df.columns]
+            if missing:
+                print(f"[DATA] {symbol} missing columns: {missing}")
+                continue
+            
+            # Types and index
+            df = df[OHLCV].astype({
+                "Open": "float32",
+                "High": "float32",
+                "Low": "float32",
+                "Close": "float32",
+                "Volume": "float64",
+            }).dropna()
+            
+            # Ensure datetime index
+            if not isinstance(df.index, pd.DatetimeIndex):
+                df.index = pd.to_datetime(df.index)
+            
+            out[symbol] = df
+            
+        except Exception as e:
+            print(f"[DATA] Error loading {symbol}: {e}")
             continue
-
-        df = _normalize_columns(df)
-
-        # Types and index
-        df = df.astype({
-            "Open": "float32",
-            "High": "float32",
-            "Low": "float32",
-            "Close": "float32",
-            "Volume": "float64",
-        }).dropna()
-        df.index = pd.to_datetime(df.index, utc=True)
-
-        out[s] = df
-
+    
     if not out:
-        raise ValueError("No data loaded")
+        raise ValueError(f"No data loaded for any symbol. Data source: {get_data_source()}")
+    
     return out
 
 def get_data(symbol: str, start=None, end=None):
     """
     Unified loader returning a DataFrame with at least a 'close' column.
-    Priority:
-      1) Local CSV: ./data/{symbol}.csv   (config DATA_DIR override)
-         Expected columns: date, close (case-insensitive) OR typical OHLCV.
-      2) yfinance download (if installed)
-    Date filters (start/end) applied after load if possible.
+    Uses configured data source (S3 or yfinance)
+    
+    Args:
+        symbol: Ticker symbol
+        start: Start date (optional)
+        end: End date (optional)
+    
+    Returns:
+        DataFrame with at least 'close' column, DatetimeIndex
     """
-    data_dir = get("DATA_DIR", "./data")
-    os.makedirs(data_dir, exist_ok=True)
-    csv_path = os.path.join(data_dir, f"{symbol}.csv")
-
-    df = None
-
-    # 1) Local CSV
-    if os.path.exists(csv_path):
-        try:
-            df = pd.read_csv(csv_path)
-            # Try to detect date column
-            date_col = None
-            for c in ["date", "Date", "timestamp", "Timestamp"]:
-                if c in df.columns:
-                    date_col = c
+    try:
+        # Use unified data loader
+        df = data_loader_load_bars(symbol, start=start, end=end)
+        
+        if df.empty:
+            raise ValueError(f"No data returned for {symbol}")
+        
+        # Normalize column names to lowercase
+        df.columns = [col.lower() for col in df.columns]
+        
+        # Ensure 'close' column exists
+        if "close" not in df.columns:
+            for alt in ["adj_close", "adjclose", "adj close", "price", "last"]:
+                if alt in df.columns:
+                    df = df.rename(columns={alt: "close"})
                     break
-            if date_col:
-                df[date_col] = pd.to_datetime(df[date_col])
-                df = df.set_index(date_col).sort_index()
-        except Exception:
-            df = None
-
-    # 2) yfinance fallback
-    if df is None:
-        try:
-            yf_df = yf.download(symbol, start=start, end=end, progress=False, auto_adjust=False)
-            if not yf_df.empty:
-                yf_df.index.name = "date"
-                df = yf_df
-        except Exception:
-            pass
-
-    if df is None or df.empty:
-        raise ValueError(f"Unable to load data for {symbol}")
-
-    # --- begin replace block (column normalization + ensure 'close') ---
-    # Normalize / flatten column names safely (handles tuples / MultiIndex)
-    flat_cols = []
-    for col in df.columns:
-        if isinstance(col, tuple):
-            parts = [str(p) for p in col if p not in (None, "", " ")]
-            name = "_".join(parts) if parts else "col"
-            flat_cols.append(name.lower())
-        else:
-            flat_cols.append(str(col).lower())
-    df.columns = flat_cols
-
-    # If still MultiIndex (safety)
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = [
-            "_".join(str(p) for p in tup if p not in (None, "", " ")).lower()
-            for tup in df.columns.to_flat_index()
-        ]
-
-    # Create 'close' if needed
-    if "close" not in df.columns:
-        for alt in ["adj_close", "adjclose", "adj close", "price", "last", "close_"]:
-            if alt in df.columns:
-                df = df.rename(columns={alt: "close"})
-                break
-    if "close" not in df.columns:
-        candidates = [c for c in df.columns if "close" in c]
-        if candidates:
-            df = df.rename(columns={candidates[0]: "close"})
-    if "close" not in df.columns:
-        raise ValueError(f"No close column found for {symbol}")
-    # --- end replace block ---
-
-    # Optional date trimming (keep this after the block)
-    if start and isinstance(df.index, pd.DatetimeIndex):
-        df = df[df.index >= pd.to_datetime(start)]
-    if end and isinstance(df.index, pd.DatetimeIndex):
-        df = df[df.index <= pd.to_datetime(end)]
-
-    return df
+        
+        if "close" not in df.columns:
+            raise ValueError(f"No close column found for {symbol}")
+        
+        # Ensure datetime index
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+        
+        return df
+        
+    except Exception as e:
+        raise ValueError(f"Unable to load data for {symbol}: {e}")

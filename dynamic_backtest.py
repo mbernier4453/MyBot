@@ -9,14 +9,21 @@ import json
 import os
 import pandas as pd
 import numpy as np
-import yfinance as yf
 from datetime import datetime
 from itertools import product
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from workspace root
+root_dir = Path(__file__).parent
+load_dotenv(root_dir / '.env')
+
 from backtester.indicators import rsi_sma
 from backtester.settings import get
 from backtester import db as db_module
 from backtester.metrics import kpis_from_equity
 from backtester.benchmarks import buy_hold_equity
+from backtester.data_loader import load_bars
 
 def validate_config(config):
     """Quick validation of required fields"""
@@ -29,7 +36,7 @@ def validate_config(config):
 def fetch_data(ticker, start_date, end_date, interval='1d'):
     """Download price data"""
     try:
-        data = yf.download(ticker, start=start_date, end=end_date, interval=interval, progress=False, auto_adjust=True)
+        data = load_bars(ticker, start_date, end_date)
         if data.empty:
             return None, f"No data for {ticker}"
         return data, None

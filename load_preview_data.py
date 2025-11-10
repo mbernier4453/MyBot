@@ -4,8 +4,17 @@ Load historical data for strategy preview visualization
 """
 import sys
 import json
-import yfinance as yf
+import os
+import pandas as pd
 from datetime import datetime, timedelta
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from workspace root
+root_dir = Path(__file__).parent
+load_dotenv(root_dir / '.env')
+
+from backtester.data_loader import load_bars
 
 def load_preview_data(params):
     """
@@ -33,10 +42,21 @@ def load_preview_data(params):
         
         if start_date and end_date:
             # Use date range
-            data = yf.download(ticker, start=start_date, end=end_date, interval=interval, progress=False, auto_adjust=True)
+            data = load_bars(ticker, start_date, end_date)
         else:
-            # Use period
-            data = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
+            # Convert period to date range
+            # Map period string to days
+            period_map = {
+                '1d': 1, '5d': 5,
+                '1mo': 30, '3mo': 90, '6mo': 180,
+                '1y': 365, '2y': 730, '5y': 1825, '10y': 3650,
+                'ytd': (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
+                'max': 7300  # ~20 years
+            }
+            days = period_map.get(period, 365)
+            end_date_dt = datetime.now()
+            start_date_dt = end_date_dt - timedelta(days=days)
+            data = load_bars(ticker, start_date_dt.strftime('%Y-%m-%d'), end_date_dt.strftime('%Y-%m-%d'))
         
         if data.empty:
             return {
@@ -44,36 +64,45 @@ def load_preview_data(params):
                 'error': f'No data retrieved for {ticker}'
             }
         
+        # Ensure index is DatetimeIndex before reset
+        if not isinstance(data.index, pd.DatetimeIndex):
+            return {
+                'success': False,
+                'error': f'Invalid data format: expected DatetimeIndex, got {type(data.index)}'
+            }
+        
         # Reset index to make date a column
         data = data.reset_index()
         
-        # Convert to JSON-serializable format
-        # Flatten the data - yfinance returns multi-level columns for single ticker
-        def flatten_value(x):
-            """Extract scalar from potentially nested array"""
-            while hasattr(x, '__iter__') and not isinstance(x, (str, bytes)):
-                if len(x) == 0:
-                    return None
-                x = x[0]
-            return float(x) if x is not None else None
+        # Normalize column names (handle both S3 lowercase and yfinance capitalized)
+        # After reset_index(), the date column might be 'index' or already named
+        if 'index' in data.columns:
+            data.rename(columns={'index': 'date'}, inplace=True)
+        data.columns = [col.lower() for col in data.columns]
         
+        # Convert to JSON-serializable format
         result = {
             'success': True,
             'data': {
                 'ticker': ticker,
                 'period': period,
                 'interval': interval,
-                'dates': data['Date'].dt.strftime('%Y-%m-%d').tolist() if 'Date' in data.columns else data.index.strftime('%Y-%m-%d').tolist(),
-                'open': [flatten_value(x) for x in data['Open'].values],
-                'high': [flatten_value(x) for x in data['High'].values],
-                'low': [flatten_value(x) for x in data['Low'].values],
-                'close': [flatten_value(x) for x in data['Close'].values],
-                'volume': [int(flatten_value(x)) if flatten_value(x) is not None else 0 for x in data['Volume'].values]
+                'dates': data['date'].dt.strftime('%Y-%m-%d').tolist(),
+                'open': [float(x) for x in data['open'].values],
+                'high': [float(x) for x in data['high'].values],
+                'low': [float(x) for x in data['low'].values],
+                'close': [float(x) for x in data['close'].values],
+                'volume': [int(x) for x in data['volume'].values]
             }
         }
         
         return result
         
+    except PermissionError as e:
+        return {
+            'success': False,
+            'error': f'File locking error (retry may succeed): {str(e)}'
+        }
     except Exception as e:
         return {
             'success': False,
@@ -89,10 +118,33 @@ if __name__ == '__main__':
         sys.exit(1)
     
     try:
+        # Debug: log what we received
+        import sys
+        received_arg = sys.argv[1] if len(sys.argv) > 1 else 'NO ARG'
+        print(f'[DEBUG] Received arg: {received_arg}', file=sys.stderr)
+        
         params = json.loads(sys.argv[1])
+        print(f'[DEBUG] Parsed params: {params}', file=sys.stderr)
+        
         result = load_preview_data(params)
-        print(json.dumps(result))
+        print(f'[DEBUG] Result success: {result.get("success")}', file=sys.stderr)
+        if not result.get('success'):
+            print(f'[DEBUG] Error: {result.get("error")}', file=sys.stderr)
+        
+        json_output = json.dumps(result)
+        print(f'[DEBUG] JSON length: {len(json_output)}', file=sys.stderr)
+        
+        # Write directly to stdout and flush
+        sys.stdout.write(json_output)
+        sys.stdout.write('\n')
+        sys.stdout.flush()
         sys.exit(0)
+    except json.JSONDecodeError as e:
+        print(json.dumps({
+            'success': False,
+            'error': f'JSON decode error: {str(e)}'
+        }))
+        sys.exit(1)
     except Exception as e:
         print(json.dumps({
             'success': False,

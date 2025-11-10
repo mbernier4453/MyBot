@@ -57,10 +57,11 @@ def init_db(db_path: str) -> str:
             if pw_cols and "target_weight" not in pw_cols:
                 needs_reset = True
             
-            # Check runs table for missing completed_at or benchmark columns
+            # Check runs table for missing completed_at, data_source, or benchmark columns
             cur.execute("PRAGMA table_info(runs);")
             runs_cols = {row[1] for row in cur.fetchall()}
             if runs_cols and ("completed_at" not in runs_cols or 
+                            "data_source" not in runs_cols or
                             "benchmark_equity_json" not in runs_cols or 
                             "benchmark_config_json" not in runs_cols):
                 needs_reset = True
@@ -110,6 +111,7 @@ def init_db(db_path: str) -> str:
           mode TEXT,
           started_at REAL,
           completed_at REAL,
+          data_source TEXT,
           benchmark_equity_json TEXT,
           benchmark_config_json TEXT
         );""")
@@ -216,13 +218,15 @@ def init_db(db_path: str) -> str:
         con.commit()
     return db_file# ------------ Run bookkeeping ------------
 def ensure_run(db_file: str, run_id: str, mode: str, notes: str = ""):
+    from .data_loader import get_data_source
     now = time.time()
+    data_source = get_data_source()
     with _lock, sqlite3.connect(db_file) as con:
         cur = con.cursor()
         cur.execute("SELECT 1 FROM runs WHERE run_id=?;", (run_id,))
         if cur.fetchone() is None:
-            cur.execute("INSERT INTO runs(run_id,notes,mode,started_at,completed_at) VALUES (?,?,?,?,NULL)",
-                        (run_id, notes, mode, now))
+            cur.execute("INSERT INTO runs(run_id,notes,mode,started_at,completed_at,data_source) VALUES (?,?,?,?,NULL,?)",
+                        (run_id, notes, mode, now, data_source))
         con.commit()
 
 def finalize_run(db_file: str, run_id: str):

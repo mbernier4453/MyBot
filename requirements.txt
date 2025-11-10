@@ -3,3 +3,6 @@ pandas>=2.0
 yfinance>=0.2.40
 plotly>=5
 scikit-learn
+boto3>=1.28
+pyarrow>=14.0  # For Parquet support
+python-dotenv>=1.0  # For .env file loading

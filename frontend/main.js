@@ -1531,7 +1531,7 @@ ipcMain.handle('run-dynamic-backtest', async (event, config) => {
 
     pythonProcess.stderr.on('data', (data) => {
       errorOutput += data.toString();
-      console.error('[DYNAMIC BACKTEST ERROR]', data.toString());
+      console.error('[DYNAMIC BACKTEST STDERR]', data.toString());
     });
 
     pythonProcess.on('error', (error) => {
@@ -1544,13 +1544,17 @@ ipcMain.handle('run-dynamic-backtest', async (event, config) => {
       
       if (code === 0) {
         try {
-          const result = JSON.parse(output);
+          // Take only the last non-empty line (JSON output)
+          const lines = output.trim().split('\n').filter(line => line.trim());
+          const jsonLine = lines[lines.length - 1];
+          const result = JSON.parse(jsonLine);
           resolve(result);
         } catch (e) {
           resolve({
             success: false,
             error: 'Failed to parse backtest results',
-            details: output
+            details: output,
+            parseError: e.message
           });
         }
       } else {
@@ -1573,8 +1577,8 @@ ipcMain.handle('load-preview-data', async (event, params) => {
     const scriptPath = path.join(__dirname, '..', 'load_preview_data.py');
     const paramsJson = JSON.stringify(params);
     
-    // Spawn Python process
-    const pythonProcess = spawn(pythonCommand, [scriptPath, paramsJson], {
+    // Spawn Python process with unbuffered output (-u flag)
+    const pythonProcess = spawn(pythonCommand, ['-u', scriptPath, paramsJson], {
       cwd: path.join(__dirname, '..'),
       stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -1584,11 +1588,12 @@ ipcMain.handle('load-preview-data', async (event, params) => {
 
     pythonProcess.stdout.on('data', (data) => {
       output += data.toString();
+      console.log('[PREVIEW STDOUT]', data.toString());
     });
 
     pythonProcess.stderr.on('data', (data) => {
       errorOutput += data.toString();
-      console.error('[PREVIEW ERROR]', data.toString());
+      console.error('[PREVIEW STDERR]', data.toString());
     });
 
     pythonProcess.on('error', (error) => {
@@ -1598,22 +1603,35 @@ ipcMain.handle('load-preview-data', async (event, params) => {
 
     pythonProcess.on('exit', (code) => {
       console.log(`[PREVIEW] Process exited with code ${code}`);
+      console.log(`[PREVIEW] Raw output length: ${output.length}`);
+      console.log(`[PREVIEW] First 200 chars:`, output.substring(0, 200));
       
-      if (code === 0) {
+      // Try to parse JSON regardless of exit code if we have output
+      // (PowerShell treats stderr as error even when Python exits with 0)
+      if (output.trim().length > 0) {
         try {
-          const result = JSON.parse(output);
+          // Take only the last non-empty line (JSON output)
+          const lines = output.trim().split('\n').filter(line => line.trim());
+          console.log(`[PREVIEW] Found ${lines.length} non-empty lines`);
+          const jsonLine = lines[lines.length - 1];
+          console.log(`[PREVIEW] JSON line length: ${jsonLine.length}`);
+          console.log(`[PREVIEW] JSON line first 100 chars:`, jsonLine.substring(0, 100));
+          const result = JSON.parse(jsonLine);
+          console.log(`[PREVIEW] Successfully parsed JSON, success=${result.success}`);
           resolve(result);
         } catch (e) {
+          console.error(`[PREVIEW] Parse error:`, e.message);
           resolve({
             success: false,
             error: 'Failed to parse preview data',
-            details: output
+            details: output,
+            parseError: e.message
           });
         }
       } else {
         resolve({
           success: false,
-          error: `Process exited with code ${code}`,
+          error: `Process exited with code ${code} and no output`,
           stderr: errorOutput
         });
       }

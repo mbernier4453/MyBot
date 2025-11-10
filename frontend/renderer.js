@@ -2006,12 +2006,14 @@ async function viewStrategyChart(strategyId) {
       console.log('[STRATEGY CHART] Using cached preview data');
       priceData = currentPreviewData;
     } else {
-      // Load fresh price data - need to pass proper params object
+      // Load fresh price data - use the backtest's actual date range from params
       console.log('[STRATEGY CHART] Loading fresh price data...');
       
-      // Use wider date range to match backtest data (10 years to ensure we catch all trades)
-      const endDate = new Date().toISOString().split('T')[0];
-      const startDate = new Date(Date.now() - 10 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      // Extract date range from strategy params (from the backtest config)
+      const startDate = strategy.params.start_date || '2020-01-01';
+      const endDate = strategy.params.end_date || new Date().toISOString().split('T')[0];
+      
+      console.log(`[STRATEGY CHART] Using backtest date range: ${startDate} to ${endDate}`);
       
       const loadResult = await window.electronAPI.loadPreviewData({
         ticker: ticker,
@@ -7196,9 +7198,7 @@ function collectBacktestConfig() {
   
   config.INITIAL_CAPITAL = parseFloat(document.getElementById('initialCapital')?.value || 100000);
   config.TIMESCALE = document.getElementById('timescale')?.value || '1Day';
-  config.START = document.getElementById('startDate')?.value || '2000-01-01';
-  
-  // END date: null if "Use Today" is checked, otherwise use the date value
+    config.START = document.getElementById('startDate')?.value || '2020-01-01';  // END date: null if "Use Today" is checked, otherwise use the date value
   const endDateToday = document.getElementById('endDateToday')?.checked;
   const endDateValue = document.getElementById('endDate')?.value;
   config.END = endDateToday ? null : (endDateValue || null);
