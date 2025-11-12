@@ -4524,46 +4524,45 @@ function setupSocketIOLiveUpdates() {
   registerSocketIOListeners();
 }
 
+// Store the unsubscribe function globally so we don't create duplicate listeners
+let chartTabsSocketUnsubscribe = null;
+
 function registerSocketIOListeners() {
   const socketClient = window.socketIOClient;
   
-  // Listen to polygon-batch events directly (don't subscribe - tickers are subscribed individually in setTicker)
-  if (socketClient && socketClient.socket) {
-    socketClient.socket.on('polygon-batch', (updates) => {
-      if (!Array.isArray(updates)) return;
-      
-      updates.forEach(data => {
-        const updateTime = new Date().toLocaleTimeString();
-        console.log(`[SOCKET.IO UPDATE ${updateTime}] ${data.ticker}:`, {
-          price: data.close,
-          volume: data.volume,
-          changePercent: data.changePercent,
-          prevClose: data.prevClose,
-          timestamp: data.timestamp
-        });
-        
-        // Update all chart tabs showing this ticker (main or overlay)
-        chartTabs.forEach(tab => {
-          const hasThisTicker = tab.ticker === data.ticker || 
-                               (tab.overlays && tab.overlays.some(o => o.ticker === data.ticker));
-          
-          if (hasThisTicker) {
-            console.log(`[SOCKET.IO UPDATE] Updating chart tab ${tab.id} for ${data.ticker}`);
-            
-            // Update live info display with fresh websocket data
-            if (tab.ticker === data.ticker) {
-              tab.updateLiveInfo(data);
-            }
-            
-            // Update chart with live data (includes main ticker and overlays)
-            tab.updateChartWithLiveData(data.ticker, data);
-          }
-        });
-      });
-    });
+  if (!socketClient) {
+    console.warn('[CHART TABS] Socket.io client not available');
+    return;
   }
   
-  console.log('[CHART TABS] Socket.io live update listeners registered');
+  // Remove old listener if it exists
+  if (chartTabsSocketUnsubscribe) {
+    console.log('[CHART TABS] Removing old socket listener to prevent duplicates');
+    chartTabsSocketUnsubscribe();
+    chartTabsSocketUnsubscribe = null;
+  }
+  
+  // Subscribe to all tickers using wildcard (socketio-client handles batching internally)
+  // This prevents duplicate listeners and uses the proper API
+  chartTabsSocketUnsubscribe = socketClient.subscribe('*', (data) => {
+    // Update all chart tabs showing this ticker (main or overlay)
+    chartTabs.forEach(tab => {
+      const hasThisTicker = tab.ticker === data.ticker || 
+                           (tab.overlays && tab.overlays.some(o => o.ticker === data.ticker));
+      
+      if (hasThisTicker) {
+        // Update live info display with fresh websocket data
+        if (tab.ticker === data.ticker) {
+          tab.updateLiveInfo(data);
+        }
+        
+        // Update chart with live data (includes main ticker and overlays)
+        tab.updateChartWithLiveData(data.ticker, data);
+      }
+    });
+  });
+  
+  console.log('[CHART TABS] Socket.io live update listeners registered (using subscribe API)');
 }
 
 // =====================================================

@@ -337,6 +337,13 @@ const PolygonTreemap = {
       
       console.log('[POLYGON TREEMAP] Socket.io client found, subscribing...');
 
+      // Unsubscribe from previous subscription if exists
+      if (this.socketUnsubscribe) {
+        console.log('[POLYGON TREEMAP] Cleaning up old subscription to prevent duplicates');
+        this.socketUnsubscribe();
+        this.socketUnsubscribe = null;
+      }
+
       // Subscribe to ticker updates via Socket.io
       this.socketUnsubscribe = socketClient.subscribe(tickers, (data) => {
         // Keep existing market cap from initial fetch
@@ -407,7 +414,10 @@ const PolygonTreemap = {
       const batch = tickers.slice(i, i + batchSize);
       const promises = batch.map(async ticker => {
         try {
-          // Fetch previous day data
+          // Fetch previous day data - this gives us the close price but we need day before for proper % change
+          // The /prev endpoint returns yesterday's OHLCV, but we need to compare to day-before-yesterday's close
+          // For now, we'll use yesterday's open to close as initial data (intraday change)
+          // Real-time updates from WebSocket will have proper prevClose values
           const priceResponse = await fetch(
             `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`
           );
@@ -431,13 +441,17 @@ const PolygonTreemap = {
               console.warn(`[POLYGON TREEMAP] Could not fetch market cap for ${ticker}`);
             }
             
+            // Store the close price as both current price and prevClose
+            // The WebSocket updates will override with real-time data and proper prevClose
             treemapData.set(ticker, {
               ticker,
               price: r.c,
+              close: r.c,
               open: r.o,
               high: r.h,
               low: r.l,
               volume: r.v,
+              prevClose: r.o,  // Use open as temporary prevClose (will be replaced by WS data)
               change: r.c - r.o,
               changePercent: ((r.c - r.o) / r.o) * 100,
               marketCap
@@ -453,7 +467,7 @@ const PolygonTreemap = {
     }
 
     lastUpdateTime = new Date();
-    console.log(`[POLYGON TREEMAP] Initial data loaded: ${treemapData.size} stocks`);
+    console.log(`[POLYGON TREEMAP] Initial data loaded: ${treemapData.size} stocks (will be updated with real-time data)`);
     this.drawTreemap();
   },
 

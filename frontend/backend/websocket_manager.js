@@ -114,7 +114,15 @@ class WebSocketManager {
           if (msg.ev === 'A' || msg.ev === 'AM' || msg.ev === 'T') {
             // Aggregate bar, Minute bar, or Trade
             const currentPrice = msg.p || msg.c;
-            const prevClose = this.prevCloseCache?.get(msg.sym) || msg.o; // Use cached prevClose or fallback to open
+            
+            // Get previous close from cache - DO NOT use fallback to today's open
+            const prevClose = this.prevCloseCache?.get(msg.sym);
+            
+            // Skip this update if we don't have prevClose yet (avoid incorrect % calculations)
+            if (!prevClose) {
+              // console.log(`[WS_MANAGER] Skipping ${msg.sym} - prevClose not in cache yet`);
+              return;
+            }
             
             const tickerData = {
               ticker: msg.sym,
