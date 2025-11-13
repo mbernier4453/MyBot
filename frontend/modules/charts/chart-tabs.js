@@ -40,6 +40,8 @@ class ChartTab {
     this.interactionTimeout = null;
     this.lastLiveUpdate = null; // Throttle live updates
     this.lastFlashPrice = null; // Track last price for flash effect
+    this.lastDataFetchDay = null; // Track last day data was fetched (YYYY-MM-DD format)
+    this.cachedPrevClose = null; // Cached previous day close for this ticker
     
     // Custom colors for this chart tab (null = use theme colors)
     this.customUpColor = null;
@@ -881,33 +883,90 @@ async updateLiveInfo(freshWsData = null) {
   const tickerEl = content.querySelector('.chart-live-ticker');
   if (tickerEl) tickerEl.textContent = this.ticker;
     
-  // Get current price and volume
+  // Get current price, volume, and prevClose
   let currentPrice = null;
   let currentVolume = null;
   let prevClose = null;
+  
+  // Check if we need to fetch snapshot data (on load or new trading day)
+  const now = new Date();
+  const etDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const currentDay = etDate.toISOString().split('T')[0]; // YYYY-MM-DD
+  const etHour = etDate.getHours();
+  
+  // Fetch snapshot if:
+  // 1. We don't have prevClose cached yet, OR
+  // 2. It's a new trading day (past 4 AM ET)
+  const needsSnapshotFetch = !this.cachedPrevClose || 
+    (this.lastDataFetchDay !== currentDay && etHour >= 4);
+  
+  if (needsSnapshotFetch) {
+    const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+    if (apiKey) {
+      try {
+        console.log(`[LIVE INFO] Fetching snapshot for ${this.ticker} (${needsSnapshotFetch ? 'new day' : 'initial'})`);
+        const snapshotResponse = await fetch(
+          `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${this.ticker}&apiKey=${apiKey}`
+        );
+        const snapshotData = await snapshotResponse.json();
+        
+        if (snapshotData.status === 'OK' && snapshotData.tickers?.[0]) {
+          const snapshot = snapshotData.tickers[0];
+          
+          // Cache the prevClose for this trading day
+          this.cachedPrevClose = snapshot.prevDay?.c || snapshot.day?.c || null;
+          this.lastDataFetchDay = currentDay;
+          
+          // Get current price based on market state
+          if (snapshot.day?.c) {
+            // Market has closed - use closing price
+            currentPrice = snapshot.day.c;
+          } else if (snapshot.min?.c) {
+            // Pre-market or intraday - use latest tick
+            currentPrice = snapshot.min.c;
+          } else {
+            // Fallback to cached prevClose
+            currentPrice = this.cachedPrevClose;
+          }
+          
+          currentVolume = snapshot.day?.v || snapshot.min?.v || 0;
+          prevClose = this.cachedPrevClose;
+          
+          console.log(`[LIVE INFO] ${this.ticker} snapshot fetched - prevClose: $${prevClose}, current: $${currentPrice}`);
+        }
+      } catch (err) {
+        console.error(`[LIVE INFO] Error fetching snapshot for ${this.ticker}:`, err);
+      }
+    }
+  }
+  
+  // If we didn't fetch snapshot (or it failed), use cached or websocket data
+  if (!currentPrice) {
+    // Try websocket data from treemap (only during market hours)
+    const wsData = freshWsData || treemapData.get(this.ticker);
     
-  // Use fresh websocket data if provided, otherwise get from treemapData
-  const wsData = freshWsData || treemapData.get(this.ticker);
-    
-    // ONLY use websocket during regular market hours
     if (isMarketOpen && wsData) {
+      // Market open - use live WebSocket data
       currentPrice = wsData.close;
       currentVolume = wsData.volume;
-      prevClose = wsData.prevClose;
-      console.log(`[LIVE INFO] ${this.ticker} LIVE (market open): $${currentPrice} (prev: $${prevClose})`);
-    } 
-    // Use chart data when market is closed - IGNORE websocket completely
-    else if (this.chartData && this.chartData.length > 0) {
+      prevClose = wsData.prevClose || this.cachedPrevClose;
+      console.log(`[LIVE INFO] ${this.ticker} LIVE (WebSocket): $${currentPrice} (prev: $${prevClose})`);
+    } else {
+      // Market closed - use last chart bar and cached prevClose
       const lastBar = this.chartData[this.chartData.length - 1];
       currentPrice = lastBar.c;
       currentVolume = lastBar.v;
+      prevClose = this.cachedPrevClose;
       
-      // Get previous bar for % change
-      if (this.chartData.length >= 2) {
+      // Fallback to previous bar if no cached prevClose
+      if (!prevClose && this.chartData.length >= 2) {
         prevClose = this.chartData[this.chartData.length - 2].c;
+        console.log(`[LIVE INFO] ${this.ticker} CLOSE (using prev bar as fallback): $${currentPrice} (prev: $${prevClose})`);
+      } else if (prevClose) {
+        console.log(`[LIVE INFO] ${this.ticker} CLOSE (using cached prevClose): $${currentPrice} (prev: $${prevClose})`);
       }
-      console.log(`[LIVE INFO] ${this.ticker} CLOSE (market ${isMarketOpen ? 'open but no ws' : 'closed'}): $${currentPrice} (prev: $${prevClose})`);
     }
+  }
     
     // Update price
     const priceEl = content.querySelector('.chart-live-price');
