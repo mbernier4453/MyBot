@@ -405,6 +405,9 @@ const PolygonTreemap = {
 
   /**
    * Fetch initial market data via REST API
+   * /prev endpoint returns yesterday's full day (O, H, L, C)
+   * We use yesterday's close as prevClose, and for initial load we show 0% change
+   * Real-time WebSocket will update with today's live prices
    */
   async fetchInitialData(tickers, apiKey) {
     console.log(`[POLYGON TREEMAP] Fetching initial data for ${tickers.length} tickers...`);
@@ -414,17 +417,24 @@ const PolygonTreemap = {
       const batch = tickers.slice(i, i + batchSize);
       const promises = batch.map(async ticker => {
         try {
-          // Fetch previous day data - this gives us the close price but we need day before for proper % change
-          // The /prev endpoint returns yesterday's OHLCV, but we need to compare to day-before-yesterday's close
-          // For now, we'll use yesterday's open to close as initial data (intraday change)
-          // Real-time updates from WebSocket will have proper prevClose values
+          // Fetch previous day data - this gives us yesterday's OHLCV
           const priceResponse = await fetch(
             `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`
           );
           const priceData = await priceResponse.json();
 
           if (priceData.status === 'OK' && priceData.results?.[0]) {
-            const r = priceData.results[0];
+            const yesterday = priceData.results[0];
+            
+            // Yesterday's close becomes our prevClose baseline
+            const prevClose = yesterday.c || 100;
+            
+            // For initial load, use yesterday's close as current price (will be updated by WebSocket)
+            const currentPrice = prevClose;
+            
+            // Calculate change (will be 0 until WebSocket updates arrive)
+            const change = currentPrice - prevClose;
+            const changePercent = prevClose > 0 ? ((change / prevClose) * 100) : 0;
             
             // Fetch ticker details for market cap
             let marketCap = null;
@@ -441,19 +451,17 @@ const PolygonTreemap = {
               console.warn(`[POLYGON TREEMAP] Could not fetch market cap for ${ticker}`);
             }
             
-            // Store the close price as both current price and prevClose
-            // The WebSocket updates will override with real-time data and proper prevClose
             treemapData.set(ticker, {
               ticker,
-              price: r.c,
-              close: r.c,
-              open: r.o,
-              high: r.h,
-              low: r.l,
-              volume: r.v,
-              prevClose: r.o,  // Use open as temporary prevClose (will be replaced by WS data)
-              change: r.c - r.o,
-              changePercent: ((r.c - r.o) / r.o) * 100,
+              price: currentPrice,
+              close: currentPrice,
+              open: yesterday.o || prevClose,
+              high: yesterday.h || prevClose,
+              low: yesterday.l || prevClose,
+              volume: yesterday.v || 0,
+              prevClose: prevClose, // Yesterday's close - this is the baseline
+              change: change,
+              changePercent: changePercent, // Will be 0% until WebSocket updates
               marketCap
             });
           }
@@ -467,7 +475,7 @@ const PolygonTreemap = {
     }
 
     lastUpdateTime = new Date();
-    console.log(`[POLYGON TREEMAP] Initial data loaded: ${treemapData.size} stocks (will be updated with real-time data)`);
+    console.log(`[POLYGON TREEMAP] Initial data loaded: ${treemapData.size} stocks (0% change until WebSocket updates)`);
     this.drawTreemap();
   },
 

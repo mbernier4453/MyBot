@@ -119,10 +119,14 @@ class WebSocketManager {
             const prevClose = this.prevCloseCache?.get(msg.sym);
             
             // Skip this update if we don't have prevClose yet (avoid incorrect % calculations)
-            if (!prevClose) {
-              // console.log(`[WS_MANAGER] Skipping ${msg.sym} - prevClose not in cache yet`);
+            if (!prevClose || prevClose <= 0) {
+              // console.log(`[WS_MANAGER] Skipping ${msg.sym} - prevClose not in cache yet or invalid`);
               return;
             }
+            
+            // Calculate change from previous day's close (matches Electron version logic)
+            const change = currentPrice - prevClose;
+            const changePercent = prevClose > 0 ? ((change / prevClose) * 100) : 0;
             
             const tickerData = {
               ticker: msg.sym,
@@ -134,8 +138,8 @@ class WebSocketManager {
               volume: msg.v,
               vwap: msg.vw,
               prevClose: prevClose,
-              change: currentPrice - prevClose,
-              changePercent: ((currentPrice - prevClose) / prevClose) * 100,
+              change: change,
+              changePercent: changePercent,
               timestamp: msg.s || msg.e,
               eventType: msg.ev
             };
