@@ -242,6 +242,30 @@ const PolygonTreemap = {
 
     // Update display every second
     setInterval(() => this.updateLastUpdateDisplay(), 1000);
+    
+    // Check every minute if we need to reset market closed flags (at 4 AM ET pre-market start)
+    setInterval(() => {
+      const now = new Date();
+      const etHour = now.toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false });
+      const etMinute = now.toLocaleString('en-US', { timeZone: 'America/New_York', minute: 'numeric' });
+      
+      // At 4:00 AM ET, reset all isMarketClosed flags to allow pre-market updates
+      if (parseInt(etHour) === 4 && parseInt(etMinute) === 0) {
+        console.log('[POLYGON TREEMAP] Pre-market start - resetting market closed flags');
+        treemapData.forEach((data, ticker) => {
+          if (data.isMarketClosed) {
+            treemapData.set(ticker, { ...data, isMarketClosed: false });
+          }
+        });
+        
+        // Refresh data to get pre-market prices
+        const tickers = Object.keys(sp500SectorData || {});
+        const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+        if (tickers.length > 0 && apiKey) {
+          this.fetchInitialData(tickers, apiKey);
+        }
+      }
+    }, 60000); // Check every minute
 
     // Redraw on window resize
     let resizeTimeout;
@@ -350,10 +374,18 @@ const PolygonTreemap = {
         const existingData = treemapData.get(data.ticker);
         const marketCap = existingData?.marketCap || null;
         
-        // Update treemap data with new price info
+        // Check if market is closed - if so, don't update with after-hours data
+        // This preserves the day's close price throughout after-hours and overnight
+        if (existingData?.isMarketClosed) {
+          // Market is closed - ignore after-hours updates to preserve day's % change
+          return;
+        }
+        
+        // During pre-market and market hours - update with live data
         const updatedData = {
           ...data,
-          marketCap: marketCap || data.marketCap
+          marketCap: marketCap || data.marketCap,
+          isMarketClosed: false // Still in pre-market or market hours
         };
         
         treemapData.set(data.ticker, updatedData);
@@ -446,11 +478,26 @@ const PolygonTreemap = {
           const marketCapResults = await Promise.all(marketCapPromises);
           const marketCapMap = new Map(marketCapResults.map(r => [r.ticker, r.marketCap]));
 
-          // Process snapshot data - exactly like Electron version
+          // Process snapshot data - handle pre-market, market, and after-hours correctly
           snapshotData.tickers.forEach(snapshot => {
-            // prevDay.c = yesterday's close, day.c = today's close
+            // prevDay.c = yesterday's close (our baseline)
             const prevClose = snapshot.prevDay?.c || snapshot.day?.c || 100;
-            const currentPrice = snapshot.day?.c || prevClose;
+            
+            // Determine current price based on market state:
+            // - During pre-market/market hours: use latest tick (snapshot.min)
+            // - After market close: lock in day's close (snapshot.day.c), ignore after-hours
+            let currentPrice;
+            
+            if (snapshot.day?.c) {
+              // Market has closed today - use the closing price (lock it in)
+              currentPrice = snapshot.day.c;
+            } else if (snapshot.min?.c) {
+              // Pre-market or intraday - use latest minute bar
+              currentPrice = snapshot.min.c;
+            } else {
+              // No data yet - use previous close
+              currentPrice = prevClose;
+            }
             
             // Calculate change from previous day's close
             const change = currentPrice - prevClose;
@@ -460,14 +507,15 @@ const PolygonTreemap = {
               ticker: snapshot.ticker,
               price: currentPrice,
               close: currentPrice,
-              open: snapshot.day?.o || prevClose,
-              high: snapshot.day?.h || currentPrice,
-              low: snapshot.day?.l || currentPrice,
-              volume: snapshot.day?.v || 0,
+              open: snapshot.day?.o || snapshot.min?.o || prevClose,
+              high: snapshot.day?.h || snapshot.min?.h || currentPrice,
+              low: snapshot.day?.l || snapshot.min?.l || currentPrice,
+              volume: snapshot.day?.v || snapshot.min?.v || 0,
               prevClose: prevClose,
               change: change,
               changePercent: changePercent,
-              marketCap: marketCapMap.get(snapshot.ticker)
+              marketCap: marketCapMap.get(snapshot.ticker),
+              isMarketClosed: !!snapshot.day?.c // Flag to know if market is closed
             });
           });
         }
