@@ -887,6 +887,7 @@ async updateLiveInfo(freshWsData = null) {
   let currentPrice = null;
   let currentVolume = null;
   let prevClose = null;
+  let usedWebSocketData = false; // Track if we got data from WebSocket for flash effect
   
   // Check if we need to fetch snapshot data (on load or new trading day)
   const now = new Date();
@@ -950,6 +951,7 @@ async updateLiveInfo(freshWsData = null) {
       currentPrice = wsData.close;
       currentVolume = wsData.volume;
       prevClose = wsData.prevClose || this.cachedPrevClose;
+      usedWebSocketData = true; // Enable flash effect
       console.log(`[LIVE INFO] ${this.ticker} LIVE (WebSocket): $${currentPrice} (prev: $${prevClose})`);
     } else {
       // Market closed - use last chart bar and cached prevClose
@@ -987,7 +989,7 @@ async updateLiveInfo(freshWsData = null) {
       changeEl.style.backgroundColor = bgColor;
       
       // Flash effect when data updates (from WebSocket) - invert text and background
-      if (wsData && this.lastFlashPrice !== currentPrice) {
+      if (usedWebSocketData && this.lastFlashPrice !== currentPrice) {
         this.lastFlashPrice = currentPrice;
         
         // Invert: background becomes white, text becomes the old background color
