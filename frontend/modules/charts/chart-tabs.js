@@ -889,6 +889,9 @@ async updateLiveInfo(freshWsData = null) {
   let prevClose = null;
   let usedWebSocketData = false; // Track if we got data from WebSocket for flash effect
   
+  // Get websocket data early for potential market cap display
+  const wsData = freshWsData || treemapData.get(this.ticker);
+  
   // Check if we need to fetch snapshot data (on load or new trading day)
   const now = new Date();
   const etDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
@@ -944,8 +947,6 @@ async updateLiveInfo(freshWsData = null) {
   // If we didn't fetch snapshot (or it failed), use cached or websocket data
   if (!currentPrice) {
     // Try websocket data from treemap (only during market hours)
-    const wsData = freshWsData || treemapData.get(this.ticker);
-    
     if (isMarketOpen && wsData) {
       // Market open - use live WebSocket data
       currentPrice = wsData.close;
