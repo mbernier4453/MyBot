@@ -405,77 +405,81 @@ const PolygonTreemap = {
 
   /**
    * Fetch initial market data via REST API
-   * /prev endpoint returns yesterday's full day (O, H, L, C)
-   * We use yesterday's close as prevClose, and for initial load we show 0% change
-   * Real-time WebSocket will update with today's live prices
+   * Uses snapshot endpoint to get both today's data AND yesterday's close
+   * Matches Electron logic from frontend/main.js lines 330-380
    */
   async fetchInitialData(tickers, apiKey) {
     console.log(`[POLYGON TREEMAP] Fetching initial data for ${tickers.length} tickers...`);
-    const batchSize = 50;
+    const batchSize = 50; // Snapshot endpoint supports comma-separated tickers
 
     for (let i = 0; i < tickers.length; i += batchSize) {
       const batch = tickers.slice(i, i + batchSize);
-      const promises = batch.map(async ticker => {
-        try {
-          // Fetch previous day data - this gives us yesterday's OHLCV
-          const priceResponse = await fetch(
-            `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${apiKey}`
-          );
-          const priceData = await priceResponse.json();
+      const tickersParam = batch.join(',');
+      
+      try {
+        // Use snapshot endpoint - gives us today's data + yesterday's close
+        const snapshotResponse = await fetch(
+          `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${tickersParam}&apiKey=${apiKey}`
+        );
+        const snapshotData = await snapshotResponse.json();
 
-          if (priceData.status === 'OK' && priceData.results?.[0]) {
-            const yesterday = priceData.results[0];
-            
-            // Yesterday's close becomes our prevClose baseline
-            const prevClose = yesterday.c || 100;
-            
-            // For initial load, use yesterday's close as current price (will be updated by WebSocket)
-            const currentPrice = prevClose;
-            
-            // Calculate change (will be 0 until WebSocket updates arrive)
-            const change = currentPrice - prevClose;
-            const changePercent = prevClose > 0 ? ((change / prevClose) * 100) : 0;
-            
-            // Fetch ticker details for market cap
-            let marketCap = null;
+        if (snapshotData.status === 'OK' && snapshotData.tickers) {
+          // Fetch market caps in parallel for this batch
+          const marketCapPromises = batch.map(async ticker => {
             try {
               const detailsResponse = await fetch(
                 `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${apiKey}`
               );
               const detailsData = await detailsResponse.json();
-              
-              if (detailsData.status === 'OK' && detailsData.results?.market_cap) {
-                marketCap = detailsData.results.market_cap;
-              }
+              return {
+                ticker,
+                marketCap: detailsData.status === 'OK' && detailsData.results?.market_cap 
+                  ? detailsData.results.market_cap 
+                  : null
+              };
             } catch (err) {
               console.warn(`[POLYGON TREEMAP] Could not fetch market cap for ${ticker}`);
+              return { ticker, marketCap: null };
             }
+          });
+
+          const marketCapResults = await Promise.all(marketCapPromises);
+          const marketCapMap = new Map(marketCapResults.map(r => [r.ticker, r.marketCap]));
+
+          // Process snapshot data - exactly like Electron version
+          snapshotData.tickers.forEach(snapshot => {
+            // prevDay.c = yesterday's close, day.c = today's close
+            const prevClose = snapshot.prevDay?.c || snapshot.day?.c || 100;
+            const currentPrice = snapshot.day?.c || prevClose;
             
-            treemapData.set(ticker, {
-              ticker,
+            // Calculate change from previous day's close
+            const change = currentPrice - prevClose;
+            const changePercent = prevClose > 0 ? ((change / prevClose) * 100) : 0;
+            
+            treemapData.set(snapshot.ticker, {
+              ticker: snapshot.ticker,
               price: currentPrice,
               close: currentPrice,
-              open: yesterday.o || prevClose,
-              high: yesterday.h || prevClose,
-              low: yesterday.l || prevClose,
-              volume: yesterday.v || 0,
-              prevClose: prevClose, // Yesterday's close - this is the baseline
+              open: snapshot.day?.o || prevClose,
+              high: snapshot.day?.h || currentPrice,
+              low: snapshot.day?.l || currentPrice,
+              volume: snapshot.day?.v || 0,
+              prevClose: prevClose,
               change: change,
-              changePercent: changePercent, // Will be 0% until WebSocket updates
-              marketCap
+              changePercent: changePercent,
+              marketCap: marketCapMap.get(snapshot.ticker)
             });
-          }
-        } catch (err) {
-          console.error(`[POLYGON TREEMAP] Error fetching ${ticker}:`, err);
+          });
         }
-      });
+      } catch (err) {
+        console.error(`[POLYGON TREEMAP] Error fetching batch:`, err);
+      }
 
-      await Promise.all(promises);
-      await new Promise(resolve => setTimeout(resolve, 200)); // Increased delay due to extra API calls
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
 
     lastUpdateTime = new Date();
-    console.log(`[POLYGON TREEMAP] Initial data loaded: ${treemapData.size} stocks (0% change until WebSocket updates)`);
+    console.log(`[POLYGON TREEMAP] Initial data loaded: ${treemapData.size} stocks with today's close vs yesterday's close`);
     this.drawTreemap();
   },
 
