@@ -890,7 +890,10 @@ async updateLiveInfo(freshWsData = null) {
   let usedWebSocketData = false; // Track if we got data from WebSocket for flash effect
   
   // Get websocket data early for potential market cap display
-  const wsData = freshWsData || treemapData.get(this.ticker);
+  // CRITICAL: Only use freshWsData if it matches this tab's ticker (not overlay data)
+  const wsData = (freshWsData && freshWsData.ticker === this.ticker) 
+    ? freshWsData 
+    : treemapData.get(this.ticker);
   
   // Check if we need to fetch snapshot data (on load or new trading day)
   const now = new Date();
