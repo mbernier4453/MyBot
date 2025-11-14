@@ -462,6 +462,12 @@ const PolygonTreemap = {
               const detailsResponse = await fetch(
                 `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${apiKey}`
               );
+              
+              // Silently handle 404s - some tickers don't have reference data
+              if (!detailsResponse.ok) {
+                return { ticker, marketCap: null };
+              }
+              
               const detailsData = await detailsResponse.json();
               return {
                 ticker,
@@ -470,7 +476,7 @@ const PolygonTreemap = {
                   : null
               };
             } catch (err) {
-              console.warn(`[POLYGON TREEMAP] Could not fetch market cap for ${ticker}`);
+              // Network errors only - 404s handled above
               return { ticker, marketCap: null };
             }
           });
