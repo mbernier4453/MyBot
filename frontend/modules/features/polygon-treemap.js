@@ -456,8 +456,16 @@ const PolygonTreemap = {
         const snapshotData = await snapshotResponse.json();
 
         if (snapshotData.status === 'OK' && snapshotData.tickers) {
+          // Skip tickers known to fail on reference endpoint
+          const skipMarketCap = new Set(['FI']);
+          
           // Fetch market caps in parallel for this batch
           const marketCapPromises = batch.map(async ticker => {
+            // Skip tickers that don't have reference data
+            if (skipMarketCap.has(ticker)) {
+              return { ticker, marketCap: null };
+            }
+            
             try {
               const detailsResponse = await fetch(
                 `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${apiKey}`
