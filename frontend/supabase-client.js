@@ -68,3 +68,81 @@ export async function getUser() {
 export function onAuthStateChange(callback) {
   return supabase.auth.onAuthStateChange(callback);
 }
+
+// ============ USER SETTINGS HELPERS ============
+
+// Get user settings (colors, groups, watchlists)
+export async function getUserSettings() {
+  const user = await getUser();
+  if (!user) throw new Error('Not authenticated');
+  
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('*')
+    .eq('user_id', user.id)
+    .single();
+  
+  if (error) {
+    // If no settings exist, return defaults
+    if (error.code === 'PGRST116') {
+      return { colors: {}, ticker_groups: [], watchlists: [] };
+    }
+    throw error;
+  }
+  
+  return data || { colors: {}, ticker_groups: [], watchlists: [] };
+}
+
+// Save user colors
+export async function saveUserColors(colors) {
+  const user = await getUser();
+  if (!user) throw new Error('Not authenticated');
+  
+  const { data, error } = await supabase
+    .from('user_settings')
+    .upsert(
+      { user_id: user.id, colors, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    )
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}
+
+// Save ticker groups
+export async function saveTickerGroups(ticker_groups) {
+  const user = await getUser();
+  if (!user) throw new Error('Not authenticated');
+  
+  const { data, error } = await supabase
+    .from('user_settings')
+    .upsert(
+      { user_id: user.id, ticker_groups, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    )
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}
+
+// Save watchlists
+export async function saveWatchlists(watchlists) {
+  const user = await getUser();
+  if (!user) throw new Error('Not authenticated');
+  
+  const { data, error } = await supabase
+    .from('user_settings')
+    .upsert(
+      { user_id: user.id, watchlists, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    )
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}

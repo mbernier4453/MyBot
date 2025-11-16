@@ -2,6 +2,10 @@
  * Config Manager Module
  * Handles saving, loading, and managing backtest configurations with folders
  */
+
+// Import Supabase helpers for user settings
+import { saveUserColors, getUserSettings } from '../../supabase-client.js';
+
 /**
  * Config Manager Module
  * Handles saving, loading, and managing backtest configurations with folders
@@ -291,12 +295,12 @@ const DEFAULT_COLORS = {
 };
 
 // Open settings modal
-function openSettings() {
+async function openSettings() {
   const modal = document.getElementById('settingsModal');
   if (!modal) return;
   
-  // Load saved colors from localStorage
-  loadUserColors();
+  // Load saved colors from Supabase
+  await loadUserColorsFromSupabase();
   
   // Show modal
   modal.style.display = 'flex';
@@ -538,8 +542,8 @@ function importColorPreset() {
 }
 window.importColorPreset = importColorPreset;
 
-// Save user colors to localStorage
-function saveUserColors() {
+// Save user colors to Supabase
+async function saveUserColorsToSupabase() {
   const colors = {};
   Object.keys(DEFAULT_COLORS).forEach(colorName => {
     const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
@@ -548,24 +552,50 @@ function saveUserColors() {
       colors[colorName] = picker.value;
     }
   });
-  localStorage.setItem('userColors', JSON.stringify(colors));
+  
+  try {
+    await saveUserColors(colors);
+    console.log('[CONFIG] Colors saved to Supabase');
+  } catch (err) {
+    console.error('[CONFIG] Failed to save colors to Supabase:', err);
+    // Fallback to localStorage
+    localStorage.setItem('userColors', JSON.stringify(colors));
+  }
 }
+window.saveUserColors = saveUserColorsToSupabase;
 
-// Load user colors from localStorage
-function loadUserColors() {
-  const saved = localStorage.getItem('userColors');
+// Load user colors from Supabase (with localStorage fallback)
+async function loadUserColorsFromSupabase() {
   let colors = DEFAULT_COLORS;
   
-  if (saved) {
-    try {
-      colors = { ...DEFAULT_COLORS, ...JSON.parse(saved) };
-    } catch (e) {
-      console.error('Failed to parse saved colors:', e);
+  try {
+    const settings = await getUserSettings();
+    if (settings && settings.colors && Object.keys(settings.colors).length > 0) {
+      colors = { ...DEFAULT_COLORS, ...settings.colors };
+      console.log('[CONFIG] Colors loaded from Supabase');
+    } else {
+      // Try localStorage as fallback
+      const saved = localStorage.getItem('userColors');
+      if (saved) {
+        colors = { ...DEFAULT_COLORS, ...JSON.parse(saved) };
+        console.log('[CONFIG] Colors loaded from localStorage (fallback)');
+      }
+    }
+  } catch (err) {
+    console.error('[CONFIG] Failed to load colors from Supabase:', err);
+    // Fallback to localStorage
+    const saved = localStorage.getItem('userColors');
+    if (saved) {
+      try {
+        colors = { ...DEFAULT_COLORS, ...JSON.parse(saved) };
+      } catch (e) {
+        console.error('Failed to parse saved colors:', e);
+      }
     }
   }
   
   // Apply to pickers, text inputs, and CSS variables
-  Object.keys(DEFAULT_COLORS).forEach(colorName => {
+  Object.keys(colors).forEach(colorName => {
     const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
     const picker = document.getElementById(pickerName);
     
@@ -583,6 +613,7 @@ function loadUserColors() {
     }
   });
 }
+window.loadUserColors = loadUserColorsFromSupabase;
 
 // ==================== CHART COLOR HELPERS ====================
 
@@ -649,9 +680,9 @@ window.switchMainTab = switchMainTab;
 // ==================== INITIALIZATION ====================
 
 // Load colors and setup keyboard shortcuts on page load
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   console.log('[SETTINGS] Initializing...');
-  loadUserColors();
+  await loadUserColorsFromSupabase();
   
   // Global keyboard shortcut handler (use capture phase to run before other handlers)
   document.addEventListener('keydown', (e) => {
