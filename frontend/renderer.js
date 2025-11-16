@@ -15,12 +15,6 @@ async function checkAuthentication() {
     }
     console.log('User authenticated:', session.user.email);
     
-    // Load user-specific colors from Supabase after authentication
-    if (window.loadUserColors) {
-      await window.loadUserColors();
-      console.log('[AUTH] User colors loaded from Supabase');
-    }
-    
     // Clear localStorage watchlists to prevent data leakage between users
     // TODO: Move watchlists to Supabase for proper multi-user support
     const currentUser = localStorage.getItem('currentUserId');
@@ -94,6 +88,14 @@ console.log('[APP] Utils functions available:', Object.keys(Utils).length);
 console.log('[APP] API functions available:', Object.keys(API).length);
 console.log('[APP] DatabaseUI functions available:', Object.keys(DatabaseUI).length);
 console.log('[APP] TabsUI functions available:', Object.keys(TabsUI).length);
+
+// Load user-specific colors from Supabase after modules are loaded
+if (window.loadUserColors) {
+  await window.loadUserColors();
+  console.log('[AUTH] User colors loaded from Supabase');
+} else {
+  console.warn('[AUTH] loadUserColors not available yet');
+}
 
 console.log('[RENDERER] Module loaded, preparing to initialize DOM...');
 
