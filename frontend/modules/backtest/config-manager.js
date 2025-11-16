@@ -544,6 +544,8 @@ window.importColorPreset = importColorPreset;
 
 // Save user colors to Supabase
 async function saveUserColorsToSupabase() {
+  console.log('[CONFIG] 🔵 saveUserColors called');
+  
   const colors = {};
   Object.keys(DEFAULT_COLORS).forEach(colorName => {
     const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
@@ -552,6 +554,8 @@ async function saveUserColorsToSupabase() {
       colors[colorName] = picker.value;
     }
   });
+  
+  console.log('[CONFIG] 🔵 Collected colors:', Object.keys(colors).length, 'items');
   
   try {
     const result = await saveUserColors(colors);
