@@ -80,16 +80,14 @@ export async function getUserSettings() {
     .from('user_settings')
     .select('*')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows
   
   if (error) {
-    // If no settings exist, return defaults
-    if (error.code === 'PGRST116') {
-      return { colors: {}, ticker_groups: [], watchlists: [] };
-    }
+    console.error('[SUPABASE] Error fetching user_settings:', error);
     throw error;
   }
   
+  // If no row exists, return defaults
   return data || { colors: {}, ticker_groups: [], watchlists: [] };
 }
 

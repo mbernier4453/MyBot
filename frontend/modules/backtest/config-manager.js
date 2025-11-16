@@ -368,8 +368,8 @@ function updateColor(colorName) {
   document.body.classList.add('color-updating');
   setTimeout(() => document.body.classList.remove('color-updating'), 0);
   
-  // Save to localStorage
-  saveUserColors();
+  // Save to Supabase (fire and forget - don't await to keep UI responsive)
+  saveUserColors().catch(err => console.error('[COLOR] Save failed:', err));
 }
 window.updateColor = updateColor;
 
