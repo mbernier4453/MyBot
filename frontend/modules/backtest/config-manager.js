@@ -554,12 +554,14 @@ async function saveUserColorsToSupabase() {
   });
   
   try {
-    await saveUserColors(colors);
-    console.log('[CONFIG] Colors saved to Supabase');
+    const result = await saveUserColors(colors);
+    console.log('[CONFIG] ✅ Colors saved to Supabase for user:', result.user_id);
+    // Don't save to localStorage anymore - Supabase is source of truth
   } catch (err) {
-    console.error('[CONFIG] Failed to save colors to Supabase:', err);
-    // Fallback to localStorage
+    console.error('[CONFIG] ❌ Failed to save colors to Supabase:', err);
+    // Only fallback to localStorage if Supabase fails
     localStorage.setItem('userColors', JSON.stringify(colors));
+    console.warn('[CONFIG] Saved to localStorage as fallback');
   }
 }
 window.saveUserColors = saveUserColorsToSupabase;
@@ -572,22 +574,24 @@ async function loadUserColorsFromSupabase() {
     const settings = await getUserSettings();
     if (settings && settings.colors && Object.keys(settings.colors).length > 0) {
       colors = { ...DEFAULT_COLORS, ...settings.colors };
-      console.log('[CONFIG] Colors loaded from Supabase');
+      console.log('[CONFIG] ✅ Colors loaded from Supabase for user:', settings.user_id);
     } else {
+      console.log('[CONFIG] ⚠️ No colors in Supabase, checking localStorage fallback');
       // Try localStorage as fallback
       const saved = localStorage.getItem('userColors');
       if (saved) {
         colors = { ...DEFAULT_COLORS, ...JSON.parse(saved) };
-        console.log('[CONFIG] Colors loaded from localStorage (fallback)');
+        console.log('[CONFIG] Loaded colors from localStorage (fallback)');
       }
     }
   } catch (err) {
-    console.error('[CONFIG] Failed to load colors from Supabase:', err);
+    console.error('[CONFIG] ❌ Failed to load colors from Supabase:', err);
     // Fallback to localStorage
     const saved = localStorage.getItem('userColors');
     if (saved) {
       try {
         colors = { ...DEFAULT_COLORS, ...JSON.parse(saved) };
+        console.warn('[CONFIG] Using localStorage fallback due to error');
       } catch (e) {
         console.error('Failed to parse saved colors:', e);
       }
