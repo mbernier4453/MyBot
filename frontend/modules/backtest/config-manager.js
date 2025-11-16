@@ -571,30 +571,21 @@ async function loadUserColorsFromSupabase() {
   let colors = DEFAULT_COLORS;
   
   try {
+    // Check if user is authenticated first
     const settings = await getUserSettings();
+    
     if (settings && settings.colors && Object.keys(settings.colors).length > 0) {
       colors = { ...DEFAULT_COLORS, ...settings.colors };
       console.log('[CONFIG] ✅ Colors loaded from Supabase for user:', settings.user_id);
     } else {
-      console.log('[CONFIG] ⚠️ No colors in Supabase, checking localStorage fallback');
-      // Try localStorage as fallback
-      const saved = localStorage.getItem('userColors');
-      if (saved) {
-        colors = { ...DEFAULT_COLORS, ...JSON.parse(saved) };
-        console.log('[CONFIG] Loaded colors from localStorage (fallback)');
-      }
+      console.log('[CONFIG] ⚠️ No colors in Supabase, using defaults');
     }
   } catch (err) {
-    console.error('[CONFIG] ❌ Failed to load colors from Supabase:', err);
-    // Fallback to localStorage
-    const saved = localStorage.getItem('userColors');
-    if (saved) {
-      try {
-        colors = { ...DEFAULT_COLORS, ...JSON.parse(saved) };
-        console.warn('[CONFIG] Using localStorage fallback due to error');
-      } catch (e) {
-        console.error('Failed to parse saved colors:', e);
-      }
+    // If not authenticated or other error, use defaults (don't fallback to localStorage for cross-account issue)
+    if (err.message === 'Not authenticated') {
+      console.log('[CONFIG] User not authenticated yet, using defaults');
+    } else {
+      console.error('[CONFIG] ❌ Failed to load colors from Supabase:', err);
     }
   }
   
@@ -686,7 +677,12 @@ window.switchMainTab = switchMainTab;
 // Load colors and setup keyboard shortcuts on page load
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('[SETTINGS] Initializing...');
-  await loadUserColorsFromSupabase();
+  
+  try {
+    await loadUserColorsFromSupabase();
+  } catch (err) {
+    console.error('[SETTINGS] Critical error loading colors:', err);
+  }
   
   // Global keyboard shortcut handler (use capture phase to run before other handlers)
   document.addEventListener('keydown', (e) => {

@@ -15,6 +15,12 @@ async function checkAuthentication() {
     }
     console.log('User authenticated:', session.user.email);
     
+    // Load user-specific colors from Supabase after authentication
+    if (window.loadUserColors) {
+      await window.loadUserColors();
+      console.log('[AUTH] User colors loaded from Supabase');
+    }
+    
     // Clear localStorage watchlists to prevent data leakage between users
     // TODO: Move watchlists to Supabase for proper multi-user support
     const currentUser = localStorage.getItem('currentUserId');
