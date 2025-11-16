@@ -369,7 +369,12 @@ function updateColor(colorName) {
   setTimeout(() => document.body.classList.remove('color-updating'), 0);
   
   // Save to Supabase (fire and forget - don't await to keep UI responsive)
-  saveUserColors().catch(err => console.error('[COLOR] Save failed:', err));
+  console.log('[COLOR] About to call saveUserColors, exists?', typeof window.saveUserColors);
+  if (window.saveUserColors) {
+    window.saveUserColors().catch(err => console.error('[COLOR] Save failed:', err));
+  } else {
+    console.error('[COLOR] saveUserColors not defined!');
+  }
 }
 window.updateColor = updateColor;
 
