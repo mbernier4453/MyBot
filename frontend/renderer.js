@@ -96,11 +96,6 @@ window.WatchlistsModule = WatchlistsModule;
 window.FinancialsPage = FinancialsPage;
 window.RatiosPage = RatiosPage;
 
-console.log('[INIT] BacktestConfig module functions:', Object.keys(BacktestConfig));
-console.log('[INIT] BacktestRuns module functions:', Object.keys(BacktestRuns));
-console.log('[INIT] BacktestRunsUI module functions:', Object.keys(BacktestRunsUI));
-console.log('[INIT] FavoritesUI module functions:', Object.keys(FavoritesUI));
-console.log('[INIT] ConditionModals module functions:', Object.keys(ConditionModals));
 console.log('[APP] Modules loaded successfully!');
 console.log('[APP] Utils functions available:', Object.keys(Utils).length);
 console.log('[APP] API functions available:', Object.keys(API).length);
@@ -639,17 +634,17 @@ async function initializeDOMElements() {
   console.log('[INIT] Initializing Chart Tabs...');
   initializeChartTabs();
   
+  // Now that watchlists are loaded, populate the selectors
+  console.log('[INIT] Populating watchlist selectors...');
+  FinancialsPage.populateWatchlistSelector();
+  RatiosPage.populateWatchlistSelector();
+  
   // Load favorites on startup (use setTimeout to ensure everything is ready)
   setTimeout(() => {
     console.log('[INIT] Loading favorites...');
     loadFavorites().catch(err => {
       console.error('[INIT] Failed to load favorites on startup:', err);
     });
-    
-    // Load watchlists for financials and ratios pages
-    console.log('[INIT] Loading watchlist selectors...');
-    FinancialsPage.populateWatchlistSelector();
-    RatiosPage.populateWatchlistSelector();
   }, 100);
 }
 
