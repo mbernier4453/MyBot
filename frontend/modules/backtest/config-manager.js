@@ -417,7 +417,7 @@ function updateColorFromHex(colorName) {
 window.updateColorFromHex = updateColorFromHex;
 
 // Reset single color to default
-function resetColor(colorName) {
+async function resetColor(colorName) {
   const defaultValue = DEFAULT_COLORS[colorName];
   if (!defaultValue) return;
   
@@ -438,16 +438,16 @@ function resetColor(colorName) {
   document.body.classList.add('color-updating');
   setTimeout(() => document.body.classList.remove('color-updating'), 0);
   
-  // Save to localStorage
-  saveUserColors();
+  // Save to Supabase (await the async call)
+  await saveUserColors();
 }
 window.resetColor = resetColor;
 
 // Reset all colors to defaults
-function resetAllColors() {
-  Object.keys(DEFAULT_COLORS).forEach(colorName => {
-    resetColor(colorName);
-  });
+async function resetAllColors() {
+  for (const colorName of Object.keys(DEFAULT_COLORS)) {
+    await resetColor(colorName);
+  }
 }
 window.resetAllColors = resetAllColors;
 
