@@ -3,6 +3,8 @@
  * Manages ticker groups that sync across charts, financials, and ratios tabs
  */
 
+import { saveTickerGroups, getUserSettings } from '../../supabase-client.js';
+
 class TickerGroupManager {
   constructor() {
     this.groups = new Map(); // groupId -> { ticker, subscribers }
@@ -123,9 +125,9 @@ class TickerGroupManager {
   }
 
   /**
-   * Save to localStorage
+   * Save to Supabase (with localStorage fallback)
    */
-  saveToStorage() {
+  async saveToStorage() {
     const data = {
       activeGroup: this.activeGroup,
       groups: {}
@@ -137,18 +139,29 @@ class TickerGroupManager {
       };
     });
     
-    localStorage.setItem('tickerGroups', JSON.stringify(data));
+    try {
+      // Save to Supabase
+      await saveTickerGroups(data);
+      console.log('[TICKER-GROUPS] ✅ Saved to Supabase:', Object.keys(data.groups).length, 'groups');
+    } catch (error) {
+      console.error('[TICKER-GROUPS] ❌ Failed to save to Supabase:', error);
+      // Fallback to localStorage if Supabase fails
+      localStorage.setItem('tickerGroups', JSON.stringify(data));
+      console.warn('[TICKER-GROUPS] Saved to localStorage as fallback');
+    }
   }
 
   /**
-   * Load from localStorage
+   * Load from Supabase (with localStorage fallback)
    */
-  loadFromStorage() {
+  async loadFromStorage() {
     try {
-      const stored = localStorage.getItem('tickerGroups');
-      if (stored) {
-        const data = JSON.parse(stored);
-        this.activeGroup = data.activeGroup || 'A';
+      // Try loading from Supabase first
+      const settings = await getUserSettings();
+      
+      if (settings && settings.ticker_groups) {
+        const data = settings.ticker_groups;
+        this.activeGroup = data.activeGroup || 'None';
         
         if (data.groups) {
           Object.entries(data.groups).forEach(([groupId, groupData]) => {
@@ -159,10 +172,43 @@ class TickerGroupManager {
           });
         }
         
-        console.log('[TICKER-GROUPS] Loaded from storage:', this.groups.size, 'groups');
+        console.log('[TICKER-GROUPS] ✅ Loaded from Supabase:', this.groups.size, 'groups');
+        return;
+      } else {
+        console.log('[TICKER-GROUPS] ⚠️ No groups in Supabase, using defaults');
       }
     } catch (error) {
-      console.error('[TICKER-GROUPS] Error loading from storage:', error);
+      // If Supabase fails, try localStorage fallback (for migration)
+      if (error.message === 'Not authenticated') {
+        console.log('[TICKER-GROUPS] User not authenticated yet, will load after auth');
+      } else {
+        console.error('[TICKER-GROUPS] ❌ Error loading from Supabase:', error);
+        
+        // Try localStorage fallback
+        try {
+          const stored = localStorage.getItem('tickerGroups');
+          if (stored) {
+            const data = JSON.parse(stored);
+            this.activeGroup = data.activeGroup || 'None';
+            
+            if (data.groups) {
+              Object.entries(data.groups).forEach(([groupId, groupData]) => {
+                this.groups.set(groupId, {
+                  ticker: groupData.ticker,
+                  subscribers: new Set()
+                });
+              });
+            }
+            
+            console.log('[TICKER-GROUPS] Loaded from localStorage fallback:', this.groups.size, 'groups');
+            
+            // Migrate to Supabase
+            await this.saveToStorage();
+          }
+        } catch (fallbackError) {
+          console.error('[TICKER-GROUPS] Error loading from localStorage fallback:', fallbackError);
+        }
+      }
     }
   }
 }
@@ -170,8 +216,8 @@ class TickerGroupManager {
 // Create singleton instance
 const tickerGroups = new TickerGroupManager();
 
-// Load on initialization
-tickerGroups.loadFromStorage();
+// Load will be called after authentication in renderer.js
+// Don't auto-load here since user might not be authenticated yet
 
 export default tickerGroups;
 window.tickerGroups = tickerGroups;

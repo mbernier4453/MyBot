@@ -108,6 +108,14 @@ if (window.loadUserColors) {
   console.warn('[AUTH] loadUserColors not available yet');
 }
 
+// Load user-specific ticker groups from Supabase
+if (tickerGroups && tickerGroups.loadFromStorage) {
+  await tickerGroups.loadFromStorage();
+  console.log('[AUTH] User ticker groups loaded from Supabase');
+} else {
+  console.warn('[AUTH] tickerGroups not available yet');
+}
+
 console.log('[RENDERER] Module loaded, preparing to initialize DOM...');
 
 // Initialize state
