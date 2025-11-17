@@ -369,11 +369,11 @@ function updateColor(colorName) {
   setTimeout(() => document.body.classList.remove('color-updating'), 0);
   
   // Save to Supabase (fire and forget - don't await to keep UI responsive)
-  console.log('[COLOR] About to call saveUserColors, exists?', typeof window.saveUserColors);
-  if (window.saveUserColors) {
-    window.saveUserColors().catch(err => console.error('[COLOR] Save failed:', err));
+  console.log('[COLOR] About to call saveUserColorsWrapper, exists?', typeof saveUserColorsToSupabase);
+  if (saveUserColorsToSupabase) {
+    saveUserColorsToSupabase().catch(err => console.error('[COLOR] Save failed:', err));
   } else {
-    console.error('[COLOR] saveUserColors not defined!');
+    console.error('[COLOR] saveUserColorsToSupabase not defined!');
   }
 }
 window.updateColor = updateColor;
@@ -406,8 +406,8 @@ function updateColorFromHex(colorName) {
     document.documentElement.style.setProperty(cssVarName, hexValue);
     console.log('[COLOR] Updated from hex', cssVarName, 'to', hexValue);
     
-    // Save to localStorage
-    saveUserColors();
+    // Save to Supabase
+    saveUserColorsToSupabase();
   } else {
     // Invalid hex, revert to current picker value
     textInput.value = picker.value;
@@ -421,6 +421,8 @@ async function resetColor(colorName) {
   const defaultValue = DEFAULT_COLORS[colorName];
   if (!defaultValue) return;
   
+  console.log('[CONFIG] Resetting', colorName, 'to default:', defaultValue);
+  
   // Update picker and text input
   const pickerName = `color${colorName.charAt(0).toUpperCase() + colorName.slice(1).replace(/-([a-z])/g, (m, p1) => p1.toUpperCase())}`;
   const picker = document.getElementById(pickerName);
@@ -432,14 +434,15 @@ async function resetColor(colorName) {
   // Update CSS variable (use actual CSS variable names without 'color-' prefix)
   const cssVarName = `--${colorName}`;
   document.documentElement.style.setProperty(cssVarName, defaultValue, 'important');
-  console.log('[COLOR] Reset', cssVarName, 'to', defaultValue);
+  console.log('[CONFIG] Reset CSS variable', cssVarName, 'to', defaultValue);
   
   // Force repaint
   document.body.classList.add('color-updating');
   setTimeout(() => document.body.classList.remove('color-updating'), 0);
   
   // Save to Supabase (await the async call)
-  await saveUserColors();
+  await saveUserColorsToSupabase();
+  console.log('[CONFIG] ✅ Reset color saved to Supabase');
 }
 window.resetColor = resetColor;
 
@@ -490,7 +493,7 @@ function loadColorPreset() {
         document.documentElement.style.setProperty(cssVarName, value);
       }
     });
-    saveUserColors();
+    saveUserColorsToSupabase();
     alert('Color preset loaded!');
   } catch (e) {
     alert('Error loading preset: ' + e.message);
@@ -536,7 +539,7 @@ function importColorPreset() {
           document.documentElement.style.setProperty(cssVarName, value);
         }
       });
-      saveUserColors();
+      saveUserColorsToSupabase();
       alert('Color preset imported!');
     } catch (e) {
       alert('Invalid preset format: ' + e.message);
@@ -561,10 +564,12 @@ async function saveUserColorsToSupabase() {
   });
   
   console.log('[CONFIG] 🔵 Collected colors:', Object.keys(colors).length, 'items');
+  console.log('[CONFIG] 🔵 Color values:', colors);
   
   try {
+    // Use the imported saveUserColors from supabase-client.js
     const result = await saveUserColors(colors);
-    console.log('[CONFIG] ✅ Colors saved to Supabase for user:', result.user_id);
+    console.log('[CONFIG] ✅ Colors saved to Supabase successfully');
     // Don't save to localStorage anymore - Supabase is source of truth
   } catch (err) {
     console.error('[CONFIG] ❌ Failed to save colors to Supabase:', err);
@@ -573,7 +578,8 @@ async function saveUserColorsToSupabase() {
     console.warn('[CONFIG] Saved to localStorage as fallback');
   }
 }
-window.saveUserColors = saveUserColorsToSupabase;
+// Export as different name to avoid confusion
+window.saveUserColorsWrapper = saveUserColorsToSupabase;
 
 // Load user colors from Supabase (with localStorage fallback)
 async function loadUserColorsFromSupabase() {
