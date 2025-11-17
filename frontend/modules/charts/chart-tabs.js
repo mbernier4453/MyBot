@@ -3828,7 +3828,6 @@ async updateLiveInfo(freshWsData = null) {
       localStorage.setItem('chartPresets', JSON.stringify(presets));
     }
   }
-  }
   
   async loadPreset(preset) {
     console.log('Loading preset:', preset);
