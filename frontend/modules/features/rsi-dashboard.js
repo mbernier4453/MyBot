@@ -230,8 +230,17 @@ function initializeRSIDashboard() {
 
   let currentGroupSubscription = null;
 
-  // Populate watchlist dropdown
-  const watchlists = JSON.parse(localStorage.getItem('watchlists')) || [];
+  // Populate watchlist dropdown - get from WatchlistsModule (handles Supabase + localStorage)
+  let watchlists = [];
+  if (window.WatchlistsModule && window.WatchlistsModule.getWatchlists) {
+    watchlists = window.WatchlistsModule.getWatchlists();
+    console.log('[RSI] Loaded', watchlists.length, 'watchlists from WatchlistsModule');
+  } else {
+    // Fallback to localStorage
+    watchlists = JSON.parse(localStorage.getItem('watchlists')) || [];
+    console.log('[RSI] Loaded', watchlists.length, 'watchlists from localStorage');
+  }
+  
   watchlistSelect.innerHTML = '<option value="">Choose a watchlist...</option>';
   watchlists.forEach(wl => {
     const option = document.createElement('option');

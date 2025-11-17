@@ -139,15 +139,20 @@ const RatiosPage = {
     if (!select) return;
     
     try {
-      // Load watchlists from localStorage (same as chart-tabs.js)
-      const stored = localStorage.getItem('watchlists');
+      // Get watchlists from the watchlists module (handles Supabase + localStorage)
       let watchlists = [];
       
-      if (stored) {
-        try {
-          watchlists = JSON.parse(stored);
-        } catch (error) {
-          console.error('Error parsing watchlists from localStorage:', error);
+      if (window.WatchlistsModule && window.WatchlistsModule.getWatchlists) {
+        watchlists = window.WatchlistsModule.getWatchlists();
+      } else {
+        // Fallback to localStorage
+        const stored = localStorage.getItem('watchlists');
+        if (stored) {
+          try {
+            watchlists = JSON.parse(stored);
+          } catch (error) {
+            console.error('[RATIOS] Error parsing watchlists from localStorage:', error);
+          }
         }
       }
       
@@ -164,11 +169,13 @@ const RatiosPage = {
         
         // Store watchlists for later use
         this.watchlistsData = watchlists;
+        console.log('[RATIOS] Loaded', watchlists.length, 'watchlists');
       } else {
         select.innerHTML = '<option value="">No watchlists found</option>';
+        console.log('[RATIOS] No watchlists found');
       }
     } catch (error) {
-      console.error('Error loading watchlists:', error);
+      console.error('[RATIOS] Error loading watchlists:', error);
       select.innerHTML = '<option value="">Error loading watchlists</option>';
     }
   },

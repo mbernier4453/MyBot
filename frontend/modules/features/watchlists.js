@@ -18,29 +18,22 @@ const treemapData = new Map();
 // Load watchlists from Supabase
 async function loadWatchlists() {
   // Check if we're in browser mode with Supabase
-  if (window.supabase) {
+  if (window.supabase && window.getUserSettings) {
     try {
       const { data: { user } } = await window.supabase.auth.getUser();
       if (user) {
-        const { data, error } = await window.supabase
-          .from('watchlists')
-          .select('*')
-          .order('created_at', { ascending: false });
-        
-        if (error) throw error;
-        
-        // Convert from Supabase format to internal format
-        watchlists = data.map(w => ({
-          id: w.id,
-          name: w.name,
-          tickers: w.tickers || [],
-          description: '' // We can add this column to Supabase later if needed
-        }));
+        const settings = await window.getUserSettings();
+        if (settings && settings.watchlists) {
+          watchlists = settings.watchlists;
+          console.log('[WATCHLISTS] ✅ Loaded from Supabase:', watchlists.length, 'watchlists');
+        } else {
+          watchlists = [];
+        }
       } else {
         watchlists = [];
       }
     } catch (error) {
-      console.error('Error loading watchlists from Supabase:', error);
+      console.error('[WATCHLISTS] Error loading watchlists from Supabase:', error);
       // Fallback to localStorage
       const stored = localStorage.getItem('watchlists');
       if (stored) {
@@ -72,27 +65,12 @@ async function saveWatchlistsToStorage() {
   localStorage.setItem('watchlists', JSON.stringify(watchlists));
   
   // If in browser mode, also save to Supabase
-  if (window.supabase) {
+  if (window.supabase && window.saveWatchlists) {
     try {
-      const { data: { user } } = await window.supabase.auth.getUser();
-      if (!user) return;
-      
-      // For each watchlist, upsert to Supabase
-      for (const watchlist of watchlists) {
-        const { error } = await window.supabase
-          .from('watchlists')
-          .upsert({
-            id: watchlist.id,
-            user_id: user.id,
-            name: watchlist.name,
-            tickers: watchlist.tickers || [],
-            updated_at: new Date().toISOString()
-          });
-        
-        if (error) throw error;
-      }
+      await window.saveWatchlists(watchlists);
+      console.log('[WATCHLISTS] ✅ Saved to Supabase:', watchlists.length, 'watchlists');
     } catch (error) {
-      console.error('Error saving watchlists to Supabase:', error);
+      console.error('[WATCHLISTS] Error saving watchlists to Supabase:', error);
     }
   }
 }

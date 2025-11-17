@@ -89,6 +89,11 @@ import CandlestickChart from './modules/charts/candlestick.js';
 import RSIDashboard from './modules/features/rsi-dashboard.js';
 import * as Formatters from './modules/core/formatters.js';
 
+// Expose modules to window for cross-module access
+window.WatchlistsModule = WatchlistsModule;
+window.FinancialsPage = FinancialsPage;
+window.RatiosPage = RatiosPage;
+
 console.log('[INIT] BacktestConfig module functions:', Object.keys(BacktestConfig));
 console.log('[INIT] BacktestRuns module functions:', Object.keys(BacktestRuns));
 console.log('[INIT] BacktestRunsUI module functions:', Object.keys(BacktestRunsUI));
@@ -485,15 +490,20 @@ window.addEventListener('click', (e) => {
 // ============================================================================
 
 document.addEventListener('keydown', (e) => {
-  // Shift+T: Create new chart tab
-  if (e.shiftKey && !e.ctrlKey && !e.altKey && e.key === 'T') {
+  // Check if user is typing in an input/textarea (skip shortcuts)
+  const isTyping = e.target.tagName === 'INPUT' || 
+                   e.target.tagName === 'TEXTAREA' || 
+                   e.target.isContentEditable;
+  
+  // Shift+T: Create new chart tab (but not when typing)
+  if (e.shiftKey && !e.ctrlKey && !e.altKey && e.key === 'T' && !isTyping) {
     e.preventDefault();
     createChartTab();
     return;
   }
   
-  // Shift+W: Close current chart tab
-  if (e.shiftKey && !e.ctrlKey && !e.altKey && e.key === 'W') {
+  // Shift+W: Close current chart tab (but not when typing)
+  if (e.shiftKey && !e.ctrlKey && !e.altKey && e.key === 'W' && !isTyping) {
     e.preventDefault();
     const activeTab = ChartTabSystem.getActiveTab();
     if (activeTab) {
