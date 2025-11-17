@@ -533,7 +533,7 @@ console.log('[INIT] Exposing functions to window scope...');
 // No need for duplicate assignments here - all functions are already exposed above
 
 // Initialize DOM elements and event listeners after DOM is ready
-function initializeDOMElements() {
+async function initializeDOMElements() {
   console.log('[INIT] Initializing DOM elements and event listeners...');
   
   // Get DOM elements
@@ -622,7 +622,8 @@ function initializeDOMElements() {
   
   console.log('[INIT] Initializing Watchlists...');
   WatchlistsModule.initializeWatchlistEventListeners();
-  WatchlistsModule.loadWatchlists();
+  await WatchlistsModule.loadWatchlists();
+  console.log('[INIT] Watchlists loaded, continuing initialization...');
   
   console.log('[INIT] Initializing Financials Page...');
   FinancialsPage.initialize();
