@@ -2855,6 +2855,12 @@ async updateLiveInfo(freshWsData = null) {
 
   exportAsCSV() {
     try {
+      console.log('[EXPORT] Starting CSV export...');
+      console.log('[EXPORT] Indicators:', this.indicators);
+      console.log('[EXPORT] Calculated indicators:', this.calculatedIndicators);
+      console.log('[EXPORT] Chart data length:', this.chartData?.length);
+      console.log('[EXPORT] Overlays:', this.overlays?.length);
+      
       const rows = [];
       
       // Build header row
