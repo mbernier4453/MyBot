@@ -150,15 +150,26 @@ export async function saveChartPresets(chart_presets) {
   const user = await getUser();
   if (!user) throw new Error('Not authenticated');
   
+  // Ensure chart_presets is properly serialized
+  const presetsData = Array.isArray(chart_presets) ? chart_presets : [];
+  
   const { data, error } = await supabase
     .from('user_settings')
     .upsert(
-      { user_id: user.id, chart_presets, updated_at: new Date().toISOString() },
+      { 
+        user_id: user.id, 
+        chart_presets: presetsData, 
+        updated_at: new Date().toISOString() 
+      },
       { onConflict: 'user_id' }
     )
     .select()
     .single();
   
-  if (error) throw error;
+  if (error) {
+    console.error('[SUPABASE] Chart presets save error:', error);
+    throw error;
+  }
   return data;
 }
+

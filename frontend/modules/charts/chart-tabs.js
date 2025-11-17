@@ -2888,8 +2888,9 @@ async updateLiveInfo(freshWsData = null) {
       
       // Indicator columns
       this.indicators.forEach(ind => {
-        const paramStr = Object.values(ind.params || {}).join(',');
-        const indicatorName = `${ind.type}(${paramStr})`;
+        // Build parameter string with commas (not tabs)
+        const paramStr = ind.params ? Object.values(ind.params).join(',') : '';
+        const indicatorName = paramStr ? `${ind.type}(${paramStr})` : ind.type;
         
         // Band indicators (BB, KC) have 3 values: upper, middle, lower
         if (ind.type === 'BB' || ind.type === 'KC') {
@@ -3802,7 +3803,10 @@ async updateLiveInfo(freshWsData = null) {
         console.log('[PRESETS] ✅ Saved to Supabase:', name);
       } catch (err) {
         console.error('[PRESETS] Failed to save to Supabase:', err);
+        console.error('[PRESETS] Error details:', err.message, err.code, err.details);
+        // Fallback to localStorage
         localStorage.setItem('chartPresets', JSON.stringify(presets));
+        console.log('[PRESETS] Saved to localStorage as fallback');
       }
     } else {
       localStorage.setItem('chartPresets', JSON.stringify(presets));
