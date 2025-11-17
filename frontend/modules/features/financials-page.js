@@ -11,6 +11,7 @@ const FinancialsPage = {
   currentGroup: 'None',
   currentTickerIndex: 0,
   currentData: null, // Store current data for export
+  groupSubscription: null, // Store subscription callback for cleanup
 
   /**
    * Initialize the financials page
@@ -26,13 +27,32 @@ const FinancialsPage = {
       this.currentGroup = 'None';
       
       groupSelect.addEventListener('change', (e) => {
+        const oldGroup = this.currentGroup;
         this.currentGroup = e.target.value;
-        if (this.currentGroup !== 'None') {
-          tickerGroups.setActiveGroup(this.currentGroup);
+        
+        // Unsubscribe from old group
+        if (oldGroup !== 'None' && this.groupSubscription) {
+          tickerGroups.unsubscribe(oldGroup, this.groupSubscription);
+          this.groupSubscription = null;
         }
         
-        // Load ticker for this group if it exists
         if (this.currentGroup !== 'None') {
+          tickerGroups.setActiveGroup(this.currentGroup);
+          
+          // Create subscription callback for new group
+          this.groupSubscription = (ticker) => {
+            const input = document.getElementById('financialsTickerInput');
+            if (input && input.value !== ticker) {
+              console.log('[FINANCIALS] Group', this.currentGroup, 'changed to ticker', ticker);
+              input.value = ticker;
+              this.loadFinancials(ticker);
+            }
+          };
+          
+          // Subscribe to new group
+          tickerGroups.subscribe(this.currentGroup, this.groupSubscription);
+          
+          // Load ticker for this group if it exists
           const ticker = tickerGroups.getGroupTicker(this.currentGroup);
           if (ticker) {
             document.getElementById('financialsTickerInput').value = ticker;
@@ -42,17 +62,6 @@ const FinancialsPage = {
           }
         } else {
           document.getElementById('financialsTickerInput').value = '';
-        }
-      });
-    }
-    
-    // Subscribe to ticker changes for current group (only if not None)
-    if (this.currentGroup !== 'None') {
-      tickerGroups.subscribe(this.currentGroup, (ticker) => {
-        const input = document.getElementById('financialsTickerInput');
-        if (input && input.value !== ticker) {
-          input.value = ticker;
-          this.loadFinancials(ticker);
         }
       });
     }
