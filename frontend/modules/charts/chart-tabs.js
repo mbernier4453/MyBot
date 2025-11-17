@@ -2956,13 +2956,18 @@ async updateLiveInfo(freshWsData = null) {
               const upperVal = mainIndicatorData.upper && mainIndicatorData.upper[i];
               const middleVal = mainIndicatorData.middle && mainIndicatorData.middle[i];
               const lowerVal = mainIndicatorData.lower && mainIndicatorData.lower[i];
-              row.push(upperVal !== undefined && upperVal !== null ? upperVal.toFixed(2) : '');
-              row.push(middleVal !== undefined && middleVal !== null ? middleVal.toFixed(2) : '');
-              row.push(lowerVal !== undefined && lowerVal !== null ? lowerVal.toFixed(2) : '');
+              row.push(upperVal !== undefined && upperVal !== null && typeof upperVal === 'number' ? upperVal.toFixed(2) : '');
+              row.push(middleVal !== undefined && middleVal !== null && typeof middleVal === 'number' ? middleVal.toFixed(2) : '');
+              row.push(lowerVal !== undefined && lowerVal !== null && typeof lowerVal === 'number' ? lowerVal.toFixed(2) : '');
             } else {
               // Single value indicators (SMA, EMA, RSI, ATR, etc.)
               const val = Array.isArray(mainIndicatorData) ? mainIndicatorData[i] : mainIndicatorData;
-              row.push(val !== undefined && val !== null ? val.toFixed(2) : '');
+              // Check if val is a number before calling toFixed
+              if (val !== undefined && val !== null && typeof val === 'number') {
+                row.push(val.toFixed(2));
+              } else {
+                row.push('');
+              }
             }
           } else {
             // Fallback: missing indicator data - push empty values with correct count
@@ -2985,12 +2990,16 @@ async updateLiveInfo(freshWsData = null) {
                 const upperVal = overlayIndicatorData.upper && overlayIndicatorData.upper[i];
                 const middleVal = overlayIndicatorData.middle && overlayIndicatorData.middle[i];
                 const lowerVal = overlayIndicatorData.lower && overlayIndicatorData.lower[i];
-                row.push(upperVal !== undefined && upperVal !== null ? upperVal.toFixed(2) : '');
-                row.push(middleVal !== undefined && middleVal !== null ? middleVal.toFixed(2) : '');
-                row.push(lowerVal !== undefined && lowerVal !== null ? lowerVal.toFixed(2) : '');
+                row.push(upperVal !== undefined && upperVal !== null && typeof upperVal === 'number' ? upperVal.toFixed(2) : '');
+                row.push(middleVal !== undefined && middleVal !== null && typeof middleVal === 'number' ? middleVal.toFixed(2) : '');
+                row.push(lowerVal !== undefined && lowerVal !== null && typeof lowerVal === 'number' ? lowerVal.toFixed(2) : '');
               } else {
                 const val = Array.isArray(overlayIndicatorData) ? overlayIndicatorData[i] : overlayIndicatorData;
-                row.push(val !== undefined && val !== null ? val.toFixed(2) : '');
+                if (val !== undefined && val !== null && typeof val === 'number') {
+                  row.push(val.toFixed(2));
+                } else {
+                  row.push('');
+                }
               }
             } else {
               // Fallback: missing overlay indicator data - push empty values with correct count
