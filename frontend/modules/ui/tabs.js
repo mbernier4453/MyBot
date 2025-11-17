@@ -57,6 +57,19 @@ export function initializeTabManagement(elements) {
         if (targetPageEl) {
           targetPageEl.classList.add('active');
           console.log('[TABS] Switched to page:', targetPage);
+          
+          // Resize Plotly charts when switching to charting page
+          if (targetPage === 'charting') {
+            setTimeout(() => {
+              const chartCanvases = targetPageEl.querySelectorAll('.chart-canvas');
+              chartCanvases.forEach(canvas => {
+                if (canvas.data && window.Plotly) {
+                  window.Plotly.Plots.resize(canvas);
+                  console.log('[TABS] Resized Plotly chart');
+                }
+              });
+            }, 50); // Small delay to ensure container has correct dimensions
+          }
         } else {
           console.warn('[TABS] Target page not found:', `${targetPage}Page`);
         }
