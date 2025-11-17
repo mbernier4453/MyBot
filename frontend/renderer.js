@@ -35,7 +35,18 @@ async function checkAuthentication() {
 // Handle sign out
 async function handleSignOut() {
   try {
+    console.log('[AUTH] Signing out and clearing all local data...');
+    
+    // Sign out from Supabase (clears auth session)
     await signOut();
+    
+    // Clear all localStorage (watchlists, user data, etc.)
+    localStorage.clear();
+    
+    // Clear sessionStorage too
+    sessionStorage.clear();
+    
+    console.log('[AUTH] Logout complete, redirecting to login...');
     window.location.href = '/';
   } catch (error) {
     console.error('Sign out error:', error);
