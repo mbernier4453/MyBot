@@ -727,8 +727,8 @@ if (window.electronAPI && window.electronAPI.onPolygonUpdate) {
  * Initialize watchlist event listeners
  */
 function initializeWatchlistEventListeners() {
-  // Load watchlists from localStorage
-  console.log('[WATCHLISTS] Loading watchlists from localStorage...');
+  // Load watchlists from Supabase (user-specific)
+  console.log('[WATCHLISTS] Initializing and loading watchlists...');
   loadWatchlists();
   
   // Modal close handlers
