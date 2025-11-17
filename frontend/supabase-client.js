@@ -144,3 +144,21 @@ export async function saveWatchlists(watchlists) {
   if (error) throw error;
   return data;
 }
+
+// Save chart presets
+export async function saveChartPresets(chart_presets) {
+  const user = await getUser();
+  if (!user) throw new Error('Not authenticated');
+  
+  const { data, error } = await supabase
+    .from('user_settings')
+    .upsert(
+      { user_id: user.id, chart_presets, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    )
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}

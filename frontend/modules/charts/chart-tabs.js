@@ -3682,12 +3682,12 @@ async updateLiveInfo(freshWsData = null) {
     return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
   }
   
-  showLoadPresetDialog() {
+  async showLoadPresetDialog() {
     const modal = document.getElementById('loadPresetModal');
     if (!modal) return;
     
     const presetList = document.getElementById('presetList');
-    const presets = this.getPresets();
+    const presets = await this.getPresets();
     
     if (presets.length === 0) {
       presetList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No saved presets</p>';
@@ -3750,12 +3750,25 @@ async updateLiveInfo(freshWsData = null) {
     modal.style.display = 'flex';
   }
   
-  getPresets() {
+  async getPresets() {
+    // Try to get from Supabase first
+    if (window.getUserSettings) {
+      try {
+        const settings = await window.getUserSettings();
+        if (settings && settings.chart_presets) {
+          return settings.chart_presets;
+        }
+      } catch (err) {
+        console.warn('[PRESETS] Failed to load from Supabase, falling back to localStorage:', err);
+      }
+    }
+    
+    // Fallback to localStorage
     const stored = localStorage.getItem('chartPresets');
     return stored ? JSON.parse(stored) : [];
   }
   
-  savePreset(name) {
+  async savePreset(name) {
     const preset = {
       name,
       ticker: this.ticker,
@@ -3779,17 +3792,42 @@ async updateLiveInfo(freshWsData = null) {
       customLineColor: this.customLineColor
     };
     
-    const presets = this.getPresets();
+    const presets = await this.getPresets();
     presets.push(preset);
-    localStorage.setItem('chartPresets', JSON.stringify(presets));
+    
+    // Save to Supabase
+    if (window.saveChartPresets) {
+      try {
+        await window.saveChartPresets(presets);
+        console.log('[PRESETS] ✅ Saved to Supabase:', name);
+      } catch (err) {
+        console.error('[PRESETS] Failed to save to Supabase:', err);
+        localStorage.setItem('chartPresets', JSON.stringify(presets));
+      }
+    } else {
+      localStorage.setItem('chartPresets', JSON.stringify(presets));
+    }
     
     console.log('Preset saved:', name);
   }
   
-  deletePreset(index) {
-    const presets = this.getPresets();
+  async deletePreset(index) {
+    const presets = await this.getPresets();
     presets.splice(index, 1);
-    localStorage.setItem('chartPresets', JSON.stringify(presets));
+    
+    // Save to Supabase
+    if (window.saveChartPresets) {
+      try {
+        await window.saveChartPresets(presets);
+        console.log('[PRESETS] ✅ Deleted from Supabase');
+      } catch (err) {
+        console.error('[PRESETS] Failed to delete from Supabase:', err);
+        localStorage.setItem('chartPresets', JSON.stringify(presets));
+      }
+    } else {
+      localStorage.setItem('chartPresets', JSON.stringify(presets));
+    }
+  }
   }
   
   async loadPreset(preset) {

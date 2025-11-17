@@ -1,10 +1,11 @@
 // Check authentication before loading app
-import { getSession, signOut, supabase, getUserSettings, saveWatchlists } from './supabase-client.js';
+import { getSession, signOut, supabase, getUserSettings, saveWatchlists, saveChartPresets } from './supabase-client.js';
 
 // Expose supabase and helper functions to window for other modules
 window.supabase = supabase;
 window.getUserSettings = getUserSettings;
 window.saveWatchlists = saveWatchlists;
+window.saveChartPresets = saveChartPresets;
 
 // Verify user is authenticated
 async function checkAuthentication() {
