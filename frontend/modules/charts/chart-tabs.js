@@ -2950,18 +2950,23 @@ async updateLiveInfo(freshWsData = null) {
               const upperVal = mainIndicatorData.upper && mainIndicatorData.upper[i];
               const middleVal = mainIndicatorData.middle && mainIndicatorData.middle[i];
               const lowerVal = mainIndicatorData.lower && mainIndicatorData.lower[i];
-              row.push(upperVal !== undefined ? upperVal.toFixed(2) : '');
-              row.push(middleVal !== undefined ? middleVal.toFixed(2) : '');
-              row.push(lowerVal !== undefined ? lowerVal.toFixed(2) : '');
+              row.push(upperVal !== undefined && upperVal !== null ? upperVal.toFixed(2) : '');
+              row.push(middleVal !== undefined && middleVal !== null ? middleVal.toFixed(2) : '');
+              row.push(lowerVal !== undefined && lowerVal !== null ? lowerVal.toFixed(2) : '');
             } else {
               // Single value indicators (SMA, EMA, RSI, ATR, etc.)
               const val = Array.isArray(mainIndicatorData) ? mainIndicatorData[i] : mainIndicatorData;
               row.push(val !== undefined && val !== null ? val.toFixed(2) : '');
             }
           } else {
-            // Fallback to old calculation method
-            const mainValue = this.calculateIndicatorValue(ind, this.chartData, i);
-            row.push(mainValue !== null ? mainValue : '');
+            // Fallback: missing indicator data - push empty values with correct count
+            if (ind.type === 'BB' || ind.type === 'KC') {
+              // Band indicators need 3 columns
+              row.push('', '', '');
+            } else {
+              // Single value indicators need 1 column
+              row.push('');
+            }
           }
           
           // Get indicator values for overlays
@@ -2974,16 +2979,22 @@ async updateLiveInfo(freshWsData = null) {
                 const upperVal = overlayIndicatorData.upper && overlayIndicatorData.upper[i];
                 const middleVal = overlayIndicatorData.middle && overlayIndicatorData.middle[i];
                 const lowerVal = overlayIndicatorData.lower && overlayIndicatorData.lower[i];
-                row.push(upperVal !== undefined ? upperVal.toFixed(2) : '');
-                row.push(middleVal !== undefined ? middleVal.toFixed(2) : '');
-                row.push(lowerVal !== undefined ? lowerVal.toFixed(2) : '');
+                row.push(upperVal !== undefined && upperVal !== null ? upperVal.toFixed(2) : '');
+                row.push(middleVal !== undefined && middleVal !== null ? middleVal.toFixed(2) : '');
+                row.push(lowerVal !== undefined && lowerVal !== null ? lowerVal.toFixed(2) : '');
               } else {
                 const val = Array.isArray(overlayIndicatorData) ? overlayIndicatorData[i] : overlayIndicatorData;
                 row.push(val !== undefined && val !== null ? val.toFixed(2) : '');
               }
             } else {
-              const overlayValue = this.calculateIndicatorValue(ind, overlay.data, i);
-              row.push(overlayValue !== null ? overlayValue : '');
+              // Fallback: missing overlay indicator data - push empty values with correct count
+              if (ind.type === 'BB' || ind.type === 'KC') {
+                // Band indicators need 3 columns
+                row.push('', '', '');
+              } else {
+                // Single value indicators need 1 column
+                row.push('');
+              }
             }
           });
         });

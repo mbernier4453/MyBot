@@ -401,7 +401,15 @@ function initializeRSIDashboard() {
 async function loadRSIWatchlistData(watchlistName) {
   console.log('Loading RSI data for watchlist:', watchlistName);
   
-  const watchlists = JSON.parse(localStorage.getItem('watchlists')) || [];
+  // Get watchlists from WatchlistsModule (handles Supabase + localStorage)
+  let watchlists = [];
+  if (window.WatchlistsModule && window.WatchlistsModule.getWatchlists) {
+    watchlists = window.WatchlistsModule.getWatchlists();
+  } else {
+    // Fallback to localStorage
+    watchlists = JSON.parse(localStorage.getItem('watchlists')) || [];
+  }
+  
   const watchlist = watchlists.find(wl => wl.name === watchlistName);
   
   if (!watchlist || !watchlist.tickers || watchlist.tickers.length === 0) {
