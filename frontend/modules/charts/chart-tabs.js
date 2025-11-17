@@ -489,20 +489,27 @@ class ChartTab {
     const watchlistSelect = content.querySelector('.chart-watchlist-select');
     
     if (!watchlistSelect) {
-      console.error('Watchlist select element not found');
+      console.error('[CHART TAB] Watchlist select element not found');
       return;
     }
     
     try {
-      // Load watchlists from localStorage (same as watchlists page)
-      const stored = localStorage.getItem('watchlists');
+      // Get watchlists from the watchlists module (handles Supabase + localStorage)
       let watchlists = [];
       
-      if (stored) {
-        try {
-          watchlists = JSON.parse(stored);
-        } catch (error) {
-          console.error('Error parsing watchlists from localStorage:', error);
+      if (window.WatchlistsModule && window.WatchlistsModule.getWatchlists) {
+        watchlists = window.WatchlistsModule.getWatchlists();
+        console.log('[CHART TAB] Loaded', watchlists.length, 'watchlists from WatchlistsModule');
+      } else {
+        // Fallback to localStorage
+        const stored = localStorage.getItem('watchlists');
+        if (stored) {
+          try {
+            watchlists = JSON.parse(stored);
+            console.log('[CHART TAB] Loaded', watchlists.length, 'watchlists from localStorage');
+          } catch (error) {
+            console.error('[CHART TAB] Error parsing watchlists from localStorage:', error);
+          }
         }
       }
       
@@ -517,9 +524,10 @@ class ChartTab {
         });
       } else {
         watchlistSelect.innerHTML = '<option value="">No watchlists found</option>';
+        console.log('[CHART TAB] No watchlists found');
       }
     } catch (error) {
-      console.error('Error loading watchlists:', error);
+      console.error('[CHART TAB] Error loading watchlists:', error);
       watchlistSelect.innerHTML = '<option value="">Error loading watchlists</option>';
     }
   }
@@ -530,15 +538,20 @@ class ChartTab {
     if (!tickerListContainer) return;
     
     try {
-      // Load watchlists from localStorage
-      const stored = localStorage.getItem('watchlists');
+      // Get watchlists from the watchlists module (handles Supabase + localStorage)
       let watchlists = [];
       
-      if (stored) {
-        try {
-          watchlists = JSON.parse(stored);
-        } catch (error) {
-          console.error('Error parsing watchlists from localStorage:', error);
+      if (window.WatchlistsModule && window.WatchlistsModule.getWatchlists) {
+        watchlists = window.WatchlistsModule.getWatchlists();
+      } else {
+        // Fallback to localStorage
+        const stored = localStorage.getItem('watchlists');
+        if (stored) {
+          try {
+            watchlists = JSON.parse(stored);
+          } catch (error) {
+            console.error('[CHART TAB] Error parsing watchlists from localStorage:', error);
+          }
         }
       }
       
@@ -556,11 +569,13 @@ class ChartTab {
           });
           tickerListContainer.appendChild(item);
         });
+        console.log('[CHART TAB] Loaded', watchlist.tickers.length, 'tickers from watchlist:', watchlistName);
       } else {
         tickerListContainer.innerHTML = '<div style="padding: 12px; color: #666;">No tickers in this watchlist</div>';
+        console.log('[CHART TAB] No tickers found in watchlist:', watchlistName);
       }
     } catch (error) {
-      console.error('Error loading tickers from watchlist:', error);
+      console.error('[CHART TAB] Error loading tickers from watchlist:', error);
     }
   }
   
