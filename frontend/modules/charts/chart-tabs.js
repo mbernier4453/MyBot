@@ -2857,7 +2857,7 @@ async updateLiveInfo(freshWsData = null) {
     try {
       console.log('[EXPORT] Starting CSV export...');
       console.log('[EXPORT] Indicators:', this.indicators);
-      console.log('[EXPORT] Calculated indicators:', this.calculatedIndicators);
+      console.log('[EXPORT] Calculated indicators keys:', Object.keys(this.calculatedIndicators || {}));
       console.log('[EXPORT] Chart data length:', this.chartData?.length);
       console.log('[EXPORT] Overlays:', this.overlays?.length);
       
@@ -2886,11 +2886,13 @@ async updateLiveInfo(freshWsData = null) {
         );
       });
       
-      // Indicator columns
+      // Indicator columns - use human-readable format for headers
       this.indicators.forEach(ind => {
-        // Build parameter string with commas (not tabs)
+        // Build parameter string with commas for readability
         const paramStr = ind.params ? Object.values(ind.params).join(',') : '';
         const indicatorName = paramStr ? `${ind.type}(${paramStr})` : ind.type;
+        
+        console.log(`[EXPORT] Header for ${ind.type}:`, indicatorName);
         
         // Band indicators (BB, KC) have 3 values: upper, middle, lower
         if (ind.type === 'BB' || ind.type === 'KC') {
@@ -2949,6 +2951,9 @@ async updateLiveInfo(freshWsData = null) {
           // Get indicator value for main ticker from stored calculations
           const mainKey = `${this.ticker}_${ind.type}_${JSON.stringify(ind.params)}`;
           const mainIndicatorData = this.calculatedIndicators && this.calculatedIndicators[mainKey];
+          
+          console.log(`[EXPORT] Row ${i} - Looking up ${ind.type} with key:`, mainKey);
+          console.log(`[EXPORT] Row ${i} - Found data:`, mainIndicatorData ? 'YES' : 'NO');
           
           if (mainIndicatorData) {
             // Handle different indicator result formats
