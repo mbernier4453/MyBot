@@ -3869,6 +3869,9 @@ async updateLiveInfo(freshWsData = null) {
     // Load main ticker data
     await this.loadChart();
     
+    // Update live info after chart loads
+    this.updateLiveInfo();
+    
     // Load overlays
     if (preset.overlays && preset.overlays.length > 0) {
       for (const overlay of preset.overlays) {
