@@ -3793,16 +3793,19 @@ async updateLiveInfo(freshWsData = null) {
     // Save to Supabase
     if (window.saveChartPresets) {
       try {
-        await window.saveChartPresets(presets);
+        console.log('[PRESETS] Attempting to save', presets.length, 'presets to Supabase...');
+        const result = await window.saveChartPresets(presets);
         console.log('[PRESETS] ✅ Saved to Supabase:', name);
+        console.log('[PRESETS] Database response:', result);
       } catch (err) {
-        console.error('[PRESETS] Failed to save to Supabase:', err);
+        console.error('[PRESETS] ❌ Failed to save to Supabase:', err);
         console.error('[PRESETS] Error details:', err.message, err.code, err.details);
         // Fallback to localStorage
         localStorage.setItem('chartPresets', JSON.stringify(presets));
         console.log('[PRESETS] Saved to localStorage as fallback');
       }
     } else {
+      console.warn('[PRESETS] saveChartPresets not available, using localStorage');
       localStorage.setItem('chartPresets', JSON.stringify(presets));
     }
     
