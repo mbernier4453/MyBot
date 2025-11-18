@@ -3839,6 +3839,9 @@ async updateLiveInfo(freshWsData = null) {
     this.timeframe = preset.timeframe || '1day';
     this.chartType = preset.chartType || 'candlestick';
     
+    // Update tab label with ticker
+    this.updateTabLabel();
+    
     // Load custom colors
     this.customUpColor = preset.customUpColor;
     this.customDownColor = preset.customDownColor;
