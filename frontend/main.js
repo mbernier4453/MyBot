@@ -349,7 +349,7 @@ async function fetchInitialData() {
             
             if (response.status === 'OK' && response.tickers) {
               response.tickers.forEach(snapshot => {
-                const prevClose = snapshot.prevDay?.c || snapshot.day?.c || 100;
+                const prevClose = snapshot.prevDay?.c || 100;
                 const currentPrice = snapshot.day?.c || prevClose;
                 
                 // Calculate change from previous day's close
@@ -469,7 +469,7 @@ function connectPolygon() {
           
           // Get previous data to preserve prevClose and marketCap
           const prevData = stockData.get(ticker);
-          const prevClose = prevData?.prevClose || msg.c;
+          const prevClose = prevData?.prevClose || null;
           const marketCap = prevData?.marketCap || null; // Keep market cap from initial fetch (no hardcoded fallback)
           const currentPrice = msg.c;
           const change = currentPrice - prevClose;

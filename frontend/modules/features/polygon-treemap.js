@@ -495,7 +495,7 @@ const PolygonTreemap = {
           // Process snapshot data - handle pre-market, market, and after-hours correctly
           snapshotData.tickers.forEach(snapshot => {
             // prevDay.c = yesterday's close (our baseline)
-            const prevClose = snapshot.prevDay?.c || snapshot.day?.c || 100;
+            const prevClose = snapshot.prevDay?.c || 100;
             
             // Determine current price based on market state:
             // - During pre-market/market hours: use latest tick (snapshot.min)
