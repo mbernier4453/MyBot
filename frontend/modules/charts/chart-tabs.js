@@ -1311,10 +1311,12 @@ async updateLiveInfo(freshWsData = null) {
         from.setTime(now.getTime() - (7 * 24 * 60 * 60 * 1000));
         break;
       case '1M':
-        from.setMonth(from.getMonth() - 1);
+        // Use days instead of setMonth to avoid date overflow issues
+        from.setTime(now.getTime() - (30 * 24 * 60 * 60 * 1000));
         break;
       case '3M':
-        from.setMonth(from.getMonth() - 3);
+        // Use days instead of setMonth to avoid date overflow issues (90 days = ~3 months)
+        from.setTime(now.getTime() - (90 * 24 * 60 * 60 * 1000));
         break;
       case 'YTD':
         // Set to January 1st of current year
