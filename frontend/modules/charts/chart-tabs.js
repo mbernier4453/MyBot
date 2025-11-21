@@ -669,10 +669,16 @@ class ChartTab {
     try {
       // Subscribe via Socket.io client
       window.socketIOClient.subscribe([ticker], (data) => {
-        // MERGE WebSocket data with existing data (preserve prevClose!)
+        // WebSocket ONLY updates current price/volume - NEVER touches prevClose
         if (window.treemapData) {
           const existing = window.treemapData.get(data.ticker) || {};
-          window.treemapData.set(data.ticker, { ...existing, ...data });
+          window.treemapData.set(data.ticker, { 
+            ...existing,
+            ticker: data.ticker,
+            close: data.close,
+            volume: data.volume,
+            // prevClose stays from initial REST API fetch
+          });
         }
         
         // Update active chart tabs for this ticker
