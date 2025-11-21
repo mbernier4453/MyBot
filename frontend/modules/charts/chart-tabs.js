@@ -938,23 +938,20 @@ async updateLiveInfo(freshWsData = null) {
           // Cache the prevClose for this trading day - ONLY use prevDay.c (yesterday's close)
           this.cachedPrevClose = snapshot.prevDay?.c || null;
           this.lastDataFetchDay = currentDay;
-          
-          // Get current price based on market state
-          if (snapshot.day?.c) {
-            // Market has closed - use closing price
-            currentPrice = snapshot.day.c;
-          } else if (snapshot.min?.c) {
-            // Pre-market or intraday - use latest tick
-            currentPrice = snapshot.min.c;
-          } else {
-            // Fallback to cached prevClose
-            currentPrice = this.cachedPrevClose;
-          }
-          
-          currentVolume = snapshot.day?.v || snapshot.min?.v || 0;
           prevClose = this.cachedPrevClose;
           
-          console.log(`[LIVE INFO] ${this.ticker} snapshot fetched - prevClose: $${prevClose}, current: $${currentPrice}`);
+          // Don't use snapshot for current price if we have chart data - chart is already correct
+          // Only use snapshot if we need to populate before chart loads
+          if (!this.chartData || this.chartData.length === 0) {
+            if (snapshot.min?.c) {
+              currentPrice = snapshot.min.c;
+            } else if (snapshot.day?.c) {
+              currentPrice = snapshot.day.c;
+            }
+            currentVolume = snapshot.day?.v || snapshot.min?.v || 0;
+          }
+          
+          console.log(`[LIVE INFO] ${this.ticker} snapshot fetched - prevClose: $${prevClose}`);
         }
       } catch (err) {
         console.error(`[LIVE INFO] Error fetching snapshot for ${this.ticker}:`, err);
