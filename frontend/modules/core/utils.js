@@ -291,7 +291,7 @@ export function addWatermark(layout) {
     layout.annotations = [];
   }
   layout.annotations.push({
-    text: 'alpharhythm ™',
+    text: 'alpharhythm™',
     xref: 'paper',
     yref: 'paper',
     x: 0.5,
@@ -301,7 +301,7 @@ export function addWatermark(layout) {
     showarrow: false,
     font: {
       size: 40,
-      color: 'rgba(150, 150, 150, 0.15)',
+      color: 'rgba(150, 150, 150, 0.25)',
       family: 'Arial, sans-serif'
     },
     captureevents: false,
