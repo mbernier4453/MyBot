@@ -939,6 +939,8 @@ async updateLiveInfo(freshWsData = null) {
   const change = prevClose ? currentPrice - prevClose : 0;
   const changePercent = prevClose ? ((change / prevClose) * 100) : 0;
   
+  console.log(`[LIVE INFO] ${this.ticker} - currentPrice: ${currentPrice}, prevClose: ${prevClose}, change%: ${changePercent.toFixed(2)}%`);
+  
   // Update DOM
   const priceEl = content.querySelector('.chart-live-price');
   const changeEl = content.querySelector('.chart-live-change');
