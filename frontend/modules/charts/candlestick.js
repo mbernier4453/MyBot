@@ -324,8 +324,9 @@ function getDateRange(timeframe, interval = 'day') {
       from.setTime(now.getTime() - (30 * 24 * 60 * 60 * 1000));
       break;
     case '3M':
-      // Use days instead of setMonth to avoid date overflow issues (90 days = ~3 months)
-      from.setTime(now.getTime() - (90 * 24 * 60 * 60 * 1000));
+      // Polygon only keeps ~60 days of intraday data, use 60 days for intraday, 90 for daily
+      const daysBack = isIntraday ? 60 : 90;
+      from.setTime(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
       break;
     case '1Y':
       from.setFullYear(from.getFullYear() - 1);
