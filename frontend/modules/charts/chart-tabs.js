@@ -930,25 +930,7 @@ async updateLiveInfo(freshWsData = null) {
       
       changeEl.innerHTML = `<span class="numeric">${isPositive ? '+' : ''}${changePercent.toFixed(2)}%</span>`;
       changeEl.style.backgroundColor = bgColor;
-      
-      // Flash effect ONLY when:
-      // 1. Data came from WebSocket (not snapshot/cached)
-      // 2. Price actually changed from last update
-      // 3. This was triggered by a fresh WebSocket message (not a scheduled refresh)
-      if (usedWebSocketData && freshWsData && this.lastFlashPrice !== currentPrice) {
-        this.lastFlashPrice = currentPrice;
-        
-        // Invert: background becomes white, text becomes the old background color
-        changeEl.style.backgroundColor = 'white';
-        changeEl.style.color = bgColor;
-        
-        setTimeout(() => {
-          changeEl.style.backgroundColor = bgColor;
-          changeEl.style.color = 'white';
-        }, 200);
-      } else {
-        changeEl.style.color = 'white';
-      }
+      changeEl.style.color = 'white';
       
       console.log(`[LIVE INFO] ${this.ticker} change: ${changePercent.toFixed(2)}%`);
     } else if (changeEl) {
