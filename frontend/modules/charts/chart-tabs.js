@@ -946,26 +946,32 @@ async updateLiveInfo(freshWsData = null) {
   
   if (priceEl) priceEl.textContent = `$${currentPrice.toFixed(2)}`;
   if (changeEl) {
-    changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`;
+    const isPositive = changePercent >= 0;
+    const bgColor = isPositive ? '#00aa55' : '#ff4444';
     
-    // Flash effect when using WebSocket data
+    changeEl.innerHTML = `<span class="numeric">${isPositive ? '+' : ''}${changePercent.toFixed(2)}%</span>`;
+    changeEl.style.backgroundColor = bgColor;
+    changeEl.style.color = 'white';
+    
+    // Flash bright when price actually changes (WebSocket data)
     if (usedWebSocketData) {
-      changeEl.style.color = change >= 0 ? '#00ff00' : '#ff0000';
-      setTimeout(() => {
-        changeEl.style.color = 'white';
-      }, 300);
-    } else {
-      changeEl.style.color = 'white';
+      const oldPrice = this.lastDisplayedPrice;
+      if (oldPrice && oldPrice !== currentPrice) {
+        changeEl.style.backgroundColor = isPositive ? '#00ff00' : '#ff0000';
+        setTimeout(() => {
+          changeEl.style.backgroundColor = bgColor;
+        }, 200);
+      }
+      this.lastDisplayedPrice = currentPrice;
     }
   }
   if (volumeEl) {
-    if (currentVolume >= 1000000) {
-      volumeEl.textContent = `${(currentVolume / 1000000).toFixed(2)}M`;
-    } else if (currentVolume >= 1000) {
-      volumeEl.textContent = `${(currentVolume / 1000).toFixed(2)}K`;
-    } else {
-      volumeEl.textContent = currentVolume.toLocaleString();
-    }
+    const volDisplay = currentVolume >= 1e6 
+      ? (currentVolume / 1e6).toFixed(2) + 'M'
+      : currentVolume >= 1e3
+      ? (currentVolume / 1e3).toFixed(1) + 'K'
+      : currentVolume.toFixed(0);
+    volumeEl.innerHTML = `Vol: <span class="numeric">${volDisplay}</span>`;
   }
 }
   
