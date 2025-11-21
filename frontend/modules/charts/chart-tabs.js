@@ -669,9 +669,10 @@ class ChartTab {
     try {
       // Subscribe via Socket.io client
       window.socketIOClient.subscribe([ticker], (data) => {
-        // Update treemapData with incoming data
+        // MERGE WebSocket data with existing data (preserve prevClose!)
         if (window.treemapData) {
-          window.treemapData.set(data.ticker, data);
+          const existing = window.treemapData.get(data.ticker) || {};
+          window.treemapData.set(data.ticker, { ...existing, ...data });
         }
         
         // Update active chart tabs for this ticker
