@@ -885,16 +885,12 @@ async updateLiveInfo(freshWsData = null) {
   // Don't update if chart data hasn't loaded yet
   if (!this.chartData || this.chartData.length === 0) return;
   
+  const isMarketOpen = this.isMarketOpen();
   const content = this.contentElement;
   const tickerEl = content.querySelector('.chart-live-ticker');
   if (tickerEl) tickerEl.textContent = this.ticker;
   
-  // SIMPLE: Get current price from chart data
-  const lastBar = this.chartData[this.chartData.length - 1];
-  const currentPrice = lastBar.c;
-  const currentVolume = lastBar.v;
-  
-  // SIMPLE: Get prevClose from REST API if not cached
+  // Get prevClose from REST API if not cached
   let prevClose = this.cachedPrevClose;
   if (!prevClose) {
     const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
@@ -912,53 +908,66 @@ async updateLiveInfo(freshWsData = null) {
       }
     }
   }
-    
-    // Update price
-    const priceEl = content.querySelector('.chart-live-price');
-    if (priceEl && currentPrice) {
-      priceEl.textContent = `$${currentPrice.toFixed(2)}`;
-    } else if (priceEl) {
-      priceEl.textContent = '--';
-    }
-    
-    // Update % change (from previous day close)
-    const changeEl = content.querySelector('.chart-live-change');
-    if (changeEl && currentPrice && prevClose) {
-      const changePercent = ((currentPrice - prevClose) / prevClose) * 100;
-      const isPositive = changePercent >= 0;
-      const bgColor = isPositive ? '#00aa55' : '#ff4444';
-      
-      changeEl.innerHTML = `<span class="numeric">${isPositive ? '+' : ''}${changePercent.toFixed(2)}%</span>`;
-      changeEl.style.backgroundColor = bgColor;
-      changeEl.style.color = 'white';
-      
-      console.log(`[LIVE INFO] ${this.ticker} change: ${changePercent.toFixed(2)}%`);
-    } else if (changeEl) {
-      changeEl.textContent = '--';
-      changeEl.style.backgroundColor = '#666';
-    }
-    
-    // Update volume
-    const volumeEl = content.querySelector('.chart-live-volume');
-    if (volumeEl && currentVolume) {
-      const volDisplay = currentVolume >= 1e6 
-        ? (currentVolume / 1e6).toFixed(2) + 'M'
-        : currentVolume >= 1e3
-        ? (currentVolume / 1e3).toFixed(1) + 'K'
-        : currentVolume.toFixed(0);
-      volumeEl.innerHTML = `Vol: <span class="numeric">${volDisplay}</span>`;
-    } else if (volumeEl) {
-      volumeEl.textContent = 'Vol: --';
-    }
-    
-    // Update market cap
-    const marketCapEl = content.querySelector('.chart-live-marketcap');
-    if (marketCapEl && wsData && wsData.marketCap) {
-      marketCapEl.innerHTML = 'MCap: <span class="numeric">$' + (wsData.marketCap / 1e9).toFixed(2) + 'B</span>';
-    } else if (marketCapEl) {
-      marketCapEl.textContent = '';
+  
+  // Get current price - use WebSocket if market open, otherwise chart data
+  let currentPrice, currentVolume;
+  let usedWebSocketData = false;
+  
+  if (isMarketOpen && freshWsData && freshWsData.ticker === this.ticker) {
+    // Live data from WebSocket
+    currentPrice = freshWsData.close;
+    currentVolume = freshWsData.volume;
+    usedWebSocketData = true;
+  } else if (isMarketOpen && window.treemapData) {
+    // Try cached WebSocket data
+    const wsData = window.treemapData.get(this.ticker);
+    if (wsData && wsData.close) {
+      currentPrice = wsData.close;
+      currentVolume = wsData.volume;
+      usedWebSocketData = true;
     }
   }
+  
+  // Fallback to chart data
+  if (!currentPrice) {
+    const lastBar = this.chartData[this.chartData.length - 1];
+    currentPrice = lastBar.c;
+    currentVolume = lastBar.v;
+  }
+  
+  // Calculate change
+  const change = prevClose ? currentPrice - prevClose : 0;
+  const changePercent = prevClose ? ((change / prevClose) * 100) : 0;
+  
+  // Update DOM
+  const priceEl = content.querySelector('.chart-live-price');
+  const changeEl = content.querySelector('.chart-live-change');
+  const volumeEl = content.querySelector('.chart-live-volume');
+  
+  if (priceEl) priceEl.textContent = `$${currentPrice.toFixed(2)}`;
+  if (changeEl) {
+    changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`;
+    
+    // Flash effect when using WebSocket data
+    if (usedWebSocketData) {
+      changeEl.style.color = change >= 0 ? '#00ff00' : '#ff0000';
+      setTimeout(() => {
+        changeEl.style.color = 'white';
+      }, 300);
+    } else {
+      changeEl.style.color = 'white';
+    }
+  }
+  if (volumeEl) {
+    if (currentVolume >= 1000000) {
+      volumeEl.textContent = `${(currentVolume / 1000000).toFixed(2)}M`;
+    } else if (currentVolume >= 1000) {
+      volumeEl.textContent = `${(currentVolume / 1000).toFixed(2)}K`;
+    } else {
+      volumeEl.textContent = currentVolume.toLocaleString();
+    }
+  }
+}
   
   updateCandlePercentage(bars) {
     if (!bars || bars.length === 0) return;
