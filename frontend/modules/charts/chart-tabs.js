@@ -976,12 +976,26 @@ async updateLiveInfo(freshWsData = null) {
       currentVolume = lastBar.v;
       prevClose = this.cachedPrevClose;
       
-      // Fallback to previous bar if no cached prevClose
-      if (!prevClose && this.chartData.length >= 2) {
-        prevClose = this.chartData[this.chartData.length - 2].c;
-        console.log(`[LIVE INFO] ${this.ticker} CLOSE (using prev bar as fallback): $${currentPrice} (prev: $${prevClose})`);
-      } else if (prevClose) {
-        console.log(`[LIVE INFO] ${this.ticker} CLOSE (using cached prevClose): $${currentPrice} (prev: $${prevClose})`);
+      // If no cached prevClose, use the /prev API endpoint for accurate previous trading day
+      if (!prevClose) {
+        const apiKey = window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY;
+        if (apiKey) {
+          try {
+            const prevResponse = await fetch(`https://api.polygon.io/v2/aggs/ticker/${this.ticker}/prev?adjusted=true&apiKey=${apiKey}`);
+            const prevData = await prevResponse.json();
+            if (prevData.results && prevData.results[0]) {
+              prevClose = prevData.results[0].c;
+              this.cachedPrevClose = prevClose; // Cache it
+              console.log(`[LIVE INFO] ${this.ticker} fetched prev day close: $${prevClose}`);
+            }
+          } catch (err) {
+            console.error(`[LIVE INFO] Error fetching prev close for ${this.ticker}:`, err);
+          }
+        }
+      }
+      
+      if (prevClose) {
+        console.log(`[LIVE INFO] ${this.ticker} CLOSE: $${currentPrice} (prev: $${prevClose})`);
       }
     }
   }
