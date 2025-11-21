@@ -935,8 +935,8 @@ async updateLiveInfo(freshWsData = null) {
         if (snapshotData.status === 'OK' && snapshotData.tickers?.[0]) {
           const snapshot = snapshotData.tickers[0];
           
-          // Cache the prevClose for this trading day
-          this.cachedPrevClose = snapshot.prevDay?.c || snapshot.day?.c || null;
+          // Cache the prevClose for this trading day - ONLY use prevDay.c (yesterday's close)
+          this.cachedPrevClose = snapshot.prevDay?.c || null;
           this.lastDataFetchDay = currentDay;
           
           // Get current price based on market state
