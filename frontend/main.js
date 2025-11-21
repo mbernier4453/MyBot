@@ -469,8 +469,14 @@ function connectPolygon() {
           
           // Get previous data to preserve prevClose and marketCap
           const prevData = stockData.get(ticker);
-          const prevClose = prevData?.prevClose || null;
-          const marketCap = prevData?.marketCap || null; // Keep market cap from initial fetch (no hardcoded fallback)
+          
+          // CRITICAL: Don't process WebSocket updates until we have prevClose from initial snapshot
+          if (!prevData || !prevData.prevClose) {
+            return; // Skip this update, wait for snapshot data first
+          }
+          
+          const prevClose = prevData.prevClose;
+          const marketCap = prevData.marketCap || null; // Keep market cap from initial fetch (no hardcoded fallback)
           const currentPrice = msg.c;
           const change = currentPrice - prevClose;
           const changePercent = prevClose > 0 ? ((change / prevClose) * 100) : 0;
