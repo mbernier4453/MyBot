@@ -511,34 +511,6 @@
   </div>
 
   <script>
-    console.log('[AUTH] Inline script loading...');
-    
-    // Debug: Check if buttons exist and add test listeners
-    document.addEventListener('DOMContentLoaded', () => {
-      console.log('[AUTH] DOM loaded, checking buttons...');
-      const loginBtns = document.querySelectorAll('button[onclick*="showSignIn"]');
-      const signupBtns = document.querySelectorAll('button[onclick*="showSignUp"]');
-      console.log('[AUTH] Found login buttons:', loginBtns.length);
-      console.log('[AUTH] Found signup buttons:', signupBtns.length);
-      
-      // Add direct click listeners as backup
-      loginBtns.forEach((btn, i) => {
-        console.log(`[AUTH] Login button ${i}:`, btn.outerHTML.substring(0, 100));
-        btn.addEventListener('click', (e) => {
-          console.log('[AUTH] Direct click listener fired on login button!');
-          window.showSignIn();
-        });
-      });
-      
-      signupBtns.forEach((btn, i) => {
-        console.log(`[AUTH] Signup button ${i}:`, btn.outerHTML.substring(0, 100));
-        btn.addEventListener('click', (e) => {
-          console.log('[AUTH] Direct click listener fired on signup button!');
-          window.showSignUp();
-        });
-      });
-    });
-    
     // Page navigation
     function showPage(pageId, event) {
       if (event) event.preventDefault();
@@ -561,57 +533,20 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    // Show auth modal functions - MUST be global for inline onclick
+    // Show auth modal functions
     window.showSignIn = function() {
-      console.log('[AUTH] showSignIn called');
       const modal = document.getElementById('authModal');
-      console.log('[AUTH] Modal element:', modal);
-      console.log('[AUTH] Modal current display:', modal?.style.display);
-      console.log('[AUTH] Modal computed display:', window.getComputedStyle(modal).display);
-      if (modal) {
-        modal.style.display = 'flex';
-        modal.style.visibility = 'visible';
-        modal.style.opacity = '1';
-        console.log('[AUTH] Modal display after set:', modal.style.display);
-        document.getElementById('signInForm')?.classList.add('active');
-        document.getElementById('signUpForm')?.classList.remove('active');
-        console.log('[AUTH] Modal shown, checking visibility...');
-        setTimeout(() => {
-          console.log('[AUTH] Final modal display:', window.getComputedStyle(modal).display);
-          console.log('[AUTH] Final modal visibility:', window.getComputedStyle(modal).visibility);
-          console.log('[AUTH] Final modal opacity:', window.getComputedStyle(modal).opacity);
-        }, 100);
-      } else {
-        console.error('[AUTH] Modal element not found!');
-      }
+      modal.style.display = 'flex';
+      document.getElementById('signInForm').classList.add('active');
+      document.getElementById('signUpForm').classList.remove('active');
     };
 
     window.showSignUp = function() {
-      console.log('[AUTH] showSignUp called');
       const modal = document.getElementById('authModal');
-      console.log('[AUTH] Modal element:', modal);
-      console.log('[AUTH] Modal current display:', modal?.style.display);
-      console.log('[AUTH] Modal computed display:', window.getComputedStyle(modal).display);
-      if (modal) {
-        modal.style.display = 'flex';
-        modal.style.visibility = 'visible';
-        modal.style.opacity = '1';
-        console.log('[AUTH] Modal display after set:', modal.style.display);
-        document.getElementById('signUpForm')?.classList.add('active');
-        document.getElementById('signInForm')?.classList.remove('active');
-        console.log('[AUTH] Modal shown, checking visibility...');
-        setTimeout(() => {
-          console.log('[AUTH] Final modal display:', window.getComputedStyle(modal).display);
-          console.log('[AUTH] Final modal visibility:', window.getComputedStyle(modal).visibility);
-          console.log('[AUTH] Final modal opacity:', window.getComputedStyle(modal).opacity);
-        }, 100);
-      } else {
-        console.error('[AUTH] Modal element not found!');
-      }
+      modal.style.display = 'flex';
+      document.getElementById('signUpForm').classList.add('active');
+      document.getElementById('signInForm').classList.remove('active');
     };
-    
-    console.log('[AUTH] Functions defined. window.showSignIn:', typeof window.showSignIn);
-    console.log('[AUTH] Functions defined. window.showSignUp:', typeof window.showSignUp);
 
     // Close modal when clicking outside
     document.getElementById('authModal')?.addEventListener('click', (e) => {
