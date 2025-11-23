@@ -30,14 +30,10 @@ class DrawingTools {
     // Available drawing tools
     this.tools = [
       { id: 'pan', icon: '↔', title: 'Pan (default)', category: 'basic' },
-      { id: 'zoom', icon: '⊕', title: 'Zoom Box', category: 'basic' },
-      { id: 'select', icon: '▢', title: 'Box Select', category: 'basic' },
       { id: 'drawing', icon: '✏', title: 'Select/Edit Drawing', category: 'basic' },
       { id: 'trendline', icon: '/', title: 'Trend Line', category: 'lines' },
       { id: 'horizontal', icon: '─', title: 'Horizontal Line', category: 'lines' },
       { id: 'vertical', icon: '│', title: 'Vertical Line', category: 'lines' },
-      { id: 'ray', icon: '→', title: 'Ray', category: 'lines' },
-      { id: 'channel', icon: '⫽', title: 'Channel', category: 'lines' },
       { id: 'fibonacci', icon: 'φ', title: 'Fibonacci Retracement', category: 'fibonacci' },
       { id: 'fib-extension', icon: 'Φ', title: 'Fibonacci Extension', category: 'fibonacci' },
       { id: 'rectangle', icon: '▭', title: 'Rectangle', category: 'shapes' },
@@ -1091,10 +1087,10 @@ class DrawingTools {
           return;
         }
         
-        // Create annotation with user's text
+        // Create annotation with user's text at end point
         const annotation = {
-          x: dataX1,
-          y: dataY1,
+          x: dataX2,
+          y: dataY2,
           text: userText,
           showarrow: false,
           font: {
@@ -1102,7 +1098,8 @@ class DrawingTools {
             color: '#2196F3'
           },
           bgcolor: 'rgba(0,0,0,0.7)',
-          borderpad: 4
+          borderpad: 4,
+          captureevents: true
         };
         
         const currentAnnotations = chartCanvas.plotlyChart.layout.annotations || [];
@@ -1179,6 +1176,7 @@ class DrawingTools {
       // Create the line
       shape.line.width = 2;
       shape.line.color = percentChange >= 0 ? '#4CAF50' : '#F44336';
+      shape.editable = true;
       
       // Create label annotation with stats
       const midX = (dataX1 + dataX2) / 2;
@@ -1198,6 +1196,8 @@ class DrawingTools {
           color: '#FFFFFF'
         },
         bgcolor: percentChange >= 0 ? 'rgba(76, 175, 80, 0.8)' : 'rgba(244, 67, 54, 0.8)',
+        captureevents: true,
+        editable: true,
         borderpad: 4,
         bordercolor: percentChange >= 0 ? '#4CAF50' : '#F44336',
         borderwidth: 1
