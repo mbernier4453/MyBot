@@ -665,7 +665,7 @@ function lightenColor(color, factor) {
 // ==================== KEYBOARD SHORTCUTS ====================
 
 // Main tabs for navigation
-const MAIN_TABS = ['home', 'watchlists', 'charting', 'financials', 'rsi', 'backtesting', 'results'];
+const MAIN_TABS = ['home', 'watchlists', 'charting', 'financials', 'rsi'];
 
 // Function to switch main navigation tabs
 function switchMainTab(tabName) {
