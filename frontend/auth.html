@@ -513,6 +513,32 @@
   <script>
     console.log('[AUTH] Inline script loading...');
     
+    // Debug: Check if buttons exist and add test listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('[AUTH] DOM loaded, checking buttons...');
+      const loginBtns = document.querySelectorAll('button[onclick*="showSignIn"]');
+      const signupBtns = document.querySelectorAll('button[onclick*="showSignUp"]');
+      console.log('[AUTH] Found login buttons:', loginBtns.length);
+      console.log('[AUTH] Found signup buttons:', signupBtns.length);
+      
+      // Add direct click listeners as backup
+      loginBtns.forEach((btn, i) => {
+        console.log(`[AUTH] Login button ${i}:`, btn.outerHTML.substring(0, 100));
+        btn.addEventListener('click', (e) => {
+          console.log('[AUTH] Direct click listener fired on login button!');
+          window.showSignIn();
+        });
+      });
+      
+      signupBtns.forEach((btn, i) => {
+        console.log(`[AUTH] Signup button ${i}:`, btn.outerHTML.substring(0, 100));
+        btn.addEventListener('click', (e) => {
+          console.log('[AUTH] Direct click listener fired on signup button!');
+          window.showSignUp();
+        });
+      });
+    });
+    
     // Page navigation
     function showPage(pageId, event) {
       if (event) event.preventDefault();
