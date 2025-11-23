@@ -628,6 +628,9 @@ class ChartTab {
   async setTicker(ticker, updateGroup = true) {
     console.log(`%c[ChartTab ${this.id}] setTicker`, 'color: cyan', 'ticker:', ticker, 'current:', this.ticker, 'updateGroup:', updateGroup, 'tabElement exists:', !!this.tabElement);
     
+    // Clear cached prevClose when changing tickers to prevent using old ticker's price
+    this.cachedPrevClose = null;
+    
     // Set loading flag to prevent updateLiveInfo from using stale data
     this.isLoadingChart = true;
     
