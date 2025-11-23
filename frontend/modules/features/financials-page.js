@@ -45,6 +45,8 @@ const FinancialsPage = {
             if (input && input.value !== ticker) {
               console.log('[FINANCIALS] Group', this.currentGroup, 'changed to ticker', ticker);
               input.value = ticker;
+              this.currentTickers = [ticker];
+              this.currentTickerIndex = 0;
               this.loadFinancials(ticker);
             }
           };
