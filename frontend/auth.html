@@ -3,15 +3,313 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>αlpharhythm - Welcome</title>
+  <title>αlpharhythm - Market Intelligence Platform</title>
   <link rel="stylesheet" href="auth.css?v=20250102">
+  <link rel="stylesheet" href="auth-landing.css?v=20250102">
   <!-- Fonts: Sanskrit for text, Quantico for numbers -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700&family=Tiro+Devanagari+Sanskrit:ital@0;1&family=Quantico:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="auth-container">
+  <!-- Navigation -->
+  <nav class="main-nav">
+    <div class="nav-container">
+      <div class="nav-brand">
+        <h1 class="brand-logo">αlpharhythm</h1>
+      </div>
+      <div class="nav-links">
+        <a href="#home" onclick="showPage('home', event)">Home</a>
+        <a href="#products" onclick="showPage('products', event)">Products</a>
+        <a href="#pricing" onclick="showPage('pricing', event)">Pricing</a>
+        <a href="#learning" onclick="showPage('learning', event)">Learning</a>
+      </div>
+      <div class="nav-actions">
+        <button class="btn-text" onclick="showSignIn()">Login</button>
+        <button class="btn-primary" onclick="showSignUp()">Sign Up</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Home Page -->
+  <div id="homePage" class="page-section active">
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="hero-content">
+        <h1 class="hero-title">Professional Market Intelligence</h1>
+        <p class="hero-subtitle">Advanced analytics, real-time data, and algorithmic backtesting for serious traders</p>
+        <div class="hero-actions">
+          <button class="btn-primary btn-large" onclick="showSignUp()">Get Started Free</button>
+          <button class="btn-secondary btn-large" onclick="showPage('products', event)">Explore Features</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Overview -->
+    <section class="features-section">
+      <div class="container">
+        <h2 class="section-title">Everything You Need to Analyze Markets</h2>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Live Market Data</h3>
+            <p>Real-time S&P 500 treemaps with sector analysis and WebSocket-powered live updates</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📈</div>
+            <h3>Advanced Charting</h3>
+            <p>Multi-ticker overlays, technical indicators, regression analysis, and professional drawing tools</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">💼</div>
+            <h3>Fundamental Analysis</h3>
+            <p>Complete financial statements, valuation ratios, and performance metrics across timeframes</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🤖</div>
+            <h3>Algorithmic Backtesting</h3>
+            <p>Test trading strategies with technical indicators, multi-ticker portfolios, and performance analytics</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🎯</div>
+            <h3>Ticker Groups</h3>
+            <p>Organize and analyze related securities with synchronized navigation across all tools</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📱</div>
+            <h3>Watchlists</h3>
+            <p>Custom ticker collections with instant access and multi-platform synchronization</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Products Page -->
+  <div id="productsPage" class="page-section">
+    <section class="products-hero">
+      <div class="container">
+        <h1 class="section-title">Products & Features</h1>
+        <p class="section-subtitle">Professional-grade tools for market analysis and trading strategy development</p>
+      </div>
+    </section>
+
+    <section class="product-details">
+      <div class="container">
+        <div class="product-feature">
+          <div class="feature-content">
+            <h2>Market Treemap Visualization</h2>
+            <p>Interactive treemap displaying 500+ stocks color-coded by performance. View market structure by sector, identify trends at a glance, and drill down into individual positions.</p>
+            <ul class="feature-list">
+              <li>Real-time WebSocket updates</li>
+              <li>Sector-based organization</li>
+              <li>Market cap weighting</li>
+              <li>One-click navigation to detailed analysis</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="placeholder-visual">📊 Treemap Preview</div>
+          </div>
+        </div>
+
+        <div class="product-feature reverse">
+          <div class="feature-content">
+            <h2>Professional Charting Suite</h2>
+            <p>Multi-timeframe candlestick charts with extensive indicator library, overlay capabilities, and regression analysis tools.</p>
+            <ul class="feature-list">
+              <li>20+ technical indicators (RSI, MACD, Bollinger Bands, etc.)</li>
+              <li>Multi-ticker overlays with correlation analysis</li>
+              <li>Drawing tools (trendlines, support/resistance)</li>
+              <li>Extended hours data support</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="placeholder-visual">📈 Chart Preview</div>
+          </div>
+        </div>
+
+        <div class="product-feature">
+          <div class="feature-content">
+            <h2>Algorithmic Backtesting Engine</h2>
+            <p>Test trading strategies with historical data using technical indicators and customizable entry/exit conditions.</p>
+            <ul class="feature-list">
+              <li>Multi-ticker portfolio backtesting</li>
+              <li>Risk metrics (Sharpe, Sortino, Max Drawdown)</li>
+              <li>Trade-by-trade analysis</li>
+              <li>Equity curve visualization vs benchmarks</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="placeholder-visual">🤖 Backtest Preview</div>
+          </div>
+        </div>
+
+        <div class="product-feature reverse">
+          <div class="feature-content">
+            <h2>Fundamental Data & Ratios</h2>
+            <p>Deep dive into company financials with quarterly and annual statements, calculated ratios, and trend analysis.</p>
+            <ul class="feature-list">
+              <li>Balance sheet, income statement, cash flow</li>
+              <li>20+ financial ratios (P/E, ROE, Debt/Equity, etc.)</li>
+              <li>Historical trend charts</li>
+              <li>Quarter-over-quarter growth metrics</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="placeholder-visual">💼 Financials Preview</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Pricing Page -->
+  <div id="pricingPage" class="page-section">
+    <section class="pricing-hero">
+      <div class="container">
+        <h1 class="section-title">Simple, Transparent Pricing</h1>
+        <p class="section-subtitle">Choose the plan that fits your trading needs</p>
+      </div>
+    </section>
+
+    <section class="pricing-cards">
+      <div class="container">
+        <div class="pricing-grid">
+          <div class="pricing-card">
+            <div class="pricing-header">
+              <h3>Free</h3>
+              <div class="price">$0<span>/month</span></div>
+            </div>
+            <ul class="pricing-features">
+              <li>✓ Live market treemap</li>
+              <li>✓ Basic charting (delayed data)</li>
+              <li>✓ 3 watchlists</li>
+              <li>✓ Limited backtesting</li>
+              <li>✗ Real-time data</li>
+              <li>✗ Advanced indicators</li>
+              <li>✗ Portfolio backtesting</li>
+            </ul>
+            <button class="btn-secondary btn-block" onclick="showSignUp()">Get Started</button>
+          </div>
+
+          <div class="pricing-card featured">
+            <div class="badge">Most Popular</div>
+            <div class="pricing-header">
+              <h3>Pro</h3>
+              <div class="price">$29<span>/month</span></div>
+            </div>
+            <ul class="pricing-features">
+              <li>✓ Everything in Free</li>
+              <li>✓ Real-time WebSocket data</li>
+              <li>✓ All technical indicators</li>
+              <li>✓ Unlimited watchlists</li>
+              <li>✓ Multi-ticker overlays</li>
+              <li>✓ Advanced backtesting</li>
+              <li>✓ Fundamental data access</li>
+            </ul>
+            <button class="btn-primary btn-block" onclick="showSignUp()">Start Free Trial</button>
+          </div>
+
+          <div class="pricing-card">
+            <div class="pricing-header">
+              <h3>Enterprise</h3>
+              <div class="price">Custom</div>
+            </div>
+            <ul class="pricing-features">
+              <li>✓ Everything in Pro</li>
+              <li>✓ API access</li>
+              <li>✓ White-label options</li>
+              <li>✓ Dedicated support</li>
+              <li>✓ Custom integrations</li>
+              <li>✓ Team collaboration</li>
+              <li>✓ Priority feature requests</li>
+            </ul>
+            <button class="btn-secondary btn-block" onclick="alert('Contact: michael@alpharhythm.io')">Contact Sales</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Learning Page -->
+  <div id="learningPage" class="page-section">
+    <section class="learning-hero">
+      <div class="container">
+        <h1 class="section-title">Learning Center</h1>
+        <p class="section-subtitle">Master the platform and improve your trading strategies</p>
+      </div>
+    </section>
+
+    <section class="learning-content">
+      <div class="container">
+        <div class="learning-categories">
+          <div class="learning-card">
+            <h3>📚 Getting Started</h3>
+            <ul>
+              <li><a href="#">Platform Overview</a></li>
+              <li><a href="#">Creating Your First Watchlist</a></li>
+              <li><a href="#">Understanding Ticker Groups</a></li>
+              <li><a href="#">Navigating the Interface</a></li>
+            </ul>
+          </div>
+
+          <div class="learning-card">
+            <h3>📊 Charting & Analysis</h3>
+            <ul>
+              <li><a href="#">Technical Indicators Guide</a></li>
+              <li><a href="#">Multi-Ticker Overlays</a></li>
+              <li><a href="#">Drawing Tools Tutorial</a></li>
+              <li><a href="#">Regression Analysis Explained</a></li>
+            </ul>
+          </div>
+
+          <div class="learning-card">
+            <h3>🤖 Backtesting</h3>
+            <ul>
+              <li><a href="#">Building Your First Strategy</a></li>
+              <li><a href="#">Understanding Entry/Exit Conditions</a></li>
+              <li><a href="#">Portfolio Backtesting</a></li>
+              <li><a href="#">Interpreting Performance Metrics</a></li>
+            </ul>
+          </div>
+
+          <div class="learning-card">
+            <h3>💼 Fundamental Analysis</h3>
+            <ul>
+              <li><a href="#">Reading Financial Statements</a></li>
+              <li><a href="#">Key Financial Ratios</a></li>
+              <li><a href="#">Valuation Metrics Guide</a></li>
+              <li><a href="#">Quarterly vs Annual Data</a></li>
+            </ul>
+          </div>
+
+          <div class="learning-card">
+            <h3>🎓 Advanced Topics</h3>
+            <ul>
+              <li><a href="#">Risk Management Strategies</a></li>
+              <li><a href="#">Statistical Analysis Methods</a></li>
+              <li><a href="#">Market Correlation Studies</a></li>
+              <li><a href="#">Algorithmic Trading Principles</a></li>
+            </ul>
+          </div>
+
+          <div class="learning-card">
+            <h3>❓ FAQ & Support</h3>
+            <ul>
+              <li><a href="#">Common Questions</a></li>
+              <li><a href="#">Troubleshooting Guide</a></li>
+              <li><a href="#">Data Sources & Accuracy</a></li>
+              <li><a href="#">Contact Support</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Auth Modal Container (hidden by default) -->
+  <div id="authModal" class="auth-modal" style="display: none;">
+    <div class="auth-container">
     <!-- Left side - Branding -->
     <div class="brand-side">
       <div class="brand-content">
@@ -206,8 +504,61 @@
         </form>
       </div>
     </div>
+    </div>
   </div>
 
+  <script>
+    // Page navigation
+    function showPage(pageId, event) {
+      if (event) event.preventDefault();
+      
+      // Hide all pages
+      document.querySelectorAll('.page-section').forEach(page => {
+        page.classList.remove('active');
+      });
+      
+      // Show selected page
+      document.getElementById(pageId + 'Page').classList.add('active');
+      
+      // Update nav active state
+      document.querySelectorAll('.nav-links a').forEach(link => {
+        link.classList.remove('active');
+      });
+      event?.target.classList.add('active');
+      
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Show auth modal functions
+    function showSignIn() {
+      document.getElementById('authModal').style.display = 'flex';
+      document.getElementById('signInForm').classList.add('active');
+      document.getElementById('signUpForm').classList.remove('active');
+    }
+
+    function showSignUp() {
+      document.getElementById('authModal').style.display = 'flex';
+      document.getElementById('signUpForm').classList.add('active');
+      document.getElementById('signInForm').classList.remove('active');
+    }
+
+    // Close modal when clicking outside
+    document.getElementById('authModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'authModal') {
+        document.getElementById('authModal').style.display = 'none';
+      }
+    });
+
+    // Close modal on escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.getElementById('authModal').style.display = 'none';
+        closeForgotPassword();
+        closeTerms();
+      }
+    });
+  </script>
   <script type="module" src="auth.js"></script>
 </body>
 </html>
