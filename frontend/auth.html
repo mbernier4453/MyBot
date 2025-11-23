@@ -566,11 +566,21 @@
       console.log('[AUTH] showSignIn called');
       const modal = document.getElementById('authModal');
       console.log('[AUTH] Modal element:', modal);
+      console.log('[AUTH] Modal current display:', modal?.style.display);
+      console.log('[AUTH] Modal computed display:', window.getComputedStyle(modal).display);
       if (modal) {
         modal.style.display = 'flex';
+        modal.style.visibility = 'visible';
+        modal.style.opacity = '1';
+        console.log('[AUTH] Modal display after set:', modal.style.display);
         document.getElementById('signInForm')?.classList.add('active');
         document.getElementById('signUpForm')?.classList.remove('active');
-        console.log('[AUTH] Modal shown');
+        console.log('[AUTH] Modal shown, checking visibility...');
+        setTimeout(() => {
+          console.log('[AUTH] Final modal display:', window.getComputedStyle(modal).display);
+          console.log('[AUTH] Final modal visibility:', window.getComputedStyle(modal).visibility);
+          console.log('[AUTH] Final modal opacity:', window.getComputedStyle(modal).opacity);
+        }, 100);
       } else {
         console.error('[AUTH] Modal element not found!');
       }
@@ -580,11 +590,21 @@
       console.log('[AUTH] showSignUp called');
       const modal = document.getElementById('authModal');
       console.log('[AUTH] Modal element:', modal);
+      console.log('[AUTH] Modal current display:', modal?.style.display);
+      console.log('[AUTH] Modal computed display:', window.getComputedStyle(modal).display);
       if (modal) {
         modal.style.display = 'flex';
+        modal.style.visibility = 'visible';
+        modal.style.opacity = '1';
+        console.log('[AUTH] Modal display after set:', modal.style.display);
         document.getElementById('signUpForm')?.classList.add('active');
         document.getElementById('signInForm')?.classList.remove('active');
-        console.log('[AUTH] Modal shown');
+        console.log('[AUTH] Modal shown, checking visibility...');
+        setTimeout(() => {
+          console.log('[AUTH] Final modal display:', window.getComputedStyle(modal).display);
+          console.log('[AUTH] Final modal visibility:', window.getComputedStyle(modal).visibility);
+          console.log('[AUTH] Final modal opacity:', window.getComputedStyle(modal).opacity);
+        }, 100);
       } else {
         console.error('[AUTH] Modal element not found!');
       }
