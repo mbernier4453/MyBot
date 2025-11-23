@@ -1,14 +1,23 @@
 import { signIn, signUp } from './supabase-client.js';
 
-// Form switching
+// Show modal and switch to sign in
 function showSignIn() {
-  document.getElementById('signInForm').classList.add('active');
-  document.getElementById('signUpForm').classList.remove('active');
+  const modal = document.getElementById('authModal');
+  if (modal) {
+    modal.style.display = 'flex';
+    document.getElementById('signInForm').classList.add('active');
+    document.getElementById('signUpForm').classList.remove('active');
+  }
 }
 
+// Show modal and switch to sign up
 function showSignUp() {
-  document.getElementById('signInForm').classList.remove('active');
-  document.getElementById('signUpForm').classList.add('active');
+  const modal = document.getElementById('authModal');
+  if (modal) {
+    modal.style.display = 'flex';
+    document.getElementById('signUpForm').classList.add('active');
+    document.getElementById('signInForm').classList.remove('active');
+  }
 }
 
 // Sign In Handler
@@ -305,7 +314,7 @@ window.handleForgotPassword = handleForgotPassword;
 // Run on page load
 checkAuth();
 
-// Attach form handlers
+// Attach form handlers and button listeners
 document.addEventListener('DOMContentLoaded', () => {
   const signInForm = document.getElementById('signInForm');
   const signUpForm = document.getElementById('signUpForm');
@@ -317,4 +326,36 @@ document.addEventListener('DOMContentLoaded', () => {
   if (signUpForm) {
     signUpForm.addEventListener('submit', handleSignUp);
   }
+  
+  // Attach click listeners to all auth buttons
+  document.querySelectorAll('button[onclick*="showSignIn"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      showSignIn();
+    });
+  });
+  
+  document.querySelectorAll('button[onclick*="showSignUp"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      showSignUp();
+    });
+  });
+  
+  // Close modal on click outside
+  const modal = document.getElementById('authModal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target.id === 'authModal') {
+        modal.style.display = 'none';
+      }
+    });
+  }
+  
+  // Close modal on escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal) {
+      modal.style.display = 'none';
+    }
+  });
 });
