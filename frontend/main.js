@@ -359,17 +359,6 @@ async function fetchInitialData() {
                 // Use real market cap from API fetch
                 const marketCap = marketCaps.get(snapshot.ticker) || null;
                 
-                // Debug logging for PLTR
-                if (snapshot.ticker === 'PLTR') {
-                  console.log(`[POLYGON] PLTR initial data:`, {
-                    prevDayClose: snapshot.prevDay?.c,
-                    dayClose: snapshot.day?.c,
-                    calculatedPrevClose: prevClose,
-                    currentPrice: currentPrice,
-                    changePercent: changePercent.toFixed(2) + '%'
-                  });
-                }
-                
                 // Log first ticker to verify data structure
                 if (batchIndex === 0 && totalCount === 0) {
                   console.log(`[POLYGON] Sample data for ${snapshot.ticker}:`, {

@@ -99,9 +99,13 @@ const FinancialsPage = {
     // Timeframe selector
     document.querySelectorAll('input[name="financialsTimeframe"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
+        console.log('[FINANCIALS] Timeframe changed to:', e.target.value);
         this.currentTimeframe = e.target.value;
         if (this.currentTickers.length > 0) {
+          console.log('[FINANCIALS] Reloading financials for:', this.currentTickers[this.currentTickerIndex]);
           this.loadFinancials(this.currentTickers[this.currentTickerIndex]);
+        } else {
+          console.log('[FINANCIALS] No tickers loaded, skipping reload');
         }
       });
     });
