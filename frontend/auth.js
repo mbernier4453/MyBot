@@ -171,6 +171,14 @@ async function checkAuth() {
     const accessToken = hashParams.get('access_token');
     const type = hashParams.get('type');
     
+    // Don't auto-redirect if maintenance bypass is active (user is in dev mode)
+    const urlParams = new URLSearchParams(window.location.search);
+    const bypassKey = urlParams.get('bypass');
+    if (bypassKey === 'alpha2025dev') {
+      console.log('[AUTH] Bypass key detected - staying on landing page');
+      return;
+    }
+    
     if (accessToken && type === 'signup') {
       // User clicked email confirmation link
       console.log('Email confirmed! Redirecting to app...');
