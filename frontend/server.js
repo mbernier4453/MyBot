@@ -29,7 +29,7 @@ const wsManager = new WebSocketManager(io);
 wsManager.init();
 
 // Maintenance mode middleware - PLACE THIS FIRST
-const MAINTENANCE_MODE = false; // Set to false to disable
+const MAINTENANCE_MODE = true; // Set to false to disable
 const BYPASS_KEY = 'alpha2025dev'; // Secret key to bypass maintenance
 
 app.use((req, res, next) => {
