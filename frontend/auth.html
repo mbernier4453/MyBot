@@ -532,20 +532,30 @@
 
     // Show auth modal functions - MUST be global for inline onclick
     window.showSignIn = function() {
+      console.log('[AUTH] showSignIn called');
       const modal = document.getElementById('authModal');
+      console.log('[AUTH] Modal element:', modal);
       if (modal) {
         modal.style.display = 'flex';
         document.getElementById('signInForm')?.classList.add('active');
         document.getElementById('signUpForm')?.classList.remove('active');
+        console.log('[AUTH] Modal shown');
+      } else {
+        console.error('[AUTH] Modal element not found!');
       }
     };
 
     window.showSignUp = function() {
+      console.log('[AUTH] showSignUp called');
       const modal = document.getElementById('authModal');
+      console.log('[AUTH] Modal element:', modal);
       if (modal) {
         modal.style.display = 'flex';
         document.getElementById('signUpForm')?.classList.add('active');
         document.getElementById('signInForm')?.classList.remove('active');
+        console.log('[AUTH] Modal shown');
+      } else {
+        console.error('[AUTH] Modal element not found!');
       }
     };
 
