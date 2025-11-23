@@ -745,7 +745,7 @@ async function renderRSIHistory(ticker, tickerData) {
           let maxDate = null;
 
           rsiValues.forEach((rsiItem, idx) => {
-            const dataIdx = idx + 14; // RSI starts after 14 periods
+            const dataIdx = idx + rsiPeriod; // RSI starts after period (14, 21, etc.)
             if (dataIdx < windowData.length) {
               // Handle both RSI function formats
               const rsiValue = typeof rsiItem === 'number' ? rsiItem : (rsiItem ? rsiItem.rsi : null);
