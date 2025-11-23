@@ -530,18 +530,24 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    // Show auth modal functions
-    function showSignIn() {
-      document.getElementById('authModal').style.display = 'flex';
-      document.getElementById('signInForm').classList.add('active');
-      document.getElementById('signUpForm').classList.remove('active');
-    }
+    // Show auth modal functions - MUST be global for inline onclick
+    window.showSignIn = function() {
+      const modal = document.getElementById('authModal');
+      if (modal) {
+        modal.style.display = 'flex';
+        document.getElementById('signInForm')?.classList.add('active');
+        document.getElementById('signUpForm')?.classList.remove('active');
+      }
+    };
 
-    function showSignUp() {
-      document.getElementById('authModal').style.display = 'flex';
-      document.getElementById('signUpForm').classList.add('active');
-      document.getElementById('signInForm').classList.remove('active');
-    }
+    window.showSignUp = function() {
+      const modal = document.getElementById('authModal');
+      if (modal) {
+        modal.style.display = 'flex';
+        document.getElementById('signUpForm')?.classList.add('active');
+        document.getElementById('signInForm')?.classList.remove('active');
+      }
+    };
 
     // Close modal when clicking outside
     document.getElementById('authModal')?.addEventListener('click', (e) => {
