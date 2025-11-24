@@ -720,62 +720,69 @@ async function renderRSIHistory(ticker, tickerData) {
 
   tbody.innerHTML = '';
 
+  // Get selected RSI period ONCE outside loop
+  const rsiPeriodSelect = document.getElementById('rsiPeriod');
+  const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
+  
+  // Calculate RSI on ALL data once
+  const allCloses = tickerData.data.map(bar => bar.close || bar.c);
+  const allRsiValues = calculateRSI(allCloses, rsiPeriod);
+  
+  if (!allRsiValues || allRsiValues.length === 0) {
+    tbody.innerHTML = '<tr class="empty-state-row"><td colspan="5">No RSI data available</td></tr>';
+    return;
+  }
+
   for (const window of windows) {
     try {
-      // Calculate the date range
+      // Calculate the date range for filtering
       const toDate = new Date();
       const fromDate = new Date();
       fromDate.setDate(fromDate.getDate() - window.days);
 
-      // Filter data for this window
-      const windowData = tickerData.data.filter(bar => {
+      // Find min and max RSI within this time window
+      let minRSI = Infinity;
+      let maxRSI = -Infinity;
+      let minDate = null;
+      let maxDate = null;
+
+      // Iterate through ALL data and check dates
+      tickerData.data.forEach((bar, dataIdx) => {
         const barDate = new Date(bar.timestamp || bar.t);
-        return barDate >= fromDate && barDate <= toDate;
-      });
-
-      // Get selected RSI period
-      const rsiPeriodSelect = document.getElementById('rsiPeriod');
-      const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
-      
-      if (windowData.length > rsiPeriod) {
-        const closes = windowData.map(bar => bar.close || bar.c);
-        const rsiValues = calculateRSI(closes, rsiPeriod);
-
-        if (rsiValues && rsiValues.length > 0) {
-          // Find min and max RSI
-          let minRSI = Infinity;
-          let maxRSI = -Infinity;
-          let minDate = null;
-          let maxDate = null;
-
-          rsiValues.forEach((rsiItem, idx) => {
-            const dataIdx = idx + rsiPeriod; // RSI starts after period (14, 21, etc.)
-            if (dataIdx < windowData.length) {
-              // Handle both RSI function formats
-              const rsiValue = typeof rsiItem === 'number' ? rsiItem : (rsiItem ? rsiItem.rsi : null);
-              if (rsiValue !== null && rsiValue !== undefined) {
-                if (rsiValue < minRSI) {
-                  minRSI = rsiValue;
-                  minDate = new Date(windowData[dataIdx].timestamp || windowData[dataIdx].t);
-                }
-                if (rsiValue > maxRSI) {
-                  maxRSI = rsiValue;
-                  maxDate = new Date(windowData[dataIdx].timestamp || windowData[dataIdx].t);
-                }
-              }
+        
+        // Skip if outside window
+        if (barDate < fromDate || barDate > toDate) return;
+        
+        // RSI index is dataIdx - rsiPeriod (RSI starts after rsiPeriod bars)
+        const rsiIdx = dataIdx - rsiPeriod;
+        if (rsiIdx >= 0 && rsiIdx < allRsiValues.length) {
+          const rsiItem = allRsiValues[rsiIdx];
+          const rsiValue = typeof rsiItem === 'number' ? rsiItem : (rsiItem ? rsiItem.rsi : null);
+          
+          if (rsiValue !== null && rsiValue !== undefined && !isNaN(rsiValue)) {
+            if (rsiValue < minRSI) {
+              minRSI = rsiValue;
+              minDate = new Date(bar.timestamp || bar.t);
             }
-          });
-
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${window.name}</td>
-            <td class="synergy-rsi-low">${minRSI.toFixed(2)}</td>
-            <td class="history-date">${minDate ? minDate.toLocaleDateString() : '-'}</td>
-            <td class="synergy-rsi-high">${maxRSI.toFixed(2)}</td>
-            <td class="history-date">${maxDate ? maxDate.toLocaleDateString() : '-'}</td>
-          `;
-          tbody.appendChild(row);
+            if (rsiValue > maxRSI) {
+              maxRSI = rsiValue;
+              maxDate = new Date(bar.timestamp || bar.t);
+            }
+          }
         }
+      });
+      
+      // Only add row if we found valid RSI values
+      if (minRSI !== Infinity && maxRSI !== -Infinity) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${window.name}</td>
+          <td class="synergy-rsi-low">${minRSI.toFixed(2)}</td>
+          <td class="history-date">${minDate ? minDate.toLocaleDateString() : '-'}</td>
+          <td class="synergy-rsi-high">${maxRSI.toFixed(2)}</td>
+          <td class="history-date">${maxDate ? maxDate.toLocaleDateString() : '-'}</td>
+        `;
+        tbody.appendChild(row);
       }
     } catch (error) {
       console.error(`Error calculating RSI for ${window.name}:`, error);
