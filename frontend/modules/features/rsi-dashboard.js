@@ -98,10 +98,14 @@ async function fetchRSIMarketData(ticker, timeframe, interval) {
     } else if (window.POLYGON_API_KEY || window.api?.POLYGON_API_KEY) {
       // Browser mode - use REST API directly
       const apiKey = window.POLYGON_API_KEY || window.api.POLYGON_API_KEY;
-      const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
+      const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${dateRange.from}/${dateRange.to}?adjusted=true&sort=asc&limit=50000&apiKey=${apiKey}`;
+      
+      console.log(`[RSI] Fetching ${ticker} from ${dateRange.from} to ${dateRange.to} (requesting ${timespan} bars)`);
       
       const response = await fetch(url);
       const data = await response.json();
+      
+      console.log(`[RSI] Polygon returned ${data.results?.length || 0} bars for ${ticker}`);
       
       if (data.status === 'OK' && data.results && data.results.length > 0) {
         // Convert Polygon format to internal format
