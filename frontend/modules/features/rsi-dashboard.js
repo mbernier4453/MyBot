@@ -429,8 +429,8 @@ async function loadRSIWatchlistData(watchlistName) {
   // Fetch daily RSI for each ticker
   const promises = watchlist.tickers.map(async (ticker) => {
     try {
-      // Get 1 year of daily data for RSI calculation
-      const data = await fetchRSIMarketData(ticker, '1Y', 'day');
+      // Get 5 years of daily data for RSI calculation (to support history table)
+      const data = await fetchRSIMarketData(ticker, '5Y', 'day');
       
       if (data && data.length > rsiPeriod) {
         const closes = data.map(bar => bar.close || bar.c).filter(c => c !== null && c !== undefined && !isNaN(c));
@@ -728,6 +728,13 @@ async function renderRSIHistory(ticker, tickerData) {
         const barDate = new Date(bar.timestamp || bar.t);
         return barDate >= fromDate && barDate <= toDate;
       });
+
+      // Skip if we don't have enough data for this window (need at least 80% of requested days)
+      const expectedBars = Math.floor(window.days * 0.8); // Trading days ~252/year
+      if (windowData.length < expectedBars) {
+        console.log(`[RSI HISTORY] Skipping ${window.name} - insufficient data (${windowData.length} bars < ${expectedBars} expected)`);
+        continue;
+      }
 
       // Get selected RSI period
       const rsiPeriodSelect = document.getElementById('rsiPeriod');
