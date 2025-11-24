@@ -521,7 +521,7 @@ async function loadRSISingleTicker(ticker, group = 'None') {
   const rsiPeriod = parseInt(rsiPeriodSelect?.value || '14');
   
   try {
-    const data = await fetchRSIMarketData(ticker, '1Y', 'day');
+    const data = await fetchRSIMarketData(ticker, '5Y', 'day');
     console.log(`[RSI] Fetched data for ${ticker}:`, data ? `${data.length} bars` : 'null');
     
     if (data && data.length > rsiPeriod) {
