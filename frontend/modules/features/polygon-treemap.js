@@ -776,21 +776,39 @@ const PolygonTreemap = {
    */
   async getWatchlistData() {
     try {
-      // Load watchlists from localStorage (same as chart-tabs.js)
-      const stored = localStorage.getItem('watchlists');
+      // Load watchlists from Supabase first, fallback to localStorage
       let watchlists = [];
       
-      if (stored) {
+      if (window.supabase && window.getUserSettings) {
         try {
-          watchlists = JSON.parse(stored);
+          const { data: { user } } = await window.supabase.auth.getUser();
+          if (user) {
+            const settings = await window.getUserSettings();
+            if (settings && settings.watchlists) {
+              watchlists = settings.watchlists;
+              console.log('[TREEMAP] Loaded from Supabase:', watchlists.length, 'watchlists');
+            }
+          }
         } catch (error) {
-          console.error('Error parsing watchlists from localStorage:', error);
-          return [];
+          console.error('[TREEMAP] Error loading from Supabase:', error);
+        }
+      }
+      
+      // Fallback to localStorage if no Supabase data
+      if (watchlists.length === 0) {
+        const stored = localStorage.getItem('watchlists');
+        if (stored) {
+          try {
+            watchlists = JSON.parse(stored);
+            console.log('[TREEMAP] Loaded from localStorage:', watchlists.length, 'watchlists');
+          } catch (error) {
+            console.error('[TREEMAP] Error parsing localStorage watchlists:', error);
+          }
         }
       }
 
       if (!Array.isArray(watchlists) || watchlists.length === 0) {
-        console.log('[TREEMAP] No watchlists found in localStorage');
+        console.log('[TREEMAP] No watchlists found');
         return [];
       }
 
