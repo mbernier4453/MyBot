@@ -19,6 +19,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import io
 from typing import Optional, Union, List, Dict
+from backtester import split_detector, split_persistence
 
 # Configuration
 CACHE_DIR = Path(os.getenv('DATA_CACHE_DIR', './data_cache'))
@@ -267,7 +268,35 @@ def load_bars(
     result = result.sort_index()
     
     # Return only OHLCV columns (drop ticker, vwap, etc.)
-    return result[['Open', 'High', 'Low', 'Close', 'Volume']]
+    result = result[['Open', 'High', 'Low', 'Close', 'Volume']]
+    
+    # Apply split adjustments
+    return _get_adjusted_data(ticker, result)
+
+def _get_adjusted_data(ticker: str, df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Check for splits and adjust data if needed.
+    Uses lazy loading: checks cache first, then detects if missing.
+    """
+    if df.empty:
+        return df
+        
+    # 1. Check cache
+    splits = split_persistence.get_splits(ticker)
+    
+    # 2. Detect if missing (lazy load)
+    if splits is None:
+        # print(f"[SPLIT DETECT] Scanning {ticker} for splits...", file=sys.stderr)
+        splits = split_detector.detect_splits(df)
+        split_persistence.update_split_cache(ticker, splits)
+        if splits:
+            print(f"[SPLIT DETECT] Found {len(splits)} splits for {ticker}", file=sys.stderr)
+            
+    # 3. Apply adjustments
+    if splits:
+        return split_detector.apply_splits(df, splits)
+        
+    return df
 
 
 def load_multiple_tickers(
@@ -328,7 +357,10 @@ def load_multiple_tickers(
             combined = combined.set_index('date_et')
             combined.index.name = None
             combined = combined.sort_index()
-            formatted[ticker] = combined[['Open', 'High', 'Low', 'Close', 'Volume']]
+            combined = combined.sort_index()
+            # Apply splits to combined data
+            raw_df = combined[['Open', 'High', 'Low', 'Close', 'Volume']]
+            formatted[ticker] = _get_adjusted_data(ticker, raw_df)
         else:
             print(f"[WARNING] No data found for {ticker}", file=sys.stderr)
             formatted[ticker] = pd.DataFrame()

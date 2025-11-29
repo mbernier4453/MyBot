@@ -274,15 +274,24 @@ def generate_rsi_bollinger_signals(df, condition):
     
     return signals.fillna(False), rsi
 
-def run_simple_backtest(df, entry_signals, exit_signals, initial_capital, position_size_pct=100):
+def run_simple_backtest(df, entry_signals, exit_signals, initial_capital, position_size_pct=100, 
+                       take_profit_enabled=False, take_profit_type=None, take_profit_value=None,
+                       stop_loss_enabled=False, stop_loss_type=None, stop_loss_value=None):
     """
-    Simple backtest execution
-    Buy at close when entry signal, sell at close when exit signal
+    Simple backtest execution with take profit and stop loss
+    Buy at close when entry signal, sell at close when exit signal or TP/SL triggered
+    
+    Args:
+        take_profit_type: 'percent' or 'dollar'
+        take_profit_value: float (e.g., 10 for 10% or $10)
+        stop_loss_type: 'percent' or 'dollar'  
+        stop_loss_value: float (e.g., 5 for 5% or $5)
     """
     cash = initial_capital
     shares = 0
     equity_curve = []
     trades = []
+    entry_price_for_tp_sl = None  # Track entry price for TP/SL calculations
     
     # Debug: Log signal counts
     entry_count = entry_signals.sum()
@@ -290,6 +299,10 @@ def run_simple_backtest(df, entry_signals, exit_signals, initial_capital, positi
     print(f"[BACKTEST] Entry signals: {entry_count}, Exit signals: {exit_count}", file=sys.stderr)
     print(f"[BACKTEST] First 10 entry signal dates: {df.index[entry_signals].tolist()[:10]}", file=sys.stderr)
     print(f"[BACKTEST] First 10 exit signal dates: {df.index[exit_signals].tolist()[:10]}", file=sys.stderr)
+    if take_profit_enabled:
+        print(f"[BACKTEST] Take Profit enabled: {take_profit_type} {take_profit_value}", file=sys.stderr)
+    if stop_loss_enabled:
+        print(f"[BACKTEST] Stop Loss enabled: {stop_loss_type} {stop_loss_value}", file=sys.stderr)
     
     for i in range(len(df)):
         date = df.index[i]
@@ -300,24 +313,87 @@ def run_simple_backtest(df, entry_signals, exit_signals, initial_capital, positi
         else:
             close_price = float(close_price)
         
-        # Check exit first (if we have a position)
+        exit_reason = None  # Track why position closed
+        
+        # If we have a position, check TP/SL first (priority over exit signals)
+        if shares > 0 and entry_price_for_tp_sl is not None:
+            pnl_per_share = close_price - entry_price_for_tp_sl
+            position_pnl = pnl_per_share * shares
+            
+            # Check Take Profit
+            if take_profit_enabled and take_profit_value is not None:
+                tp_triggered = False
+                if take_profit_type == 'percent':
+                    # TP triggers if price increased by take_profit_value%
+                    pct_change = (pnl_per_share / entry_price_for_tp_sl) * 100
+                    if pct_change >= take_profit_value:
+                        tp_triggered = True
+                        exit_reason = f'TP_{take_profit_value}%'
+                elif take_profit_type == 'dollar':
+                    # TP triggers if total PnL >= take_profit_value dollars
+                    if position_pnl >= take_profit_value:
+                        tp_triggered = True
+                        exit_reason = f'TP_${take_profit_value}'
+                
+                if tp_triggered:
+                    # Exit position - take profit
+                    cash += shares * close_price
+                    if trades and 'entry_date' in trades[-1] and 'exit_date' not in trades[-1]:
+                        trades[-1]['exit_date'] = str(date)
+                        trades[-1]['exit_price'] = float(close_price)
+                        trades[-1]['pnl'] = float(position_pnl)
+                        trades[-1]['exit_reason'] = exit_reason
+                    shares = 0
+                    entry_price_for_tp_sl = None
+            
+            # Check Stop Loss (only if TP didn't trigger)
+            if shares > 0 and stop_loss_enabled and stop_loss_value is not None:
+                sl_triggered = False
+                if stop_loss_type == 'percent':
+                    # SL triggers if price decreased by stop_loss_value%
+                    pct_change = (pnl_per_share / entry_price_for_tp_sl) * 100
+                    if pct_change <= -stop_loss_value:
+                        sl_triggered = True
+                        exit_reason = f'SL_{stop_loss_value}%'
+                elif stop_loss_type == 'dollar':
+                    # SL triggers if total PnL <= -stop_loss_value dollars
+                    if position_pnl <= -stop_loss_value:
+                        sl_triggered = True
+                        exit_reason = f'SL_${stop_loss_value}'
+                
+                if sl_triggered:
+                    # Exit position - stop loss
+                    cash += shares * close_price
+                    if trades and 'entry_date' in trades[-1] and 'exit_date' not in trades[-1]:
+                        trades[-1]['exit_date'] = str(date)
+                        trades[-1]['exit_price'] = float(close_price)
+                        trades[-1]['pnl'] = float(position_pnl)
+                        trades[-1]['exit_reason'] = exit_reason
+                    shares = 0
+                    entry_price_for_tp_sl = None
+        
+        # Check regular exit signal (if still in position and TP/SL didn't trigger)
         if shares > 0 and exit_signals.iloc[i]:
             # Sell - UPDATE the last trade with exit info
             cash += shares * close_price
             if trades and 'entry_date' in trades[-1] and 'exit_date' not in trades[-1]:
+                position_pnl = shares * (close_price - entry_price_for_tp_sl) if entry_price_for_tp_sl else 0
                 trades[-1]['exit_date'] = str(date)
                 trades[-1]['exit_price'] = float(close_price)
-                trades[-1]['pnl'] = float(shares * close_price - (shares * trades[-1]['entry_price']))
+                trades[-1]['pnl'] = float(position_pnl)
+                trades[-1]['exit_reason'] = 'signal'
             shares = 0
+            entry_price_for_tp_sl = None
         
-        # Check entry (if we don't have a position)
-        elif shares == 0 and entry_signals.iloc[i]:
+        # Check entry (if we don't have a position) - NOTE: using 'if' not 'elif' to allow re-entry on same bar after TP/SL
+        if shares == 0 and entry_signals.iloc[i]:
             # Buy
             position_value = cash * (position_size_pct / 100.0)
             shares = int(position_value / close_price)
             if shares > 0:
                 cost = shares * close_price
                 cash -= cost
+                entry_price_for_tp_sl = close_price  # Store for TP/SL calculations
                 trades.append({
                     'entry_date': str(date),
                     'entry_price': float(close_price),
@@ -434,13 +510,28 @@ def run_single_backtest(df, entry_cond, exit_conds, initial_capital, buyhold_ena
         else:
             exit_signals, _ = generate_rsi_signals(df, exit_cond)
     
+    # Extract TP/SL parameters from config
+    take_profit_enabled = config.get('takeProfitEnabled', False)
+    take_profit_type = config.get('takeProfitType')  # 'percent' or 'dollar'
+    take_profit_value = config.get('takeProfitPercent') if take_profit_type == 'percent' else config.get('takeProfitValue')
+    
+    stop_loss_enabled = config.get('stopLossEnabled', False)
+    stop_loss_type = config.get('stopLossType')  # 'percent' or 'dollar'
+    stop_loss_value = config.get('stopLossPercent') if stop_loss_type == 'percent' else config.get('stopLossValue')
+    
     # Run backtest
     equity_curve, trades = run_simple_backtest(
         df, 
         entry_signals, 
         exit_signals, 
         initial_capital,
-        position_size_pct=100
+        position_size_pct=100,
+        take_profit_enabled=take_profit_enabled,
+        take_profit_type=take_profit_type,
+        take_profit_value=float(take_profit_value) if take_profit_value else None,
+        stop_loss_enabled=stop_loss_enabled,
+        stop_loss_type=stop_loss_type,
+        stop_loss_value=float(stop_loss_value) if stop_loss_value else None
     )
     
     # Convert equity curve to pandas Series for metrics calculation
