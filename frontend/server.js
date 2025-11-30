@@ -134,7 +134,10 @@ app.get('/reset-password', (req, res) => {
   res.sendFile(__dirname + '/reset-password.html');
 });
 
-// Route for learning center (maintenance check handled by middleware)
+// Route for learning center
+app.get('/learning', (req, res) => {
+  res.sendFile(__dirname + '/learning.html');
+});
 
 // Serve static files from the current directory with proper MIME types
 // This comes AFTER routes so index.html isn't auto-served on /
