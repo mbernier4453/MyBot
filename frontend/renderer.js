@@ -10,6 +10,14 @@ window.saveChartPresets = saveChartPresets;
 // Verify user is authenticated
 async function checkAuthentication() {
   try {
+    // Check for bypass key - if present, skip auth check
+    const urlParams = new URLSearchParams(window.location.search);
+    const bypass = urlParams.get('bypass');
+    if (bypass === 'alpha2025dev') {
+      console.log('Bypass key detected, skipping auth check');
+      return true;
+    }
+    
     const session = await getSession();
     if (!session) {
       console.log('No active session, redirecting to login...');
@@ -30,7 +38,10 @@ async function checkAuthentication() {
     return true;
   } catch (error) {
     console.error('Auth check failed:', error);
-    window.location.href = '/';
+    // Preserve bypass key when redirecting
+    const urlParams = new URLSearchParams(window.location.search);
+    const bypass = urlParams.get('bypass');
+    window.location.href = bypass ? `/?bypass=${bypass}` : '/';
     return false;
   }
 }
