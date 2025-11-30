@@ -98,20 +98,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, #0d1d0d 50%, var(--bg-primary) 100%);
   position: relative;
   overflow: hidden;
-}
-
-.hero-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at 50% 50%, rgba(0, 170, 85, 0.1) 0%, transparent 50%);
-  animation: pulse 8s ease-in-out infinite;
 }
 
 @keyframes pulse {
@@ -220,7 +208,6 @@
 .learning-hero {
   padding: 6rem 0 4rem 0;
   text-align: center;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, #0d1d0d 100%);
 }
 
 .product-details {
