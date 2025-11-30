@@ -88,7 +88,10 @@
   <!-- Import modules -->
   <script type="module">
     import { learning } from './modules/education/learning.js';
-    import './modules/education/background-animation.js';
+    import BackgroundAnimation from './modules/education/background-animation.js';
+    
+    // Initialize background animation
+    BackgroundAnimation.init('bg-canvas');
     
     // Get bypass key from URL
     const urlParams = new URLSearchParams(window.location.search);
