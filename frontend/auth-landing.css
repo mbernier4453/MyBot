@@ -148,7 +148,6 @@
 /* Features Section */
 .features-section {
   padding: 6rem 0;
-  background: var(--bg-secondary);
 }
 
 .section-title {
@@ -173,7 +172,8 @@
 }
 
 .feature-card {
-  background: var(--bg-tertiary);
+  background: rgba(15, 15, 15, 0.7);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 2rem;
@@ -264,7 +264,8 @@
 }
 
 .feature-visual {
-  background: var(--bg-tertiary);
+  background: rgba(15, 15, 15, 0.5);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   min-height: 300px;
@@ -292,7 +293,8 @@
 }
 
 .pricing-card {
-  background: var(--bg-tertiary);
+  background: rgba(15, 15, 15, 0.7);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 2.5rem;
@@ -381,7 +383,8 @@
 }
 
 .learning-card {
-  background: var(--bg-tertiary);
+  background: rgba(15, 15, 15, 0.7);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 2rem;
