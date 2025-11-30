@@ -1,0 +1,43 @@
+{
+  "articles": [
+    {
+      "id": "emerging-markets-2025",
+      "title": "Emerging Markets: Q4 2025 Analysis",
+      "author": {
+        "name": "αlpharhythm Research Team",
+        "verified": true,
+        "badge": "alpharhythm-analyst"
+      },
+      "date": "2025-11-15",
+      "tags": ["emerging-markets", "macro", "geopolitics"],
+      "contentFile": "emerging-markets-q4-2025.md",
+      "excerpt": "Deep dive into BRICS+ expansion and market opportunities in Southeast Asia, Latin America, and Africa. Key indicators suggest strong Q1 2026 performance."
+    },
+    {
+      "id": "ai-sector-analysis",
+      "title": "AI Sector: Beyond the Hype",
+      "author": {
+        "name": "αlpharhythm Research Team",
+        "verified": true,
+        "badge": "alpharhythm-analyst"
+      },
+      "date": "2025-11-20",
+      "tags": ["technology", "AI", "sector-analysis"],
+      "contentFile": "ai-sector-analysis.md",
+      "excerpt": "Analyzing valuation metrics, revenue growth, and competitive moats in the AI infrastructure and application layers. Which companies justify their premiums?"
+    },
+    {
+      "id": "fed-policy-outlook",
+      "title": "Federal Reserve Policy Outlook 2026",
+      "author": {
+        "name": "αlpharhythm Research Team",
+        "verified": true,
+        "badge": "alpharhythm-analyst"
+      },
+      "date": "2025-11-10",
+      "tags": ["macro", "federal-reserve", "interest-rates"],
+      "contentFile": "fed-policy-outlook.md",
+      "excerpt": "Comprehensive analysis of Fed dot plots, inflation trends, and employment data to forecast 2026 monetary policy trajectory and market implications."
+    }
+  ]
+}

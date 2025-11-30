@@ -54,32 +54,32 @@
         <h2 class="section-title">Everything You Need to Analyze Markets</h2>
         <div class="features-grid">
           <div class="feature-card">
-            <div class="feature-icon">📊</div>
+            <div class="feature-icon"></div>
             <h3>Live Market Data</h3>
             <p>Real-time S&P 500 treemaps with sector analysis and WebSocket-powered live updates</p>
           </div>
           <div class="feature-card">
-            <div class="feature-icon">📈</div>
+            <div class="feature-icon"></div>
             <h3>Advanced Charting</h3>
             <p>Multi-ticker overlays, technical indicators, regression analysis, and professional drawing tools</p>
           </div>
           <div class="feature-card">
-            <div class="feature-icon">💼</div>
+            <div class="feature-icon"></div>
             <h3>Fundamental Analysis</h3>
             <p>Complete financial statements, valuation ratios, and performance metrics across timeframes</p>
           </div>
           <div class="feature-card">
-            <div class="feature-icon">🤖</div>
+            <div class="feature-icon"></div>
             <h3>Algorithmic Backtesting</h3>
             <p>Test trading strategies with technical indicators, multi-ticker portfolios, and performance analytics</p>
           </div>
           <div class="feature-card">
-            <div class="feature-icon">🎯</div>
+            <div class="feature-icon"></div>
             <h3>Ticker Groups</h3>
             <p>Organize and analyze related securities with synchronized navigation across all tools</p>
           </div>
           <div class="feature-card">
-            <div class="feature-icon">📱</div>
+            <div class="feature-icon"></div>
             <h3>Watchlists</h3>
             <p>Custom ticker collections with instant access and multi-platform synchronization</p>
           </div>
@@ -111,7 +111,7 @@
             </ul>
           </div>
           <div class="feature-visual">
-            <div class="placeholder-visual">📊 Treemap Preview</div>
+            <div class="placeholder-visual">Treemap Preview</div>
           </div>
         </div>
 
@@ -127,7 +127,7 @@
             </ul>
           </div>
           <div class="feature-visual">
-            <div class="placeholder-visual">📈 Chart Preview</div>
+            <div class="placeholder-visual">Chart Preview</div>
           </div>
         </div>
 
@@ -143,7 +143,7 @@
             </ul>
           </div>
           <div class="feature-visual">
-            <div class="placeholder-visual">🤖 Backtest Preview</div>
+            <div class="placeholder-visual">Backtest Preview</div>
           </div>
         </div>
 
@@ -159,7 +159,7 @@
             </ul>
           </div>
           <div class="feature-visual">
-            <div class="placeholder-visual">💼 Financials Preview</div>
+            <div class="placeholder-visual">Financials Preview</div>
           </div>
         </div>
       </div>
@@ -247,7 +247,7 @@
       <div class="container">
         <div class="learning-categories">
           <div class="learning-card">
-            <h3>📚 Getting Started</h3>
+            <h3>Getting Started</h3>
             <ul>
               <li><a href="#">Platform Overview</a></li>
               <li><a href="#">Creating Your First Watchlist</a></li>
@@ -257,7 +257,7 @@
           </div>
 
           <div class="learning-card">
-            <h3>📊 Charting & Analysis</h3>
+            <h3>Charting & Analysis</h3>
             <ul>
               <li><a href="#">Technical Indicators Guide</a></li>
               <li><a href="#">Multi-Ticker Overlays</a></li>
@@ -267,7 +267,7 @@
           </div>
 
           <div class="learning-card">
-            <h3>🤖 Backtesting</h3>
+            <h3>Backtesting</h3>
             <ul>
               <li><a href="#">Building Your First Strategy</a></li>
               <li><a href="#">Understanding Entry/Exit Conditions</a></li>
@@ -277,7 +277,7 @@
           </div>
 
           <div class="learning-card">
-            <h3>💼 Fundamental Analysis</h3>
+            <h3>Fundamental Analysis</h3>
             <ul>
               <li><a href="#">Reading Financial Statements</a></li>
               <li><a href="#">Key Financial Ratios</a></li>
@@ -287,7 +287,7 @@
           </div>
 
           <div class="learning-card">
-            <h3>🎓 Advanced Topics</h3>
+            <h3>Advanced Topics</h3>
             <ul>
               <li><a href="#">Risk Management Strategies</a></li>
               <li><a href="#">Statistical Analysis Methods</a></li>
@@ -297,7 +297,7 @@
           </div>
 
           <div class="learning-card">
-            <h3>❓ FAQ & Support</h3>
+            <h3>FAQ & Support</h3>
             <ul>
               <li><a href="#">Common Questions</a></li>
               <li><a href="#">Troubleshooting Guide</a></li>
@@ -520,6 +520,12 @@
     // Page navigation
     function showPage(pageId, event) {
       if (event) event.preventDefault();
+      
+      // Redirect to dedicated learning page
+      if (pageId === 'learning') {
+        window.location.href = '/learning';
+        return;
+      }
       
       // Hide all pages
       document.querySelectorAll('.page-section').forEach(page => {

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Learning Center - αlpharhythm</title>
+  <link rel="stylesheet" href="learning.css">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Interactive Background Canvas -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- Navigation -->
+  <nav class="learning-nav">
+    <div class="nav-container">
+      <h1 class="brand-logo"><a href="/">αlpharhythm</a></h1>
+      <div class="nav-links">
+        <a href="/app" class="nav-link">Dashboard</a>
+        <button class="btn-logout" onclick="handleSignOut()">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <div class="learning-container">
+    <!-- Left Sidebar: Course/Research Navigation -->
+    <aside class="learning-sidebar">
+      <div class="tab-switcher">
+        <button class="tab-btn active" data-tab="courses">Courses</button>
+        <button class="tab-btn" data-tab="research">Research</button>
+      </div>
+
+      <!-- Courses List -->
+      <div id="courses-tab" class="sidebar-content active">
+        <div id="course-list">
+          <div class="loading">Loading courses...</div>
+        </div>
+      </div>
+
+      <!-- Research Articles List -->
+      <div id="research-tab" class="sidebar-content">
+        <div class="research-filters">
+          <input type="text" placeholder="Search articles..." id="research-search">
+          <select id="research-tags">
+            <option value="">All Topics</option>
+          </select>
+        </div>
+        <div id="research-list">
+          <div class="loading">Loading research...</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content: Lesson/Article Display -->
+    <main class="learning-main">
+      <div id="content-display">
+        <!-- Welcome screen shown by default -->
+        <div class="welcome-screen">
+          <h1>Welcome to the Learning Center</h1>
+          <p>Master the fundamentals of trading and stay ahead with cutting-edge research.</p>
+          <div class="welcome-cards">
+            <div class="welcome-card">
+              <div class="card-icon">📊</div>
+              <h3>Structured Courses</h3>
+              <p>Learn fundamental analysis, technical indicators, and derivatives at your own pace.</p>
+            </div>
+            <div class="welcome-card">
+              <div class="card-icon">🔬</div>
+              <h3>Market Research</h3>
+              <p>Access curated analysis on emerging markets, sectors, and trading strategies.</p>
+            </div>
+            <div class="welcome-card">
+              <div class="card-icon">✅</div>
+              <h3>Track Progress</h3>
+              <p>Complete lessons and earn certificates as you advance through the curriculum.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Import Supabase client -->
+  <script type="module" src="supabase-client.js"></script>
+  
+  <!-- Import modules -->
+  <script type="module">
+    import { learning } from './modules/education/learning.js';
+    import './modules/education/background-animation.js';
+    
+    // Handle logout
+    window.handleSignOut = async function() {
+      const { supabase } = await import('./supabase-client.js');
+      await supabase.auth.signOut();
+      window.location.href = '/';
+    };
+
+    // Initialize learning module
+    learning.init();
+  </script>
+</body>
+</html>

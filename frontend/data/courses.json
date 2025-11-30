@@ -1,0 +1,168 @@
+{
+  "courses": [
+    {
+      "id": "fundamental-analysis",
+      "title": "Fundamental Analysis Mastery",
+      "description": "Learn to analyze company financials, valuation metrics, and growth potential to make informed investment decisions.",
+      "level": "beginner",
+      "duration": "8 hours",
+      "icon": "📊",
+      "modules": [
+        {
+          "id": "fa-module-1",
+          "title": "Financial Statements",
+          "lessons": [
+            {
+              "id": "fa-1-1",
+              "title": "The Balance Sheet",
+              "type": "markdown",
+              "contentFile": "fundamental/balance-sheet.md",
+              "duration": "15 min"
+            },
+            {
+              "id": "fa-1-2",
+              "title": "Income Statement Deep Dive",
+              "type": "markdown",
+              "contentFile": "fundamental/income-statement.md",
+              "duration": "20 min"
+            },
+            {
+              "id": "fa-1-3",
+              "title": "Cash Flow Statement",
+              "type": "markdown",
+              "contentFile": "fundamental/cash-flow.md",
+              "duration": "18 min"
+            }
+          ]
+        },
+        {
+          "id": "fa-module-2",
+          "title": "Valuation Metrics",
+          "lessons": [
+            {
+              "id": "fa-2-1",
+              "title": "Price-to-Earnings Ratio (P/E)",
+              "type": "markdown",
+              "contentFile": "fundamental/pe-ratio.md",
+              "duration": "12 min"
+            },
+            {
+              "id": "fa-2-2",
+              "title": "Price-to-Book and PEG Ratios",
+              "type": "markdown",
+              "contentFile": "fundamental/pb-peg-ratios.md",
+              "duration": "15 min"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "technical-analysis",
+      "title": "Technical Analysis",
+      "description": "Master chart patterns, indicators, and price action analysis to identify trading opportunities and market trends.",
+      "level": "beginner",
+      "duration": "6 hours",
+      "icon": "📈",
+      "modules": [
+        {
+          "id": "ta-module-1",
+          "title": "Candlestick Patterns",
+          "lessons": [
+            {
+              "id": "ta-1-1",
+              "title": "Reading Candlesticks",
+              "type": "markdown",
+              "contentFile": "technical/candlesticks.md",
+              "duration": "12 min"
+            },
+            {
+              "id": "ta-1-2",
+              "title": "Reversal Patterns",
+              "type": "markdown",
+              "contentFile": "technical/reversal-patterns.md",
+              "duration": "15 min"
+            }
+          ]
+        },
+        {
+          "id": "ta-module-2",
+          "title": "Technical Indicators",
+          "lessons": [
+            {
+              "id": "ta-2-1",
+              "title": "Moving Averages",
+              "type": "markdown",
+              "contentFile": "technical/moving-averages.md",
+              "duration": "10 min"
+            },
+            {
+              "id": "ta-2-2",
+              "title": "RSI and MACD",
+              "type": "markdown",
+              "contentFile": "technical/rsi-macd.md",
+              "duration": "18 min"
+            },
+            {
+              "id": "ta-2-3",
+              "title": "Bollinger Bands",
+              "type": "markdown",
+              "contentFile": "technical/bollinger-bands.md",
+              "duration": "12 min"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "derivatives",
+      "title": "Derivatives Basics",
+      "description": "Introduction to options, futures, and hedging strategies for advanced portfolio management and risk mitigation.",
+      "level": "intermediate",
+      "duration": "5 hours",
+      "icon": "📉",
+      "modules": [
+        {
+          "id": "deriv-module-1",
+          "title": "Options Fundamentals",
+          "lessons": [
+            {
+              "id": "deriv-1-1",
+              "title": "What Are Options?",
+              "type": "markdown",
+              "contentFile": "derivatives/options-basics.md",
+              "duration": "18 min"
+            },
+            {
+              "id": "deriv-1-2",
+              "title": "Calls vs Puts",
+              "type": "markdown",
+              "contentFile": "derivatives/calls-vs-puts.md",
+              "duration": "15 min"
+            }
+          ]
+        },
+        {
+          "id": "deriv-module-2",
+          "title": "Futures Contracts",
+          "lessons": [
+            {
+              "id": "deriv-2-1",
+              "title": "Introduction to Futures",
+              "type": "markdown",
+              "contentFile": "derivatives/futures-intro.md",
+              "duration": "16 min"
+            },
+            {
+              "id": "deriv-2-2",
+              "title": "Hedging with Futures",
+              "type": "markdown",
+              "contentFile": "derivatives/hedging-futures.md",
+              "duration": "20 min"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
