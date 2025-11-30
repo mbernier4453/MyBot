@@ -12,13 +12,6 @@ let currentLesson = null;
 let userProgress = {}; // { courseId: { completedLessons: [] } }
 
 async function init() {
-  // Check authentication
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    window.location.href = '/?redirect=learning';
-    return;
-  }
-
   // Load courses and progress
   try {
     courses = (await loadCourses()).courses;
