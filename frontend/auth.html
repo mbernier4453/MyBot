@@ -523,7 +523,10 @@
       
       // Redirect to dedicated learning page
       if (pageId === 'learning') {
-        window.location.href = '/learning';
+        // Preserve bypass key if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const bypass = urlParams.get('bypass');
+        window.location.href = bypass ? `/learning?bypass=${bypass}` : '/learning';
         return;
       }
       

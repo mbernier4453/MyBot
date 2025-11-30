@@ -14,9 +14,9 @@
   <!-- Navigation -->
   <nav class="learning-nav">
     <div class="nav-container">
-      <h1 class="brand-logo"><a href="/">αlpharhythm</a></h1>
+      <h1 class="brand-logo"><a href="#" onclick="goHome()">αlpharhythm</a></h1>
       <div class="nav-links">
-        <a href="/app" class="nav-link">Dashboard</a>
+        <a href="#" onclick="goToDashboard()" class="nav-link">Dashboard</a>
         <button class="btn-logout" onclick="handleSignOut()">Logout</button>
       </div>
     </div>
@@ -89,11 +89,26 @@
     import { learning } from './modules/education/learning.js';
     import './modules/education/background-animation.js';
     
+    // Get bypass key from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const bypass = urlParams.get('bypass');
+    const bypassParam = bypass ? `?bypass=${bypass}` : '';
+
     // Handle logout
     window.handleSignOut = async function() {
       const { supabase } = await import('./supabase-client.js');
       await supabase.auth.signOut();
-      window.location.href = '/';
+      window.location.href = `/${bypassParam}`;
+    };
+
+    // Navigate to home
+    window.goHome = function() {
+      window.location.href = `/${bypassParam}`;
+    };
+
+    // Navigate to dashboard
+    window.goToDashboard = function() {
+      window.location.href = `/app${bypassParam}`;
     };
 
     // Initialize learning module
