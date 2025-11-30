@@ -144,11 +144,7 @@ class InteractiveBackground {
   }
 }
 
-// Initialize on DOM load
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    new InteractiveBackground('bg-canvas');
-  });
-} else {
-  new InteractiveBackground('bg-canvas');
-}
+// Export for manual initialization
+export default {
+  init: (canvasId) => new InteractiveBackground(canvasId)
+};
