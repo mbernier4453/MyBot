@@ -35,12 +35,13 @@ const BYPASS_KEY = 'alpha2025dev'; // Secret key to bypass maintenance
 app.use((req, res, next) => {
   console.log(`[MAINTENANCE CHECK] ${req.method} ${req.path} - Mode: ${MAINTENANCE_MODE}`);
   
-  // Skip for static assets, API, WebSocket, learning page and its resources
+  // Skip for static assets, API, WebSocket, app, learning page and its resources
   if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|csv|json|md)$/) ||
       req.path.startsWith('/api/') ||
       req.path.startsWith('/socket.io/') ||
+      req.path === '/app' ||
       req.path === '/learning' ||
-      req.path.startsWith('/modules/education/') ||
+      req.path.startsWith('/modules/') ||
       req.path.startsWith('/data/')) {
     return next();
   }
