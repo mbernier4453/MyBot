@@ -6,7 +6,7 @@
       "description": "Learn to analyze company financials, valuation metrics, and growth potential to make informed investment decisions.",
       "level": "beginner",
       "duration": "8 hours",
-      "icon": "📊",
+      "icon": "<i class='fas fa-chart-line'></i>",
       "modules": [
         {
           "id": "fa-module-1",
@@ -63,7 +63,7 @@
       "description": "Master chart patterns, indicators, and price action analysis to identify trading opportunities and market trends.",
       "level": "beginner",
       "duration": "6 hours",
-      "icon": "📈",
+      "icon": "<i class='fas fa-chart-area'></i>",
       "modules": [
         {
           "id": "ta-module-1",
@@ -120,7 +120,7 @@
       "description": "Introduction to options, futures, and hedging strategies for advanced portfolio management and risk mitigation.",
       "level": "intermediate",
       "duration": "5 hours",
-      "icon": "📉",
+      "icon": "<i class='fas fa-exchange-alt'></i>",
       "modules": [
         {
           "id": "deriv-module-1",

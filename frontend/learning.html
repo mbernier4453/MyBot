@@ -6,6 +6,7 @@
   <title>Learning Center - αlpharhythm</title>
   <link rel="stylesheet" href="learning.css">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
   <!-- Interactive Background Canvas -->
@@ -17,7 +18,7 @@
       <h1 class="brand-logo"><a href="#" onclick="goHome()">αlpharhythm</a></h1>
       <div class="nav-links">
         <a href="#" onclick="goToDashboard()" class="nav-link">Dashboard</a>
-        <button class="btn-logout" onclick="handleSignOut()">Logout</button>
+        <button class="btn-logout" id="logoutBtn" style="display: none;" onclick="handleSignOut()">Logout</button>
       </div>
     </div>
   </nav>
@@ -61,17 +62,17 @@
           <p>Master the fundamentals of trading and stay ahead with cutting-edge research.</p>
           <div class="welcome-cards">
             <div class="welcome-card">
-              <div class="card-icon">📊</div>
+              <div class="card-icon"><i class="fas fa-graduation-cap"></i></div>
               <h3>Structured Courses</h3>
               <p>Learn fundamental analysis, technical indicators, and derivatives at your own pace.</p>
             </div>
             <div class="welcome-card">
-              <div class="card-icon">🔬</div>
+              <div class="card-icon"><i class="fas fa-flask"></i></div>
               <h3>Market Research</h3>
               <p>Access curated analysis on emerging markets, sectors, and trading strategies.</p>
             </div>
             <div class="welcome-card">
-              <div class="card-icon">✅</div>
+              <div class="card-icon"><i class="fas fa-trophy"></i></div>
               <h3>Track Progress</h3>
               <p>Complete lessons and earn certificates as you advance through the curriculum.</p>
             </div>
@@ -110,6 +111,15 @@
     window.goToDashboard = function() {
       window.location.href = `/app${bypassParam}`;
     };
+
+    // Check if user is logged in and show/hide logout button
+    (async function() {
+      const { supabase } = await import('./supabase-client.js');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        document.getElementById('logoutBtn').style.display = 'block';
+      }
+    })();
 
     // Initialize learning module
     learning.init();
